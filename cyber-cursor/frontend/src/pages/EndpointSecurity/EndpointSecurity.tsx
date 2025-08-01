@@ -11,7 +11,7 @@ import {
   FileText,
   Search,
   Play,
-  Stop,
+  Square,
   Settings,
   BarChart3,
   Clock,

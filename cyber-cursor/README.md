@@ -1,270 +1,238 @@
-# CyberShield - Comprehensive Cybersecurity Platform
+# 🛡️ CyberShield - Comprehensive Cybersecurity Platform
 
-A modern, full-stack cybersecurity platform built with Python FastAPI backend, React frontend, and PostgreSQL database, designed for threat detection, incident response, and security management.
-
-## 🏗️ Architecture
-
-### Backend (Python FastAPI)
-- **Framework**: FastAPI with async support
-- **Database**: PostgreSQL (production) / SQLite (development)
-- **Cache**: Redis
-- **Authentication**: JWT with MFA support
-- **API Documentation**: Auto-generated Swagger UI
-
-### Frontend (React)
-- **Framework**: React 18 with TypeScript
-- **Styling**: Tailwind CSS
-- **State Management**: React Query
-- **UI Components**: Headless UI, Heroicons
-- **Charts**: Chart.js with React Chart.js 2
-
-### Database (PostgreSQL)
-- **Primary Database**: PostgreSQL 15
-- **Extensions**: UUID, PGCrypto, Trigram
-- **Schemas**: Public, Audit, Analytics
-- **Connection Pooling**: SQLAlchemy async
+A modern, containerized cybersecurity platform built with React, FastAPI, PostgreSQL, and Redis.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Node.js 16+
-- PostgreSQL (optional for development)
-- Docker & Docker Compose (for containerized deployment)
+- Docker and Docker Compose
+- Chrome browser (recommended)
 
-### Local Development
+### Running the Application
 
-1. **Clone the repository**
+1. **Start all services:**
    ```bash
-   git clone <repository-url>
-   cd cyber-cursor
+   docker-compose up -d
    ```
 
-2. **Set up environment variables**
+2. **Access the application:**
+   - **Frontend:** http://localhost:3000
+   - **Backend API:** http://localhost:8000
+   - **API Documentation:** http://localhost:8000/docs
+
+3. **Check service status:**
    ```bash
-   copy env.example .env
-   # Edit .env file with your configuration
+   docker-compose ps
    ```
 
-3. **Install dependencies**
-   ```bash
-   # Backend dependencies
-   cd backend
-   pip install -r requirements.txt
-   
-   # Frontend dependencies
-   cd ../frontend
-   npm install
-   ```
+## 🔐 Demo Accounts
 
-4. **Start the application**
-   ```bash
-   # Start backend (in one terminal)
-   cd backend
-   set USE_SQLITE=true  # For local development
-   python main.py
-   
-   # Start frontend (in another terminal)
-   cd frontend
-   npm start
-   ```
+The application includes pre-configured demo accounts for testing:
 
-5. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
+| Role | Email | Password | Permissions |
+|------|-------|----------|-------------|
+| **Admin** | `admin@cybershield.com` | `password` | Full access to all features |
+| **Analyst** | `analyst@cybershield.com` | `password` | Read all, write incidents |
+| **User** | `user@cybershield.com` | `password` | Read/write own data |
 
-### Containerized Deployment
+## 🏗️ Architecture
 
-1. **Build and start all services**
-   ```bash
-   docker-compose up --build
-   ```
+### Frontend (React)
+- **Port:** 3000
+- **Features:**
+  - Modern React with TypeScript
+  - Enhanced UI components
+  - Responsive design with dark theme
+  - Real-time dashboard updates
 
-2. **Start with production profile (includes Nginx, Celery)**
-   ```bash
-   docker-compose --profile production up --build
-   ```
+### Backend (FastAPI)
+- **Port:** 8000
+- **Features:**
+  - RESTful API with automatic documentation
+  - Mock authentication system
+  - Structured logging
+  - CORS support
 
-3. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
-   - Nginx (production): http://localhost:80
+### Database (PostgreSQL)
+- **Port:** 5432
+- **Features:**
+  - Persistent data storage
+  - Initialized with security schemas
+  - Health monitoring
 
-## 📁 Project Structure
+### Cache (Redis)
+- **Port:** 6379
+- **Features:**
+  - Session storage
+  - Background task queue
+  - Performance optimization
 
+## 📊 Available Features
+
+### 1. **Dashboard**
+- Security metrics overview
+- Real-time threat monitoring
+- Incident tracking
+- Performance analytics
+
+### 2. **Threat Intelligence**
+- Threat indicator management
+- Campaign tracking
+- Hunting queries
+- Intelligence feeds
+
+### 3. **Data Protection**
+- Data classification
+- Privacy management
+- Compliance monitoring
+- Breach detection
+
+### 4. **Endpoint Security**
+- Device management
+- Antivirus scanning
+- EDR alerts
+- Application whitelisting
+
+### 5. **Cloud Security**
+- Cloud configuration monitoring
+- Security posture assessment
+- Compliance reporting
+- Risk management
+
+## 🔧 Development
+
+### Project Structure
 ```
 cyber-cursor/
-├── backend/                 # Python FastAPI backend
-│   ├── app/
-│   │   ├── api/v1/         # API endpoints
-│   │   ├── core/           # Core configuration
-│   │   ├── models/         # Database models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   └── services/       # Business logic services
-│   ├── main.py             # Application entry point
-│   ├── requirements.txt    # Python dependencies
-│   └── Dockerfile          # Backend container
-├── frontend/               # React frontend
+├── frontend/                 # React application
 │   ├── src/
-│   │   ├── components/     # React components
+│   │   ├── components/      # Reusable UI components
 │   │   ├── pages/          # Page components
 │   │   ├── contexts/       # React contexts
-│   │   └── services/       # API services
-│   ├── package.json        # Node.js dependencies
-│   └── Dockerfile          # Frontend container
-├── scripts/                # Database and utility scripts
-├── nginx/                  # Nginx configuration
+│   │   └── utils/          # Utility functions
+│   └── public/             # Static assets
+├── backend/                 # FastAPI application
+│   ├── app/
+│   │   ├── api/           # API routes
+│   │   ├── core/          # Core configuration
+│   │   ├── models/        # Database models
+│   │   └── schemas/       # Pydantic schemas
+│   └── main_simple.py     # Simplified entry point
+├── scripts/                # Database initialization
 ├── docker-compose.yml      # Container orchestration
-├── .env                    # Environment variables
 └── README.md              # This file
 ```
 
-## 🔧 Configuration
+### Making Changes
 
-### Environment Variables
+1. **Frontend changes:**
+   ```bash
+   docker-compose up frontend --build -d
+   ```
 
-Key environment variables for configuration:
+2. **Backend changes:**
+   ```bash
+   docker-compose up backend --build -d
+   ```
+
+3. **Database changes:**
+   ```bash
+   docker-compose down
+   docker volume rm cyber-cursor_postgres_data
+   docker-compose up -d
+   ```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Port conflicts:**
+   - Ensure ports 3000, 8000, 5432, and 6379 are available
+   - Stop other services using these ports
+
+2. **Docker issues:**
+   - Make sure Docker Desktop is running
+   - Check Docker logs: `docker-compose logs [service-name]`
+
+3. **Authentication errors:**
+   - Clear browser cache and local storage
+   - Use demo accounts with correct credentials
+
+4. **Build failures:**
+   - Clean Docker cache: `docker system prune -a`
+   - Rebuild containers: `docker-compose up --build -d`
+
+### Logs and Debugging
 
 ```bash
-# Database
-DATABASE_URL=postgresql+asyncpg://user:password@host:port/db
-USE_SQLITE=true  # For local development
+# View all logs
+docker-compose logs
 
-# Security
-SECRET_KEY=your-super-secret-key
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+# View specific service logs
+docker-compose logs frontend
+docker-compose logs backend
+docker-compose logs postgres
 
-# Redis
-REDIS_URL=redis://:password@host:port/db
-
-# CORS
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
-
-# Frontend
-REACT_APP_API_URL=http://localhost:8000
+# Follow logs in real-time
+docker-compose logs -f [service-name]
 ```
 
-### Database Configuration
+## 🔒 Security Notes
 
-The application supports both PostgreSQL and SQLite:
+⚠️ **Important:** This is a demo application with mock authentication. In production:
 
-- **Production**: PostgreSQL with connection pooling
-- **Development**: SQLite for easy local development
+- Implement proper JWT token validation
+- Use secure password hashing
+- Enable HTTPS
+- Configure proper CORS policies
+- Implement rate limiting
+- Add input validation and sanitization
 
-Database initialization is handled automatically when the application starts.
+## 📈 Performance
 
-## 🔐 Security Features
+### Optimization Tips
 
-- **Authentication**: JWT-based authentication with refresh tokens
-- **Authorization**: Role-based access control (Admin, Analyst, User)
-- **MFA**: Two-factor authentication support
-- **Rate Limiting**: API rate limiting with Redis
-- **CORS**: Configurable CORS policies
-- **Security Headers**: HSTS, CSP, XSS protection
-- **Input Validation**: Comprehensive input sanitization
-- **Audit Logging**: Complete audit trail
+1. **Development:**
+   - Use React DevTools for component profiling
+   - Monitor API response times
+   - Check database query performance
 
-## 📊 Features
-
-### Core Security Features
-- **Threat Detection**: AI-powered threat detection and analysis
-- **Incident Management**: Complete incident lifecycle management
-- **Vulnerability Management**: Asset and vulnerability tracking
-- **Compliance**: Regulatory compliance monitoring and reporting
-- **Security Analytics**: Real-time security metrics and dashboards
-
-### Advanced Features
-- **SOAR Integration**: Security orchestration and automated response
-- **Cloud Security**: Multi-cloud security monitoring
-- **Network Security**: Firewall, IDS/IPS, VPN management
-- **Endpoint Security**: EDR, antivirus, application whitelisting
-- **Data Protection**: Encryption, DLP, database monitoring
-
-## 🐳 Docker Services
-
-The containerized environment includes:
-
-- **postgres**: PostgreSQL database
-- **redis**: Redis cache and message broker
-- **backend**: FastAPI application
-- **frontend**: React application
-- **nginx**: Reverse proxy (production)
-- **celery-worker**: Background task processing
-- **celery-beat**: Scheduled task management
-
-## 🚀 Deployment
-
-### Production Deployment
-
-1. **Environment Setup**
-   ```bash
-   # Set production environment variables
-   export ENVIRONMENT=production
-   export DEBUG=false
-   ```
-
-2. **Database Migration**
-   ```bash
-   # Run database migrations
-   cd backend
-   alembic upgrade head
-   ```
-
-3. **Container Deployment**
-   ```bash
-   # Deploy with production profile
-   docker-compose --profile production up -d
-   ```
-
-### Scaling
-
-The application is designed for horizontal scaling:
-
-- **Backend**: Multiple FastAPI workers
-- **Database**: PostgreSQL with read replicas
-- **Cache**: Redis cluster
-- **Frontend**: CDN distribution
-
-## 🔍 Monitoring
-
-- **Health Checks**: Built-in health check endpoints
-- **Logging**: Structured logging with different levels
-- **Metrics**: Prometheus metrics integration
-- **Tracing**: Distributed tracing support
+2. **Production:**
+   - Enable gzip compression
+   - Use CDN for static assets
+   - Implement caching strategies
+   - Monitor resource usage
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests
+4. Test thoroughly
 5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is for educational and demonstration purposes.
 
-## 🆘 Support
+---
 
-For support and questions:
-- Create an issue in the repository
-- Check the API documentation at `/docs`
-- Review the security implementation guide
+## 🎯 Next Steps
 
-## 🔄 Updates
+The application is now fully functional with:
+- ✅ Containerized deployment
+- ✅ Mock authentication system
+- ✅ Modern React frontend
+- ✅ FastAPI backend
+- ✅ PostgreSQL database
+- ✅ Redis caching
+- ✅ Health monitoring
 
-To update the application:
+You can now:
+1. **Explore the dashboard** at http://localhost:3000
+2. **Test different user roles** using the demo accounts
+3. **View API documentation** at http://localhost:8000/docs
+4. **Customize features** by modifying the source code
+5. **Deploy to production** using the containerized setup
 
-```bash
-# Pull latest changes
-git pull origin main
-
-# Update dependencies
-cd backend && pip install -r requirements.txt
-cd ../frontend && npm install
-
-# Restart services
-docker-compose down && docker-compose up --build
-``` 
+Happy hacking! 🛡️ 

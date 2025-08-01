@@ -53,10 +53,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check if user is already authenticated on app load
   useEffect(() => {
+    console.log('AuthContext - useEffect triggered');
     const token = localStorage.getItem('access_token');
+    console.log('AuthContext - token found:', !!token);
     if (token) {
       fetchUserProfile();
     } else {
+      console.log('AuthContext - no token, setting loading to false');
       setLoading(false);
     }
   }, []);

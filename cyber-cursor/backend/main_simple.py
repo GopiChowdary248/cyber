@@ -92,14 +92,66 @@ mock_security_metrics = SecurityMetrics(
     security_score=94.2
 )
 
+# Mock authentication data
+mock_tokens = {
+    "admin@cybershield.com": "mock_admin_token_123",
+    "analyst@cybershield.com": "mock_analyst_token_456", 
+    "user@cybershield.com": "mock_user_token_789"
+}
+
 # Authentication function
 async def get_current_user(credentials = Depends(security)) -> Optional[User]:
     """Get current authenticated user - simplified version"""
     if not credentials:
         return None
     # In a real implementation, you would validate the JWT token
-    # For now, return the first user
+    # For now, return the first user as a mock
     return mock_users[0]
+
+# Authentication endpoints
+from fastapi import Form
+
+@app.post("/api/v1/auth/login")
+async def login(username: str = Form(...), password: str = Form(...)):
+    """Mock login endpoint"""
+    # Check if user exists in mock data
+    user = next((u for u in mock_users if u.email == username), None)
+    
+    if user and password == "password":  # Simple mock validation
+        token = mock_tokens.get(username, "mock_token")
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role
+        }
+    else:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.post("/api/v1/auth/register")
+async def register(user_data: dict):
+    """Mock registration endpoint"""
+    # In a real implementation, you would create a new user
+    return {"message": "User registered successfully"}
+
+@app.get("/api/v1/auth/me")
+async def get_current_user_profile(credentials = Depends(security)):
+    """Get current user profile"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Return the first user as mock data
+    return mock_users[0]
+
+@app.put("/api/v1/users/me")
+async def update_user_profile(user_data: dict, credentials = Depends(security)):
+    """Update user profile"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # In a real implementation, you would update the user
+    return {"message": "Profile updated successfully"}
 
 # Routes
 @app.get("/")
