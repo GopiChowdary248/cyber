@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EnhancedCard from '../../components/UI/EnhancedCard';
+import EnhancedButton from '../../components/UI/EnhancedButton';
+import EnhancedBadge from '../../components/UI/EnhancedBadge';
+import EnhancedTabs from '../../components/UI/EnhancedTabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

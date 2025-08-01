@@ -32,7 +32,7 @@ class IncidentBase(BaseModel):
     source: Optional[str] = None
     source_id: Optional[str] = None
     tags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    incident_metadata: Optional[Dict[str, Any]] = None
     ioc_data: Optional[Dict[str, Any]] = None
 
 class IncidentCreate(IncidentBase):
@@ -45,7 +45,7 @@ class IncidentUpdate(BaseModel):
     status: Optional[IncidentStatus] = None
     assigned_to: Optional[int] = None
     tags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    incident_metadata: Optional[Dict[str, Any]] = None
     ioc_data: Optional[Dict[str, Any]] = None
 
 class IncidentInDB(IncidentBase):
@@ -72,7 +72,7 @@ class IncidentResponseBase(BaseModel):
     description: str = Field(..., min_length=1)
     action_taken: Optional[str] = None
     outcome: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    response_metadata: Optional[Dict[str, Any]] = None
 
 class IncidentResponseCreate(IncidentResponseBase):
     incident_id: int
@@ -81,7 +81,7 @@ class IncidentResponseUpdate(BaseModel):
     description: Optional[str] = None
     action_taken: Optional[str] = None
     outcome: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    response_metadata: Optional[Dict[str, Any]] = None
 
 class IncidentResponseInDB(IncidentResponseBase):
     id: int

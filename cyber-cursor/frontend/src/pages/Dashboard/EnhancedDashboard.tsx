@@ -83,7 +83,7 @@ const mockData = {
         data: [85, 87, 89, 91, 93, 92, 94, 95, 93, 96, 94, 97],
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
+
         fill: true
       }
     ]
@@ -351,7 +351,7 @@ const EnhancedDashboard: React.FC = () => {
           variant="elevated"
         >
           <div className="h-64">
-            <Area data={mockData.securityTrends} options={chartOptions} />
+            <Line data={mockData.securityTrends} options={chartOptions} />
           </div>
         </EnhancedCard>
 

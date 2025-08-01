@@ -153,15 +153,13 @@ const EnhancedCloudSecurity: React.FC = () => {
           label: 'Security Threats',
           data: [12, 19, 15, 25, 22, 18, 24],
           borderColor: 'rgb(239, 68, 68)',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          tension: 0.4
+          backgroundColor: 'rgba(239, 68, 68, 0.1)'
         },
         {
           label: 'Resolved Issues',
           data: [8, 15, 12, 20, 18, 14, 19],
           borderColor: 'rgb(34, 197, 94)',
-          backgroundColor: 'rgba(34, 197, 94, 0.1)',
-          tension: 0.4
+          backgroundColor: 'rgba(34, 197, 94, 0.1)'
         }
       ]
     },

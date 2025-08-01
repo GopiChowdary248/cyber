@@ -17,7 +17,6 @@ import {
   GlobeAltIcon,
   BellIcon,
   CpuChipIcon,
-  DatabaseIcon,
   WifiIcon,
   CloudIcon,
   DocumentTextIcon,
@@ -111,7 +110,7 @@ const AdminDashboard: React.FC = () => {
         data: [35, 42, 38, 55, 48, 52, 45],
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
+
         fill: true
       },
       {
@@ -119,7 +118,7 @@ const AdminDashboard: React.FC = () => {
         data: [45, 52, 48, 65, 58, 62, 55],
         borderColor: 'rgb(168, 85, 247)',
         backgroundColor: 'rgba(168, 85, 247, 0.1)',
-        tension: 0.4,
+
         fill: true
       }
     ]
@@ -233,7 +232,7 @@ const AdminDashboard: React.FC = () => {
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-purple-500/20 rounded-lg">
-                <DatabaseIcon className="w-6 h-6 text-purple-400" />
+                <ServerIcon className="w-6 h-6 text-purple-400" />
               </div>
               <span className="text-sm text-gray-400">Memory</span>
             </div>

@@ -56,7 +56,7 @@ class Incident(Base):
     
     # Additional data
     tags = Column(JSON, nullable=True)  # JSON array of tags
-    metadata = Column(JSON, nullable=True)  # Additional incident data
+    incident_metadata = Column(JSON, nullable=True)  # Additional incident data
     ioc_data = Column(JSON, nullable=True)  # Indicators of Compromise
     
     # Relationships
@@ -132,7 +132,7 @@ class IncidentResponse(Base):
     # Response details
     action_taken = Column(Text, nullable=True)
     outcome = Column(String(100), nullable=True)  # success, failure, pending
-    metadata = Column(JSON, nullable=True)
+    response_metadata = Column(JSON, nullable=True)
     
     # Relationships
     incident = relationship("Incident", back_populates="responses")

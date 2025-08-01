@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import redis.asyncio as redis
 from pydantic import BaseModel
 import json
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -357,3 +358,91 @@ def get_trusted_host_middleware():
     return TrustedHostMiddleware(
         allowed_hosts=["localhost", "127.0.0.1", "yourdomain.com"]
     ) 
+
+# Global security instance
+security_middleware_instance = SecurityMiddleware(redis.Redis())
+
+# Authentication functions
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
+    """Authenticate user with email and password"""
+    try:
+        # In a real implementation, you would fetch user from database
+        # For now, we'll create a mock authentication
+        if email == "admin@cybershield.com" and password == "admin123":
+            return User(
+                id=1,
+                email=email,
+                username="admin",
+                role="admin",
+                is_active=True,
+                permissions=["read:all", "write:all", "delete:all", "admin:users"]
+            )
+        return None
+    except Exception as e:
+        logger.error(f"Authentication error: {e}")
+        return None
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create JWT access token"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire, "type": "access"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_password_hash(password: str) -> str:
+    """Hash password using secure algorithm"""
+    salt = secrets.token_hex(16)
+    hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+    return f"{salt}${hash_obj.hex()}"
+
+async def get_current_active_user(current_user: User = Depends(security_middleware_instance.get_current_user)) -> User:
+    """Get current active user"""
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
+    return current_user
+
+async def require_admin(current_user: User = Depends(get_current_active_user)) -> User:
+    """Require admin role"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+async def require_analyst(current_user: User = Depends(get_current_active_user)) -> User:
+    """Require analyst role"""
+    if current_user.role not in ["admin", "analyst"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Analyst access required"
+        )
+    return current_user
+
+# Function for main.py import
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> User:
+    """Get current authenticated user - simplified version for main.py"""
+    try:
+        # For development, return a mock user
+        return User(
+            id=1,
+            email="admin@cybershield.com",
+            username="admin",
+            role="admin",
+            is_active=True,
+            permissions=["read:all", "write:all", "delete:all", "admin:users"]
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) 

@@ -1,4 +1,5 @@
-from pydantic import BaseSettings, validator
+from pydantic_settings import BaseSettings
+from pydantic import validator
 from typing import List, Optional
 import os
 
@@ -106,14 +107,12 @@ class SecuritySettings(BaseSettings):
         if not v:
             raise ValueError('At least one allowed origin must be specified')
         return v
-    
-    class Config:
-        env_file = ".env"
 
 class DatabaseSettings(BaseSettings):
     """Database configuration settings"""
     
-    DATABASE_URL: str = "postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield"
+    # Use PostgreSQL in production, SQLite in development
+    DATABASE_URL: str = "postgresql+asyncpg://cybershield_user:cybershield_password@postgres:5432/cybershield"
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
@@ -125,20 +124,20 @@ class DatabaseSettings(BaseSettings):
     DB_SSL_KEY: Optional[str] = None
     DB_SSL_CA: Optional[str] = None
     
-    class Config:
-        env_file = ".env"
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Override with SQLite for local development if PostgreSQL is not available
+        if os.getenv("USE_SQLITE", "false").lower() == "true":
+            self.DATABASE_URL = "sqlite+aiosqlite:///./cybershield.db"
 
 class RedisSettings(BaseSettings):
     """Redis configuration settings"""
     
-    REDIS_URL: str = "redis://localhost:6379/0"
-    REDIS_PASSWORD: Optional[str] = None
+    REDIS_URL: str = "redis://:redis_password@redis:6379/0"
+    REDIS_PASSWORD: Optional[str] = "redis_password"
     REDIS_DB: int = 0
     REDIS_SSL: bool = False
     REDIS_MAX_CONNECTIONS: int = 20
-    
-    class Config:
-        env_file = ".env"
 
 class APISettings(BaseSettings):
     """API configuration settings"""
@@ -148,6 +147,11 @@ class APISettings(BaseSettings):
     VERSION: str = "1.0.0"
     DESCRIPTION: str = "Comprehensive cybersecurity platform API"
     
+    # Server Settings
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    DEBUG: bool = True
+    
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
@@ -155,9 +159,6 @@ class APISettings(BaseSettings):
     # Response Caching
     ENABLE_CACHING: bool = True
     CACHE_TTL: int = 300  # 5 minutes
-    
-    class Config:
-        env_file = ".env"
 
 class LoggingSettings(BaseSettings):
     """Logging configuration settings"""
@@ -171,9 +172,6 @@ class LoggingSettings(BaseSettings):
     # Security Logging
     SECURITY_LOG_LEVEL: str = "WARNING"
     SECURITY_LOG_FILE: Optional[str] = None
-    
-    class Config:
-        env_file = ".env"
 
 # Create settings instances
 security_settings = SecuritySettings()

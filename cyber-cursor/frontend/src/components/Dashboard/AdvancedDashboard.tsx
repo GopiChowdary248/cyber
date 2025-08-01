@@ -238,8 +238,7 @@ const AdvancedDashboard: React.FC = () => {
           data: trendData.map((item: any) => item.count),
           borderColor: 'rgb(239, 68, 68)',
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          fill: true,
-          tension: 0.4
+          fill: true
         }
       ]
     };
@@ -258,8 +257,7 @@ const AdvancedDashboard: React.FC = () => {
           data,
           borderColor: 'rgb(34, 197, 94)',
           backgroundColor: 'rgba(34, 197, 94, 0.1)',
-          fill: true,
-          tension: 0.4
+          fill: true
         }
       ]
     };

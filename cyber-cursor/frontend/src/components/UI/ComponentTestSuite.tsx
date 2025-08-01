@@ -68,7 +68,7 @@ const ComponentTestSuite: React.FC = () => {
           data: [12, 19, 3, 5, 2, 3],
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          tension: 0.4
+  
         }
       ]
     }
@@ -551,7 +551,7 @@ const ComponentTestSuite: React.FC = () => {
                 }
                 position="bottom"
               >
-                <EnhancedButton variant="info" icon={<ChartBarIcon className="w-4 h-4" />}>
+                <EnhancedButton variant="primary" icon={<ChartBarIcon className="w-4 h-4" />}>
                   Performance
                 </EnhancedButton>
               </EnhancedTooltip>

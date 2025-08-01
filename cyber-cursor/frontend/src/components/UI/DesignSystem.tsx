@@ -99,6 +99,19 @@ const colorSchemes = {
     text: '#1E293B',
     textSecondary: '#64748B',
     border: '#E2E8F0'
+  },
+  auto: {
+    primary: '#3B82F6',
+    secondary: '#6B7280',
+    success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    info: '#06B6D4',
+    background: '#0F172A',
+    surface: '#1E293B',
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    border: '#334155'
   }
 };
 

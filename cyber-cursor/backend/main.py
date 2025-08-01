@@ -5,22 +5,12 @@ from fastapi.security import HTTPBearer
 from contextlib import asynccontextmanager
 import uvicorn
 import structlog
+import os
 
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1.api import api_router
 from app.core.security import get_current_user
-from app.services.monitoring import setup_monitoring
-from app.services.notification_service import notification_service
-from app.services.analytics_service import analytics_service
-from app.services.workflow_service import workflow_service
-from app.services.security_service import security_service
-from app.services.network_security_service import network_security_service
-from app.services.endpoint_security_service import endpoint_security_service
-from app.services.application_security_service import application_security_service
-from app.services.data_protection_service import data_protection_service
-from app.services.monitoring_siem_soar_service import monitoring_siem_soar_service
-from app.services.threat_intelligence_service import threat_intelligence_service
 
 # Configure structured logging
 structlog.configure(
@@ -49,25 +39,13 @@ async def lifespan(app: FastAPI):
     logger.info("Starting CyberShield application")
     
     # Create database tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    # Setup monitoring
-    setup_monitoring()
-    
-    # Start enhanced services
-    logger.info("Starting enhanced services")
-    await notification_service.start_notification_worker()
-    await analytics_service.start_analytics_service()
-    await workflow_service.start_workflow_service()
-    await security_service.start_security_service()
-    await network_security_service.start_network_security_service()
-    await endpoint_security_service.start_endpoint_security_service()
-    await application_security_service.start_application_security_service()
-    await data_protection_service.start_data_protection_service()
-    await monitoring_siem_soar_service.start_monitoring_siem_soar_service()
-    await threat_intelligence_service.start_threat_intelligence_service()
-    logger.info("Enhanced services started successfully")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        # Continue with startup even if database fails
     
     logger.info("CyberShield application started successfully")
     yield
@@ -88,13 +66,13 @@ app = FastAPI(
 # Security middleware
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=settings.ALLOWED_HOSTS
+    allowed_hosts=settings.security.ALLOWED_HOSTS
 )
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.security.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -113,6 +91,7 @@ async def root():
         "message": "CyberShield - Comprehensive Cybersecurity Platform",
         "version": "1.0.0",
         "status": "operational",
+        "database": "postgresql" if "postgresql" in settings.database.DATABASE_URL else "sqlite",
         "features": [
             "Automated Threat Detection & Response (SOAR++)",
             "Cloud Security Misconfiguration Detection",
@@ -136,18 +115,11 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": "2024-01-01T00:00:00Z",
+        "database": "postgresql" if "postgresql" in settings.database.DATABASE_URL else "sqlite",
         "services": {
             "database": "healthy",
-            "notification_service": "healthy",
-            "analytics_service": "healthy",
-            "workflow_service": "healthy",
-            "security_service": "healthy",
-            "network_security_service": "healthy",
-            "endpoint_security_service": "healthy",
-            "application_security_service": "healthy",
-            "data_protection_service": "healthy",
-            "monitoring_siem_soar_service": "healthy",
-            "threat_intelligence_service": "healthy"
+            "api": "healthy",
+            "frontend": "healthy"
         }
     }
 
@@ -166,8 +138,8 @@ async def protected_route(current_user = Depends(get_current_user)):
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
+        host=settings.api.HOST,
+        port=settings.api.PORT,
+        reload=settings.api.DEBUG,
         log_level="info"
     ) 

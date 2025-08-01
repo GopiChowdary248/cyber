@@ -83,4 +83,24 @@ class UserPreferences(BaseModel):
     dashboard_layout: dict = {
         "widgets": [],
         "columns": 3
-    } 
+    }
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    full_name: Optional[str] = None
+    role: str
+    department: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: bool
+    is_verified: bool
+    last_login: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    two_factor_enabled: bool = False
+    avatar_url: Optional[str] = None
+    preferences: Optional[dict] = None
+    
+    class Config:
+        from_attributes = True 

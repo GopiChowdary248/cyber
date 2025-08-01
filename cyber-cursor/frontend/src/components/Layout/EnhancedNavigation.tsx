@@ -215,7 +215,7 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
 
         {/* Navigation Items */}
         <div className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {navigationItems.map(renderNavigationItem)}
+          {navigationItems.map((item) => renderNavigationItem(item))}
         </div>
 
         {/* Footer */}
@@ -299,7 +299,7 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
 
               {/* Navigation Items */}
               <div className="p-4 space-y-2">
-                {navigationItems.map(renderNavigationItem)}
+                {navigationItems.map((item) => renderNavigationItem(item))}
               </div>
 
               {/* User Actions */}

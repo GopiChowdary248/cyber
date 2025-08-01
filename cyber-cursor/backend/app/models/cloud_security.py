@@ -62,7 +62,7 @@ class CloudResource(Base):
     # Resource details
     configuration = Column(JSON, nullable=True)  # Current configuration
     tags = Column(JSON, nullable=True)  # Resource tags
-    metadata = Column(JSON, nullable=True)  # Additional metadata
+    cloud_metadata = Column(JSON, nullable=True)  # Additional metadata
     
     # Security assessment
     security_score = Column(Float, nullable=True)  # 0-100 security score

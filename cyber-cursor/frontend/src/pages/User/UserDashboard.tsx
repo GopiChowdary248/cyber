@@ -17,7 +17,6 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   CpuChipIcon,
-  DatabaseIcon,
   WifiIcon,
   CloudIcon,
   DocumentTextIcon,
@@ -28,7 +27,6 @@ import {
   FireIcon,
   BugAntIcon,
   ShieldExclamationIcon,
-  NetworkIcon,
   ComputerDesktopIcon,
   KeyIcon,
   DocumentMagnifyingGlassIcon
@@ -96,7 +94,6 @@ const UserDashboard: React.FC = () => {
         data: [45, 52, 38, 67, 42, 35, 28],
         borderColor: 'rgb(239, 68, 68)',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        tension: 0.4,
         fill: true
       },
       {
@@ -104,7 +101,6 @@ const UserDashboard: React.FC = () => {
         data: [42, 48, 35, 62, 38, 32, 25],
         borderColor: 'rgb(34, 197, 94)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        tension: 0.4,
         fill: true
       }
     ]
@@ -187,7 +183,7 @@ const UserDashboard: React.FC = () => {
       status: 'warning',
       lastScan: '30 minutes ago',
       description: 'Network traffic analysis and protection',
-      icon: <NetworkIcon className="w-6 h-6" />,
+      icon: <WifiIcon className="w-6 h-6" />,
       route: '/network-security'
     },
     {

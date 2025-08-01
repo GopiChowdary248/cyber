@@ -10,8 +10,8 @@ logger = structlog.get_logger()
 
 # Create async engine
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    settings.database.DATABASE_URL,
+    echo=settings.api.DEBUG,
     pool_pre_ping=True,
     pool_recycle=300,
 )
