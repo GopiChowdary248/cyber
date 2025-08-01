@@ -84,8 +84,7 @@ const DefaultRoute: React.FC = () => {
 // Main App Content - wrapped in AuthProvider
 const AppContent: React.FC = () => {
   return (
-    <Router>
-      <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Enhanced Navigation */}
         <EnhancedNavigation />
         
@@ -217,16 +216,17 @@ const AppContent: React.FC = () => {
           </AnimatePresence>
         </main>
       </div>
-    </Router>
   );
 };
 
 const App: React.FC = () => {
   return (
     <DesignSystemProvider theme="dark">
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <Router>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </Router>
     </DesignSystemProvider>
   );
 };
