@@ -1,0 +1,183 @@
+# Gitleaks configuration for Cyber Cursor project
+# This file configures secret detection patterns and rules
+
+[global]
+# Global settings
+verbose = true
+redact = true
+debug = false
+
+# Output formats
+format = "json"
+output = "gitleaks-report.json"
+
+# Scan settings
+depth = 0  # 0 = full history
+timeout = 300  # 5 minutes
+
+# Custom rules for Cyber Cursor specific patterns
+[[rules]]
+id = "cyber-cursor-api-key"
+description = "Cyber Cursor API Key"
+regex = '''(?i)(cyber[_-]?cursor[_-]?api[_-]?key|cyber[_-]?cursor[_-]?token)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{32,}['"]?'''
+tags = ["key", "cyber-cursor"]
+severity = "HIGH"
+
+[[rules]]
+id = "cyber-cursor-database-url"
+description = "Cyber Cursor Database URL"
+regex = '''(?i)(cyber[_-]?cursor[_-]?db[_-]?url|cyber[_-]?cursor[_-]?database[_-]?url)['"]?\s*[:=]\s*['"]?[a-zA-Z]+://[^\s'"]+['"]?'''
+tags = ["database", "cyber-cursor"]
+severity = "HIGH"
+
+[[rules]]
+id = "cyber-cursor-jwt-secret"
+description = "Cyber Cursor JWT Secret"
+regex = '''(?i)(cyber[_-]?cursor[_-]?jwt[_-]?secret|jwt[_-]?secret)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{32,}['"]?'''
+tags = ["jwt", "cyber-cursor"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "cyber-cursor-encryption-key"
+description = "Cyber Cursor Encryption Key"
+regex = '''(?i)(cyber[_-]?cursor[_-]?encryption[_-]?key|encryption[_-]?key)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{32,}['"]?'''
+tags = ["encryption", "cyber-cursor"]
+severity = "CRITICAL"
+
+# Standard secret patterns
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey|api[_-]?token)['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{32,}['"]?'''
+tags = ["key", "api"]
+severity = "HIGH"
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["key", "aws"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "aws-secret-key"
+description = "AWS Secret Key"
+regex = '''(?i)aws[_-]?secret[_-]?access[_-]?key['"]?\s*[:=]\s*['"]?[A-Za-z0-9/+=]{40}['"]?'''
+tags = ["key", "aws"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "database-password"
+description = "Database Password"
+regex = '''(?i)(db[_-]?password|database[_-]?password|db[_-]?pass)['"]?\s*[:=]\s*['"]?[^\s'"]{8,}['"]?'''
+tags = ["password", "database"]
+severity = "HIGH"
+
+[[rules]]
+id = "ssh-private-key"
+description = "SSH Private Key"
+regex = '''-----BEGIN[^-]+PRIVATE KEY-----'''
+tags = ["key", "ssh"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "ssl-certificate"
+description = "SSL Certificate"
+regex = '''-----BEGIN CERTIFICATE-----'''
+tags = ["certificate", "ssl"]
+severity = "MEDIUM"
+
+[[rules]]
+id = "email-password"
+description = "Email Password"
+regex = '''(?i)(email[_-]?password|smtp[_-]?password|mail[_-]?password)['"]?\s*[:=]\s*['"]?[^\s'"]{8,}['"]?'''
+tags = ["password", "email"]
+severity = "HIGH"
+
+[[rules]]
+id = "redis-password"
+description = "Redis Password"
+regex = '''(?i)(redis[_-]?password|redis[_-]?pass)['"]?\s*[:=]\s*['"]?[^\s'"]{8,}['"]?'''
+tags = ["password", "redis"]
+severity = "HIGH"
+
+[[rules]]
+id = "mongodb-connection-string"
+description = "MongoDB Connection String"
+regex = '''mongodb://[^\s'"]+:[^\s'"]+@[^\s'"]+'''
+tags = ["database", "mongodb"]
+severity = "HIGH"
+
+[[rules]]
+id = "postgresql-connection-string"
+description = "PostgreSQL Connection String"
+regex = '''postgresql://[^\s'"]+:[^\s'"]+@[^\s'"]+'''
+tags = ["database", "postgresql"]
+severity = "HIGH"
+
+[[rules]]
+id = "mysql-connection-string"
+description = "MySQL Connection String"
+regex = '''mysql://[^\s'"]+:[^\s'"]+@[^\s'"]+'''
+tags = ["database", "mysql"]
+severity = "HIGH"
+
+# Exclude patterns (false positives)
+[[rules]]
+id = "exclude-example-files"
+description = "Exclude example files"
+regex = '''example|sample|test|mock|fake'''
+tags = ["exclude"]
+severity = "LOW"
+
+# File exclusions
+[files]
+# Exclude certain file types
+exclude = [
+    "*.md",
+    "*.txt",
+    "*.log",
+    "*.pdf",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.svg",
+    "*.ico",
+    "*.woff",
+    "*.woff2",
+    "*.ttf",
+    "*.eot",
+    "*.min.js",
+    "*.min.css",
+    "node_modules/**",
+    "vendor/**",
+    ".git/**",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    "*.lock",
+    "package-lock.json",
+    "yarn.lock",
+    "poetry.lock",
+    "Pipfile.lock"
+]
+
+# Directory exclusions
+exclude_paths = [
+    "node_modules",
+    "vendor",
+    ".git",
+    "dist",
+    "build",
+    "coverage",
+    "uploads",
+    "logs",
+    "temp",
+    "tmp",
+    ".vscode",
+    ".idea",
+    "docs/examples",
+    "tests/mocks",
+    "scripts/examples"
+] 

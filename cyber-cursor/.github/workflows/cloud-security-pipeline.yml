@@ -1,0 +1,475 @@
+name: Cloud Security Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3 AM
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'Cloud Provider to scan'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - aws
+        - azure
+        - gcp
+      scan_type:
+        description: 'Type of security scan'
+        required: true
+        default: 'comprehensive'
+        type: choice
+        options:
+        - comprehensive
+        - cspm
+        - cwp
+        - casb
+        - ciem
+
+env:
+  # AWS Security Tools
+  AWS_SECURITY_HUB_VERSION: "1.0.0"
+  AWS_GUARDDUTY_VERSION: "1.0.0"
+  AWS_CLOUDTRAIL_VERSION: "1.0.0"
+  AWS_IAM_ACCESS_ANALYZER_VERSION: "1.0.0"
+  
+  # Azure Security Tools
+  AZURE_SECURITY_CENTER_VERSION: "1.0.0"
+  AZURE_SENTINEL_VERSION: "1.0.0"
+  AZURE_MONITOR_VERSION: "1.0.0"
+  AZURE_AD_PIM_VERSION: "1.0.0"
+  
+  # GCP Security Tools
+  GCP_SECURITY_COMMAND_CENTER_VERSION: "1.0.0"
+  GCP_CLOUD_ARMOR_VERSION: "1.0.0"
+  GCP_IAM_RECOMMENDER_VERSION: "1.0.0"
+  GCP_CLOUD_LOGGING_VERSION: "1.0.0"
+  
+  # Third-party Cloud Security Tools
+  PRISMA_CLOUD_VERSION: "2.0.0"
+  CLOUDCHECKR_VERSION: "1.0.0"
+  DOME9_VERSION: "1.0.0"
+  AQUA_SECURITY_VERSION: "1.0.0"
+  SYSDIG_VERSION: "1.0.0"
+  NETSKOPE_VERSION: "1.0.0"
+  BITGLASS_VERSION: "1.0.0"
+  SONRAI_SECURITY_VERSION: "1.0.0"
+  ERMETIC_VERSION: "1.0.0"
+
+jobs:
+  cloud-security-posture-management:
+    name: Cloud Security Posture Management (CSPM)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        provider: [aws, azure, gcp]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install CSPM tools
+        run: |
+          pip install boto3 azure-mgmt-security google-cloud-security
+          pip install prisma-cloud-client cloudcheckr-client dome9-client
+
+      - name: Configure AWS CSPM (AWS Security Hub)
+        if: matrix.provider == 'aws'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          python scripts/cloud_security/aws_security_hub.py --enable-findings
+          python scripts/cloud_security/aws_config_rules.py --create-rules
+
+      - name: Configure Azure CSPM (Security Center)
+        if: matrix.provider == 'azure'
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python scripts/cloud_security/azure_security_center.py --enable-monitoring
+          python scripts/cloud_security/azure_policy.py --assign-policies
+
+      - name: Configure GCP CSPM (Security Command Center)
+        if: matrix.provider == 'gcp'
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          python scripts/cloud_security/gcp_security_command_center.py --enable-scc
+          python scripts/cloud_security/gcp_asset_inventory.py --scan-assets
+
+      - name: Run Prisma Cloud CSPM
+        run: |
+          python scripts/cloud_security/prisma_cloud_cspm.py \
+            --provider ${{ matrix.provider }} \
+            --scan-type posture \
+            --output prisma-cspm-${{ matrix.provider }}.json
+
+      - name: Run CloudCheckr CSPM
+        run: |
+          python scripts/cloud_security/cloudcheckr_cspm.py \
+            --provider ${{ matrix.provider }} \
+            --scan-type compliance \
+            --output cloudcheckr-cspm-${{ matrix.provider }}.json
+
+      - name: Upload CSPM results
+        uses: actions/upload-artifact@v3
+        with:
+          name: cspm-results-${{ matrix.provider }}
+          path: |
+            prisma-cspm-${{ matrix.provider }}.json
+            cloudcheckr-cspm-${{ matrix.provider }}.json
+
+  cloud-workload-protection:
+    name: Cloud Workload Protection (CWP)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        provider: [aws, azure, gcp]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install CWP tools
+        run: |
+          pip install boto3 azure-mgmt-compute google-cloud-compute
+          pip install aqua-security-client sysdig-client
+
+      - name: Configure AWS CWP (GuardDuty)
+        if: matrix.provider == 'aws'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          python scripts/cloud_security/aws_guardduty.py --enable-detector
+          python scripts/cloud_security/aws_ec2_scan.py --scan-instances
+
+      - name: Configure Azure CWP (Sentinel)
+        if: matrix.provider == 'azure'
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python scripts/cloud_security/azure_sentinel.py --enable-workspace
+          python scripts/cloud_security/azure_vm_scan.py --scan-vms
+
+      - name: Configure GCP CWP (Cloud Armor)
+        if: matrix.provider == 'gcp'
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          python scripts/cloud_security/gcp_cloud_armor.py --enable-policies
+          python scripts/cloud_security/gcp_compute_scan.py --scan-instances
+
+      - name: Run Aqua Security CWP
+        run: |
+          python scripts/cloud_security/aqua_security_cwp.py \
+            --provider ${{ matrix.provider }} \
+            --scan-type runtime \
+            --output aqua-cwp-${{ matrix.provider }}.json
+
+      - name: Run Sysdig CWP
+        run: |
+          python scripts/cloud_security/sysdig_cwp.py \
+            --provider ${{ matrix.provider }} \
+            --scan-type container \
+            --output sysdig-cwp-${{ matrix.provider }}.json
+
+      - name: Upload CWP results
+        uses: actions/upload-artifact@v3
+        with:
+          name: cwp-results-${{ matrix.provider }}
+          path: |
+            aqua-cwp-${{ matrix.provider }}.json
+            sysdig-cwp-${{ matrix.provider }}.json
+
+  cloud-access-security-broker:
+    name: Cloud Access Security Broker (CASB)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install CASB tools
+        run: |
+          pip install netskope-client bitglass-client mcafee-client
+
+      - name: Configure Netskope CASB
+        env:
+          NETSKOPE_API_TOKEN: ${{ secrets.NETSKOPE_API_TOKEN }}
+          NETSKOPE_TENANT: ${{ secrets.NETSKOPE_TENANT }}
+        run: |
+          python scripts/cloud_security/netskope_casb.py \
+            --scan-apps \
+            --scan-users \
+            --output netskope-casb.json
+
+      - name: Configure Bitglass CASB
+        env:
+          BITGLASS_API_TOKEN: ${{ secrets.BITGLASS_API_TOKEN }}
+          BITGLASS_TENANT: ${{ secrets.BITGLASS_TENANT }}
+        run: |
+          python scripts/cloud_security/bitglass_casb.py \
+            --scan-apps \
+            --scan-users \
+            --output bitglass-casb.json
+
+      - name: Configure McAfee MVISION Cloud
+        env:
+          MCAFEE_API_TOKEN: ${{ secrets.MCAFEE_API_TOKEN }}
+          MCAFEE_TENANT: ${{ secrets.MCAFEE_TENANT }}
+        run: |
+          python scripts/cloud_security/mcafee_mvision.py \
+            --scan-apps \
+            --scan-users \
+            --output mcafee-casb.json
+
+      - name: Upload CASB results
+        uses: actions/upload-artifact@v3
+        with:
+          name: casb-results
+          path: |
+            netskope-casb.json
+            bitglass-casb.json
+            mcafee-casb.json
+
+  cloud-infrastructure-entitlement-management:
+    name: Cloud Infrastructure Entitlement Management (CIEM)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        provider: [aws, azure, gcp]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install CIEM tools
+        run: |
+          pip install boto3 azure-mgmt-authorization google-cloud-iam
+          pip install sonrai-client ermetic-client
+
+      - name: Configure AWS CIEM (IAM Access Analyzer)
+        if: matrix.provider == 'aws'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          python scripts/cloud_security/aws_iam_access_analyzer.py --analyze-access
+          python scripts/cloud_security/aws_iam_analyzer.py --scan-permissions
+
+      - name: Configure Azure CIEM (PIM)
+        if: matrix.provider == 'azure'
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python scripts/cloud_security/azure_pim.py --analyze-roles
+          python scripts/cloud_security/azure_rbac_analyzer.py --scan-permissions
+
+      - name: Configure GCP CIEM (IAM Recommender)
+        if: matrix.provider == 'gcp'
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          python scripts/cloud_security/gcp_iam_recommender.py --analyze-permissions
+          python scripts/cloud_security/gcp_iam_analyzer.py --scan-roles
+
+      - name: Run Sonrai Security CIEM
+        run: |
+          python scripts/cloud_security/sonrai_ciem.py \
+            --provider ${{ matrix.provider }} \
+            --scan-type entitlements \
+            --output sonrai-ciem-${{ matrix.provider }}.json
+
+      - name: Run Ermetic CIEM
+        run: |
+          python scripts/cloud_security/ermetic_ciem.py \
+            --provider ${{ matrix.provider }} \
+            --scan-type permissions \
+            --output ermetic-ciem-${{ matrix.provider }}.json
+
+      - name: Upload CIEM results
+        uses: actions/upload-artifact@v3
+        with:
+          name: ciem-results-${{ matrix.provider }}
+          path: |
+            sonrai-ciem-${{ matrix.provider }}.json
+            ermetic-ciem-${{ matrix.provider }}.json
+
+  cloud-security-monitoring:
+    name: Cloud Security Monitoring
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        provider: [aws, azure, gcp]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install monitoring tools
+        run: |
+          pip install boto3 azure-mgmt-monitor google-cloud-logging
+          pip install splunk-client datadog-client
+
+      - name: Configure AWS Monitoring (CloudTrail)
+        if: matrix.provider == 'aws'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          python scripts/cloud_security/aws_cloudtrail.py --enable-trails
+          python scripts/cloud_security/aws_cloudwatch.py --setup-alarms
+
+      - name: Configure Azure Monitoring (Monitor)
+        if: matrix.provider == 'azure'
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python scripts/cloud_security/azure_monitor.py --setup-monitoring
+          python scripts/cloud_security/azure_log_analytics.py --enable-workspace
+
+      - name: Configure GCP Monitoring (Cloud Logging)
+        if: matrix.provider == 'gcp'
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          python scripts/cloud_security/gcp_cloud_logging.py --setup-logging
+          python scripts/cloud_security/gcp_monitoring.py --setup-alerts
+
+      - name: Configure Splunk Cloud
+        env:
+          SPLUNK_API_TOKEN: ${{ secrets.SPLUNK_API_TOKEN }}
+          SPLUNK_HOST: ${{ secrets.SPLUNK_HOST }}
+        run: |
+          python scripts/cloud_security/splunk_cloud.py \
+            --provider ${{ matrix.provider }} \
+            --setup-integration \
+            --output splunk-monitoring-${{ matrix.provider }}.json
+
+      - name: Configure Datadog
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DATADOG_APP_KEY: ${{ secrets.DATADOG_APP_KEY }}
+        run: |
+          python scripts/cloud_security/datadog_cloud.py \
+            --provider ${{ matrix.provider }} \
+            --setup-integration \
+            --output datadog-monitoring-${{ matrix.provider }}.json
+
+      - name: Upload monitoring results
+        uses: actions/upload-artifact@v3
+        with:
+          name: monitoring-results-${{ matrix.provider }}
+          path: |
+            splunk-monitoring-${{ matrix.provider }}.json
+            datadog-monitoring-${{ matrix.provider }}.json
+
+  security-gates:
+    name: Cloud Security Gates
+    runs-on: ubuntu-latest
+    needs: [cloud-security-posture-management, cloud-workload-protection, cloud-access-security-broker, cloud-infrastructure-entitlement-management, cloud-security-monitoring]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: cloud-security-results
+
+      - name: Generate comprehensive report
+        run: |
+          python scripts/cloud_security/generate_cloud_security_report.py \
+            --input-dir cloud-security-results \
+            --output cloud-security-report.json
+
+      - name: Run security gates
+        run: |
+          python scripts/cloud_security/security_gates.py \
+            --report cloud-security-report.json \
+            --threshold critical:0,high:5,medium:20
+
+      - name: Upload final report
+        uses: actions/upload-artifact@v3
+        with:
+          name: cloud-security-final-report
+          path: cloud-security-report.json
+
+      - name: Notify on failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          text: "Cloud Security Pipeline failed! Check the logs for details."
+
+  compliance-report:
+    name: Generate Compliance Report
+    runs-on: ubuntu-latest
+    needs: [security-gates]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download final report
+        uses: actions/download-artifact@v3
+        with:
+          name: cloud-security-final-report
+          path: reports
+
+      - name: Generate compliance report
+        run: |
+          python scripts/cloud_security/generate_compliance_report.py \
+            --input reports/cloud-security-report.json \
+            --frameworks soc2,iso27001,pci_dss,hipaa,gdpr \
+            --output compliance-report
+
+      - name: Upload compliance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: cloud-compliance-report
+          path: compliance-report/ 

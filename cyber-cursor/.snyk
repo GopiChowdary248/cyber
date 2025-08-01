@@ -1,0 +1,287 @@
+# Snyk configuration for Cyber Cursor project
+# This file configures dependency vulnerability scanning
+
+# Version
+version: v1.25.0
+
+# Ignore vulnerabilities (use with caution)
+ignore:
+  # Example: Ignore a specific vulnerability if it's a false positive
+  # 'npm:some-package@1.2.3':
+  #   - id: 'SNYK-JS-SOMEPACKAGE-123456'
+  #     reason: 'False positive - package is used in test environment only'
+  #     expires: 2024-12-31T00:00:00.000Z
+
+# Patch vulnerabilities automatically
+patch:
+  # Enable automatic patching for low and medium severity issues
+  enabled: true
+  severity: ['low', 'medium']
+  
+  # Exclude certain packages from auto-patching
+  exclude:
+    - 'critical-dependency'
+    - 'legacy-package'
+
+# Test configuration
+test:
+  # Severity threshold for failing tests
+  severity-threshold: high
+  
+  # Fail on any vulnerability above threshold
+  fail-on: all
+  
+  # Include dev dependencies in scanning
+  dev: true
+  
+  # Include optional dependencies
+  optional: false
+  
+  # Scan all dependencies recursively
+  all-projects: true
+  
+  # Maximum depth for dependency scanning
+  max-depth: 10
+
+# Monitor configuration
+monitor:
+  # Enable continuous monitoring
+  enabled: true
+  
+  # Project name for monitoring
+  project-name: 'cyber-cursor'
+  
+  # Tags for organization
+  tags:
+    environment: 'production'
+    team: 'security'
+    application: 'cyber-cursor'
+  
+  # Notification settings
+  notifications:
+    email:
+      enabled: true
+      recipients:
+        - 'security-team@cyber-cursor.com'
+        - 'devops@cyber-cursor.com'
+    
+    slack:
+      enabled: true
+      webhook: '${SLACK_WEBHOOK_URL}'
+      channel: '#security-alerts'
+
+# Policy configuration
+policy:
+  # Custom security policies
+  rules:
+    # Block critical vulnerabilities
+    - name: 'Block Critical Vulnerabilities'
+      severity: 'critical'
+      action: 'fail'
+      description: 'Block deployment if critical vulnerabilities are found'
+    
+    # Warn about high severity issues
+    - name: 'Warn High Severity'
+      severity: 'high'
+      action: 'warn'
+      description: 'Warn about high severity vulnerabilities'
+    
+    # Allow medium and low severity with monitoring
+    - name: 'Monitor Medium/Low Severity'
+      severity: ['medium', 'low']
+      action: 'monitor'
+      description: 'Monitor medium and low severity vulnerabilities'
+
+# Integration settings
+integrations:
+  # GitHub integration
+  github:
+    enabled: true
+    token: '${GITHUB_TOKEN}'
+    repository: '${GITHUB_REPOSITORY}'
+    
+    # Pull request checks
+    pr-checks:
+      enabled: true
+      fail-on: 'high'
+      comment: true
+    
+    # Issue creation
+    issues:
+      enabled: true
+      severity-threshold: 'medium'
+  
+  # GitLab integration
+  gitlab:
+    enabled: false
+    token: '${GITLAB_TOKEN}'
+    project-id: '${GITLAB_PROJECT_ID}'
+  
+  # Azure DevOps integration
+  azure-devops:
+    enabled: false
+    token: '${AZURE_DEVOPS_TOKEN}'
+    organization: '${AZURE_DEVOPS_ORG}'
+    project: '${AZURE_DEVOPS_PROJECT}'
+
+# Container scanning
+container:
+  # Enable container image scanning
+  enabled: true
+  
+  # Base images to scan
+  base-images:
+    - 'python:3.11-slim'
+    - 'node:18-alpine'
+    - 'nginx:alpine'
+  
+  # Registry authentication
+  registry:
+    dockerhub:
+      username: '${DOCKERHUB_USERNAME}'
+      password: '${DOCKERHUB_PASSWORD}'
+    
+    gcr:
+      key-file: '${GCR_KEY_FILE}'
+    
+    ecr:
+      region: '${AWS_REGION}'
+      access-key-id: '${AWS_ACCESS_KEY_ID}'
+      secret-access-key: '${AWS_SECRET_ACCESS_KEY}'
+
+# Infrastructure as Code scanning
+iac:
+  # Enable IaC scanning
+  enabled: true
+  
+  # Supported formats
+  formats:
+    - 'terraform'
+    - 'kubernetes'
+    - 'cloudformation'
+    - 'arm'
+    - 'helm'
+  
+  # Custom rules
+  custom-rules:
+    - name: 'Cyber Cursor Security Requirements'
+      description: 'Custom security rules for Cyber Cursor infrastructure'
+      severity: 'high'
+      rule: |
+        # Custom Terraform rule example
+        resource "aws_s3_bucket" "example" {
+          bucket = "cyber-cursor-data"
+          
+          # Require encryption
+          server_side_encryption_configuration {
+            rule {
+              apply_server_side_encryption_by_default {
+                sse_algorithm = "AES256"
+              }
+            }
+          }
+          
+          # Require versioning
+          versioning {
+            enabled = true
+          }
+        }
+
+# Reporting
+report:
+  # Generate security reports
+  enabled: true
+  
+  # Report formats
+  formats:
+    - 'json'
+    - 'sarif'
+    - 'html'
+  
+  # Report location
+  output-dir: 'security-reports'
+  
+  # Include remediation advice
+  include-remediation: true
+  
+  # Include license information
+  include-licenses: true
+
+# Compliance
+compliance:
+  # SOC 2 compliance
+  soc2:
+    enabled: true
+    controls:
+      - 'CC6.1'  # Logical and physical access controls
+      - 'CC7.1'  # System operations
+      - 'CC8.1'  # Change management
+  
+  # PCI DSS compliance
+  pci-dss:
+    enabled: false
+    controls:
+      - '6.1'  # Security vulnerabilities
+      - '6.2'  # Vendor-supplied security patches
+  
+  # HIPAA compliance
+  hipaa:
+    enabled: false
+    controls:
+      - '164.312(a)(1)'  # Access control
+      - '164.312(c)(1)'  # Integrity
+
+# Performance settings
+performance:
+  # Parallel scanning
+  parallel: true
+  max-workers: 4
+  
+  # Timeout settings
+  timeout: 300  # 5 minutes
+  
+  # Rate limiting
+  rate-limit: 100  # requests per minute
+
+# Logging
+logging:
+  level: 'info'
+  format: 'json'
+  file: 'snyk.log'
+  
+  # Include sensitive data (be careful)
+  include-sensitive: false
+
+# Cache settings
+cache:
+  enabled: true
+  directory: '.snyk-cache'
+  ttl: 3600  # 1 hour
+
+# Custom test scripts
+scripts:
+  pre-test: |
+    echo "Running pre-test checks..."
+    # Add custom pre-test logic here
+  
+  post-test: |
+    echo "Running post-test cleanup..."
+    # Add custom post-test logic here
+
+# Environment-specific settings
+environments:
+  development:
+    severity-threshold: 'medium'
+    fail-on: 'critical'
+    monitor: true
+  
+  staging:
+    severity-threshold: 'high'
+    fail-on: 'high'
+    monitor: true
+  
+  production:
+    severity-threshold: 'high'
+    fail-on: 'all'
+    monitor: true
+    auto-patch: false 

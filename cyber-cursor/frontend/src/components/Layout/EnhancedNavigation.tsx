@@ -1,0 +1,327 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  CloudIcon, 
+  ShieldCheckIcon, 
+  ChartBarIcon,
+  CogIcon,
+  BellIcon,
+  UserCircleIcon,
+  Bars3Icon,
+  XMarkIcon,
+  MagnifyingGlassIcon,
+  SunIcon,
+  MoonIcon,
+  ComputerDesktopIcon
+} from '@heroicons/react/24/outline';
+import { Link, useLocation } from 'react-router-dom';
+
+interface NavigationItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  href: string;
+  badge?: number;
+  children?: NavigationItem[];
+}
+
+interface EnhancedNavigationProps {
+  className?: string;
+}
+
+const navigationItems: NavigationItem[] = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: <ChartBarIcon className="w-5 h-5" />,
+    href: '/dashboard'
+  },
+  {
+    id: 'cloud-security',
+    label: 'Cloud Security',
+    icon: <CloudIcon className="w-5 h-5" />,
+    href: '/cloud-security',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/cloud-security' },
+      { id: 'cspm', label: 'CSPM', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/cloud-security/cspm' },
+      { id: 'cwp', label: 'CWP', icon: <CloudIcon className="w-4 h-4" />, href: '/cloud-security/cwp' },
+      { id: 'casb', label: 'CASB', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/cloud-security/casb' },
+      { id: 'ciem', label: 'CIEM', icon: <UserCircleIcon className="w-4 h-4" />, href: '/cloud-security/ciem' },
+      { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/cloud-security/monitoring' }
+    ]
+  },
+  {
+    id: 'incidents',
+    label: 'Incidents',
+    icon: <BellIcon className="w-5 h-5" />,
+    href: '/incidents',
+    badge: 3
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: <CogIcon className="w-5 h-5" />,
+    href: '/settings'
+  }
+];
+
+export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
+  className = ''
+}) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('dark');
+  const [searchQuery, setSearchQuery] = useState('');
+  const location = useLocation();
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  const toggleExpanded = (itemId: string) => {
+    setExpandedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const toggleTheme = () => {
+    const themes: ('light' | 'dark' | 'auto')[] = ['light', 'dark', 'auto'];
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    setTheme(themes[nextIndex]);
+  };
+
+  const getThemeIcon = () => {
+    switch (theme) {
+      case 'light': return <SunIcon className="w-5 h-5" />;
+      case 'dark': return <MoonIcon className="w-5 h-5" />;
+      case 'auto': return <ComputerDesktopIcon className="w-5 h-5" />;
+    }
+  };
+
+  const renderNavigationItem = (item: NavigationItem, isChild = false) => {
+    const isActive = location.pathname === item.href;
+    const isExpanded = expandedItems.includes(item.id);
+    const hasChildren = item.children && item.children.length > 0;
+
+    return (
+      <motion.div
+        key={item.id}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Link
+          to={item.href}
+          className={`
+            flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group
+            ${isActive 
+              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
+              : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'
+            }
+            ${isChild ? 'ml-4 text-sm' : ''}
+          `}
+          onClick={() => hasChildren && toggleExpanded(item.id)}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`
+              ${isActive ? 'text-blue-400' : 'text-gray-400 group-hover:text-white'}
+              transition-colors duration-200
+            `}>
+              {item.icon}
+            </div>
+            <span className="font-medium">{item.label}</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {item.badge && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="px-2 py-1 text-xs font-medium bg-red-500 text-white rounded-full"
+              >
+                {item.badge}
+              </motion.span>
+            )}
+            {hasChildren && (
+              <motion.div
+                animate={{ rotate: isExpanded ? 90 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-gray-400"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </motion.div>
+            )}
+          </div>
+        </Link>
+
+        {/* Children */}
+        {hasChildren && (
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-2 space-y-1">
+                  {item.children!.map(child => renderNavigationItem(child, true))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </motion.div>
+    );
+  };
+
+  return (
+    <>
+      {/* Desktop Navigation */}
+      <nav className={`hidden lg:flex flex-col w-64 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800 h-screen ${className}`}>
+        {/* Header */}
+        <div className="p-6 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <ShieldCheckIcon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">Cyber Cursor</h1>
+              <p className="text-sm text-gray-400">Security Platform</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="p-4 border-b border-gray-800">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 pl-10 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          </div>
+        </div>
+
+        {/* Navigation Items */}
+        <div className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {navigationItems.map(renderNavigationItem)}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-800">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+            >
+              {getThemeIcon()}
+              <span className="text-sm capitalize">{theme}</span>
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
+                <BellIcon className="w-5 h-5" />
+              </button>
+              <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
+                <UserCircleIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile Navigation */}
+      <div className="lg:hidden">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between p-4 bg-gray-900/50 backdrop-blur-xl border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <ShieldCheckIcon className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-xl font-bold text-white">Cyber Cursor</h1>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+            >
+              {getThemeIcon()}
+            </button>
+            
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+            >
+              {isMobileMenuOpen ? (
+                <XMarkIcon className="w-6 h-6" />
+              ) : (
+                <Bars3Icon className="w-6 h-6" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-gray-900/95 backdrop-blur-xl border-b border-gray-800 overflow-hidden"
+            >
+              {/* Search */}
+              <div className="p-4 border-b border-gray-800">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 pl-10 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+
+              {/* Navigation Items */}
+              <div className="p-4 space-y-2">
+                {navigationItems.map(renderNavigationItem)}
+              </div>
+
+              {/* User Actions */}
+              <div className="p-4 border-t border-gray-800">
+                <div className="flex items-center justify-between">
+                  <button className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
+                    <BellIcon className="w-5 h-5" />
+                    <span className="text-sm">Notifications</span>
+                  </button>
+                  
+                  <button className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
+                    <UserCircleIcon className="w-5 h-5" />
+                    <span className="text-sm">Profile</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
+  );
+};
+
+export default EnhancedNavigation; 

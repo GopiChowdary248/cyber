@@ -1,0 +1,182 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: cybershield-postgres
+    environment:
+      POSTGRES_DB: cybershield
+      POSTGRES_USER: cybershield_user
+      POSTGRES_PASSWORD: cybershield_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - cybershield-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cybershield_user -d cybershield"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # Redis for caching and background tasks
+  redis:
+    image: redis:7-alpine
+    container_name: cybershield-redis
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - cybershield-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cybershield-backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cybershield_user:cybershield_password@postgres:5432/cybershield
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - SECRET_KEY=your-super-secret-key-change-in-production
+      - DEBUG=false
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://frontend:80
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend,frontend
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    networks:
+      - cybershield-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cybershield-frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_ENVIRONMENT=production
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:80"
+    networks:
+      - cybershield-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional - for production)
+  nginx:
+    image: nginx:alpine
+    container_name: cybershield-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - cybershield-network
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Celery Worker for Background Tasks
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cybershield-celery-worker
+    command: celery -A app.core.celery worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cybershield_user:cybershield_password@postgres:5432/cybershield
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - SECRET_KEY=your-super-secret-key-change-in-production
+      - DEBUG=false
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - cybershield-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Celery Beat for Scheduled Tasks
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cybershield-celery-beat
+    command: celery -A app.core.celery beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cybershield_user:cybershield_password@postgres:5432/cybershield
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - SECRET_KEY=your-super-secret-key-change-in-production
+      - DEBUG=false
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    networks:
+      - cybershield-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  cybershield-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16 

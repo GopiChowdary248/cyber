@@ -1,0 +1,247 @@
+# Checkov configuration for Cyber Cursor project
+# This file configures infrastructure security scanning
+
+# Framework selection
+framework:
+  - terraform
+  - kubernetes
+  - cloudformation
+  - dockerfile
+  - helm
+
+# Output configuration
+output:
+  format: sarif
+  output_file_path: checkov-results.sarif
+  compact: false
+  soft_fail: false
+
+# Skip checks (if needed for specific cases)
+skip_check:
+  # Temporarily skip specific checks if they're false positives
+  # - CKV_AWS_18  # S3 bucket logging
+  # - CKV_AWS_21  # S3 bucket versioning
+
+# Skip paths (exclude certain directories)
+skip_path:
+  - "**/examples/**"
+  - "**/test/**"
+  - "**/docs/**"
+  - "**/node_modules/**"
+  - "**/vendor/**"
+  - "**/.terraform/**"
+  - "**/terraform.tfstate*"
+
+# External checks directory
+external_checks_dir:
+  - "policies/checkov"
+
+# Custom policies
+custom_policies:
+  - "policies/checkov/custom_policies"
+
+# Severity thresholds
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+  - LOW
+
+# Framework-specific configurations
+terraform:
+  # Terraform version
+  version: "1.5.0"
+  
+  # Variables file
+  var_file:
+    - "terraform.tfvars"
+    - "*.auto.tfvars"
+  
+  # Workspace
+  workspace: "default"
+
+kubernetes:
+  # Kubernetes version
+  version: "1.28"
+  
+  # Namespace filtering
+  namespace: "cyber-cursor"
+
+# Dockerfile scanning
+dockerfile:
+  # Base image scanning
+  base_images:
+    - "python:3.11-slim"
+    - "node:18-alpine"
+    - "nginx:alpine"
+
+# Cloud provider specific
+aws:
+  # AWS regions to scan
+  regions:
+    - "us-east-1"
+    - "us-west-2"
+    - "eu-west-1"
+  
+  # AWS account ID (for resource validation)
+  account_id: "${AWS_ACCOUNT_ID}"
+
+# Reporting configuration
+report:
+  # Include suppressed checks in report
+  include_suppressed: false
+  
+  # Include passed checks in report
+  include_passed: false
+  
+  # Include skipped checks in report
+  include_skipped: true
+  
+  # Output directory
+  output_dir: "security-reports"
+
+# Integration settings
+integrations:
+  # GitHub integration
+  github:
+    enabled: true
+    token: "${GITHUB_TOKEN}"
+    repository: "${GITHUB_REPOSITORY}"
+    pr_number: "${GITHUB_PR_NUMBER}"
+  
+  # Slack integration
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#security-alerts"
+  
+  # Jira integration (if using)
+  jira:
+    enabled: false
+    url: "${JIRA_URL}"
+    username: "${JIRA_USERNAME}"
+    api_token: "${JIRA_API_TOKEN}"
+    project_key: "SEC"
+
+# Custom check definitions
+custom_checks:
+  # Example custom check for Cyber Cursor specific requirements
+  - name: "CKV_CYBER_CURSOR_001"
+    description: "Ensure Cyber Cursor API has proper authentication"
+    severity: "HIGH"
+    framework: "terraform"
+    resource_types:
+      - "aws_api_gateway_rest_api"
+    condition:
+      - "resource.tags.Authentication == 'required'"
+    fix: |
+      Add authentication configuration to API Gateway:
+      ```hcl
+      resource "aws_api_gateway_authorizer" "cyber_cursor_auth" {
+        name                   = "cyber-cursor-authorizer"
+        rest_api_id           = aws_api_gateway_rest_api.main.id
+        type                  = "COGNITO_USER_POOLS"
+        provider_arns         = [aws_cognito_user_pool.main.arn]
+      }
+      ```
+
+  - name: "CKV_CYBER_CURSOR_002"
+    description: "Ensure Cyber Cursor database has encryption at rest"
+    severity: "CRITICAL"
+    framework: "terraform"
+    resource_types:
+      - "aws_db_instance"
+      - "aws_rds_cluster"
+    condition:
+      - "resource.storage_encrypted == true"
+    fix: |
+      Enable encryption on database:
+      ```hcl
+      storage_encrypted = true
+      kms_key_id       = aws_kms_key.database.arn
+      ```
+
+# Policy as Code integration
+policy_as_code:
+  # OPA integration
+  opa:
+    enabled: true
+    policies_path: "policies/opa"
+    data_path: "policies/opa/data"
+  
+  # Sentinel integration (for Terraform Cloud)
+  sentinel:
+    enabled: false
+    policies_path: "policies/sentinel"
+
+# Compliance frameworks
+compliance:
+  # SOC 2 compliance
+  soc2:
+    enabled: true
+    controls:
+      - "CC6.1"  # Logical and physical access controls
+      - "CC7.1"  # System operations
+      - "CC8.1"  # Change management
+  
+  # PCI DSS compliance
+  pci_dss:
+    enabled: false
+    controls:
+      - "1.1.1"  # Network security controls
+      - "1.1.2"  # Network segmentation
+  
+  # HIPAA compliance
+  hipaa:
+    enabled: false
+    controls:
+      - "164.312(a)(1)"  # Access control
+      - "164.312(c)(1)"  # Integrity
+
+# Performance settings
+performance:
+  # Parallel scanning
+  parallel: true
+  max_workers: 4
+  
+  # Timeout settings
+  timeout: 300  # 5 minutes
+  
+  # Memory limits
+  max_memory: "2GB"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  file: "checkov.log"
+  format: "json"
+  
+  # Include sensitive data in logs (be careful)
+  include_sensitive: false
+
+# Cache configuration
+cache:
+  enabled: true
+  directory: ".checkov_cache"
+  ttl: 3600  # 1 hour
+
+# Notification settings
+notifications:
+  # Email notifications
+  email:
+    enabled: false
+    smtp_server: "${SMTP_SERVER}"
+    smtp_port: 587
+    username: "${SMTP_USERNAME}"
+    password: "${SMTP_PASSWORD}"
+    from_address: "security@cyber-cursor.com"
+    to_addresses:
+      - "security-team@cyber-cursor.com"
+  
+  # Webhook notifications
+  webhook:
+    enabled: true
+    url: "${WEBHOOK_URL}"
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer ${WEBHOOK_TOKEN}" 

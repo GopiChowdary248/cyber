@@ -1,0 +1,329 @@
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  # Security tool versions
+  SNYK_VERSION: "1.1234.0"
+  TRIVY_VERSION: "0.48.0"
+  CHECKOV_VERSION: "3.1.0"
+  GITLEAKS_VERSION: "8.18.0"
+  OWASP_ZAP_VERSION: "2.14.0"
+  OPA_VERSION: "0.60.0"
+
+jobs:
+  # 1. CI/CD Security Integration
+  security-checks:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for secrets detection
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # 2. Dependency/Package Scanning (SCA)
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --fail-on=high
+
+      - name: Run Snyk for Python dependencies
+        uses: snyk/actions/python@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --fail-on=high
+
+      # 3. Secrets Detection
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --verbose --redact
+
+      - name: Run GitGuardian (if configured)
+        uses: GitGuardian/ggshield-action@main
+        if: ${{ secrets.GITGUARDIAN_API_KEY }}
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        with:
+          args: scan path . --exit-zero
+
+  # 4. Infrastructure as Code (IaC) Scanning
+  iac-security:
+    name: Infrastructure as Code Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+
+      # Checkov for Terraform and CloudFormation
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ./
+          framework: terraform,kubernetes,cloudformation
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      # tfsec for Terraform
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: ./
+          format: sarif
+          out: tfsec-results.sarif
+
+      # Terrascan for multi-cloud IaC
+      - name: Run Terrascan
+        uses: accurics/terrascan-action@master
+        with:
+          iac_type: terraform
+          iac_version: v1
+          policy_type: aws
+          only_warn: true
+
+      # Upload SARIF results
+      - name: Upload Checkov SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+
+      - name: Upload tfsec SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: tfsec-results.sarif
+
+  # 5. Container Security
+  container-security:
+    name: Container Security
+    runs-on: ubuntu-latest
+    needs: [security-checks]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build container images
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: cyber-cursor-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          tags: cyber-cursor-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Trivy for container scanning
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'cyber-cursor-backend:latest'
+          format: 'sarif'
+          output: 'trivy-results-backend.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy on frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'cyber-cursor-frontend:latest'
+          format: 'sarif'
+          output: 'trivy-results-frontend.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      # Anchore for container analysis
+      - name: Run Anchore Container Analysis
+        uses: anchore/scan-action@v3
+        with:
+          image: "cyber-cursor-backend:latest"
+          fail-build: false
+          severity-cutoff: high
+
+      # Upload container scan results
+      - name: Upload Trivy Backend SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results-backend.sarif
+
+      - name: Upload Trivy Frontend SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results-frontend.sarif
+
+  # 6. Dynamic Application Security Testing (DAST)
+  dast-scanning:
+    name: DAST Scanning
+    runs-on: ubuntu-latest
+    needs: [security-checks]
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # OWASP ZAP for DAST
+      - name: Run OWASP ZAP Baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:8000'  # Adjust based on your app
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      # Upload DAST results
+      - name: Upload ZAP results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-results
+          path: zap-report.html
+
+  # 7. Policy as Code
+  policy-enforcement:
+    name: Policy Enforcement
+    runs-on: ubuntu-latest
+    needs: [security-checks, iac-security, container-security]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Open Policy Agent (OPA)
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: ${{ env.OPA_VERSION }}
+
+      - name: Run OPA policies
+        run: |
+          # Test Terraform policies
+          opa test policies/terraform/ --verbose
+          
+          # Test Kubernetes policies
+          opa test policies/kubernetes/ --verbose
+          
+          # Evaluate policies against current state
+          opa eval --data policies/security.rego --input . data.security.violations
+
+      # HashiCorp Sentinel (if using Terraform Cloud)
+      - name: Run Sentinel policies
+        if: ${{ secrets.TF_TOKEN }}
+        run: |
+          # This would be configured in Terraform Cloud
+          echo "Sentinel policies are enforced in Terraform Cloud"
+
+  # 8. Security Gates and Reporting
+  security-gates:
+    name: Security Gates
+    runs-on: ubuntu-latest
+    needs: [security-checks, iac-security, container-security, dast-scanning, policy-enforcement]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all security artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: security-results/
+
+      - name: Generate Security Report
+        run: |
+          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Vulnerabilities Found:" >> $GITHUB_STEP_SUMMARY
+          echo "- SAST: ${{ needs.security-checks.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- IaC: ${{ needs.iac-security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Container: ${{ needs.container-security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- DAST: ${{ needs.dast-scanning.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Policy: ${{ needs.policy-enforcement.result }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Security Gate Check
+        run: |
+          # Fail if any critical security issues found
+          if [ "${{ needs.security-checks.result }}" == "failure" ] || \
+             [ "${{ needs.iac-security.result }}" == "failure" ] || \
+             [ "${{ needs.container-security.result }}" == "failure" ]; then
+            echo "❌ Security gates failed - Critical vulnerabilities detected"
+            exit 1
+          else
+            echo "✅ Security gates passed"
+          fi
+
+      - name: Notify Security Team
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "Security scan failed for ${{ github.repository }}#${{ github.run_number }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # 9. Compliance Reporting
+  compliance-report:
+    name: Compliance Report
+    runs-on: ubuntu-latest
+    needs: [security-gates]
+    if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'schedule')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Compliance Report
+        run: |
+          echo "Generating compliance report..."
+          # Generate comprehensive security and compliance report
+          python scripts/generate_compliance_report.py
+
+      - name: Upload Compliance Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report-$(date +%Y%m%d)
+          path: compliance-report.pdf
+
+      - name: Send Compliance Report
+        if: ${{ secrets.COMPLIANCE_WEBHOOK }}
+        run: |
+          curl -X POST ${{ secrets.COMPLIANCE_WEBHOOK }} \
+            -H "Content-Type: application/json" \
+            -d '{"report": "compliance-report.pdf", "repository": "${{ github.repository }}"}' 
