@@ -1,0 +1,60 @@
+{
+  "test_summary": {
+    "total_tests": 8,
+    "passed_tests": 3,
+    "failed_tests": 5,
+    "skipped_tests": 0,
+    "success_rate": 37.5,
+    "timestamp": "2025-08-02 07:31:55"
+  },
+  "test_results": [
+    {
+      "test_name": "Health Check",
+      "status": "PASS",
+      "details": "Service is healthy",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "Project Creation",
+      "status": "FAIL",
+      "details": "Status code: 404",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "Project Retrieval",
+      "status": "FAIL",
+      "details": "Exception: 'SASTToolTester' object has no attribute 'project_id'",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "Test Files Creation",
+      "status": "PASS",
+      "details": "Created test files in C:\\Users\\GOPI~1.SAM\\AppData\\Local\\Temp\\tmpfjewrp43",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "ZIP Creation",
+      "status": "PASS",
+      "details": "Created ZIP file: C:\\Users\\GOPI~1.SAM\\AppData\\Local\\Temp\\tmpfjewrp43\\test-project.zip",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "Upload and Scan",
+      "status": "FAIL",
+      "details": "Exception: 'SASTToolTester' object has no attribute 'project_id'",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "Scan Progress",
+      "status": "FAIL",
+      "details": "Exception: 'SASTToolTester' object has no attribute 'scan_id'",
+      "timestamp": "2025-08-02 07:26:55"
+    },
+    {
+      "test_name": "Scan Completion",
+      "status": "FAIL",
+      "details": "Scan timeout",
+      "timestamp": "2025-08-02 07:31:55"
+    }
+  ]
+}

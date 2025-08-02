@@ -1,8 +1,8 @@
 import React from 'react';
-import EnhancedCloudSecurity from './EnhancedCloudSecurity';
+import CloudSecurityDashboard from '../../components/CloudSecurityDashboard';
 
 const CloudSecurity: React.FC = () => {
-  return <EnhancedCloudSecurity />;
+  return <CloudSecurityDashboard />;
 };
 
 export default CloudSecurity; 

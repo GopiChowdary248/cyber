@@ -110,7 +110,7 @@ class SecurityMiddleware:
         """Verify JWT token and return token data"""
         try:
             payload = jwt.decode(token, self.config.secret_key, algorithms=[self.config.algorithm])
-            user_id: int = payload.get("sub")
+            user_id: int = payload.get("user_id")
             email: str = payload.get("email")
             role: str = payload.get("role")
             token_type: str = payload.get("type")
@@ -136,7 +136,13 @@ class SecurityMiddleware:
                 detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError:
+        except jwt.InvalidTokenError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except Exception:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
@@ -366,21 +372,53 @@ security_middleware_instance = SecurityMiddleware(redis.Redis())
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
     """Authenticate user with email and password"""
     try:
-        # In a real implementation, you would fetch user from database
-        # For now, we'll create a mock authentication
-        if email == "admin@cybershield.com" and password == "admin123":
-            return User(
-                id=1,
-                email=email,
-                username="admin",
-                role="admin",
-                is_active=True,
-                permissions=["read:all", "write:all", "delete:all", "admin:users"]
-            )
-        return None
+        # Import User model directly
+        from app.models.user import User as DBUser
+        
+        # Get user by email
+        db_user = await DBUser.get_by_email(db, email)
+        if not db_user:
+            return None
+        
+        # Verify password
+        if not verify_password(password, db_user.hashed_password):
+            return None
+        
+        # Return user with permissions (create a new User instance without permissions field)
+        return User(
+            id=db_user.id,
+            email=db_user.email,
+            username=db_user.username,
+            role=db_user.role,
+            is_active=db_user.is_active
+        )
     except Exception as e:
         logger.error(f"Authentication error: {e}")
         return None
+
+def _get_permissions_for_role(role: str) -> List[str]:
+    """Get permissions for a given role"""
+    permissions = {
+        "admin": [
+            "read:all", "write:all", "delete:all", "admin:users", 
+            "admin:system", "admin:licenses", "admin:logs"
+        ],
+        "user": [
+            "read:own", "write:own", "read:security", "write:security"
+        ],
+        "analyst": [
+            "read:all", "write:security", "read:logs", "write:reports"
+        ]
+    }
+    return permissions.get(role, [])
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify password against hash"""
+    try:
+        import bcrypt
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token"""

@@ -52,8 +52,8 @@ services:
       - REDIS_URL=redis://:redis_password@redis:6379/0
       - SECRET_KEY=your-super-secret-key-change-in-production
       - DEBUG=false
-      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://frontend:80
-      - ALLOWED_HOSTS=localhost,127.0.0.1,backend,frontend
+      - ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:3001","http://frontend:80"]
+      - ALLOWED_HOSTS=["localhost","127.0.0.1","backend","frontend"]
       - LOG_LEVEL=INFO
     volumes:
       - ./backend:/app

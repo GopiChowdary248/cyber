@@ -1,0 +1,88 @@
+{
+  "summary": {
+    "total": 13,
+    "passed": 12,
+    "failed": 1,
+    "success_rate": 92.3076923076923
+  },
+  "results": [
+    {
+      "test": "Backend Health Check",
+      "status": "PASS",
+      "details": "Backend is running",
+      "timestamp": "2025-08-02T22:40:28.159048"
+    },
+    {
+      "test": "Invalid Login",
+      "status": "PASS",
+      "details": "Correctly rejected invalid credentials",
+      "timestamp": "2025-08-02T22:40:28.182987"
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASS",
+      "details": "Role: admin",
+      "timestamp": "2025-08-02T22:40:28.204573"
+    },
+    {
+      "test": "Analyst Login",
+      "status": "PASS",
+      "details": "Role: analyst",
+      "timestamp": "2025-08-02T22:40:28.236329"
+    },
+    {
+      "test": "User Login",
+      "status": "PASS",
+      "details": "Role: user",
+      "timestamp": "2025-08-02T22:40:28.254967"
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASS",
+      "details": "Token received: eyJhbGciOiJIUzI1NiIs...",
+      "timestamp": "2025-08-02T22:40:28.269343"
+    },
+    {
+      "test": "Profile Access",
+      "status": "PASS",
+      "details": "User: admin@cybershield.com",
+      "timestamp": "2025-08-02T22:40:28.402374"
+    },
+    {
+      "test": "Token Refresh",
+      "status": "PASS",
+      "details": "New token received",
+      "timestamp": "2025-08-02T22:40:28.418784"
+    },
+    {
+      "test": "Profile Access",
+      "status": "PASS",
+      "details": "User: admin@cybershield.com",
+      "timestamp": "2025-08-02T22:40:28.453079"
+    },
+    {
+      "test": "Logout",
+      "status": "PASS",
+      "details": "Logout successful: Successfully logged out",
+      "timestamp": "2025-08-02T22:40:28.482161"
+    },
+    {
+      "test": "Session Invalidation",
+      "status": "FAIL",
+      "details": "Token still valid after logout: 200",
+      "timestamp": "2025-08-02T22:40:28.513835"
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASS",
+      "details": "Token received: eyJhbGciOiJIUzI1NiIs...",
+      "timestamp": "2025-08-02T22:40:28.540711"
+    },
+    {
+      "test": "Logout All Sessions",
+      "status": "PASS",
+      "details": "Logout all successful: Successfully logged out from all sessions",
+      "timestamp": "2025-08-02T22:40:28.555568"
+    }
+  ]
+}

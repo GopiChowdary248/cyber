@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: cybershield-postgres
+    environment:
+      POSTGRES_DB: cybershield
+      POSTGRES_USER: cybershield_user
+      POSTGRES_PASSWORD: cybershield_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - cybershield-network
+    restart: unless-stopped
+
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.simple
+    container_name: cybershield-backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://cybershield_user:cybershield_password@postgres:5432/cybershield
+      - SECRET_KEY=your-super-secret-key-change-in-production
+      - DEBUG=true
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    networks:
+      - cybershield-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # Frontend (React) - Development mode
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: cybershield-frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_ENVIRONMENT=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - cybershield-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  cybershield-network:
+    driver: bridge 

@@ -1,69 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import RoleBasedNavigation from './RoleBasedNavigation';
 
 const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
-
-  const navigation = [
-    {
-      name: 'Dashboard',
-      href: '/dashboard',
-      icon: '📊',
-      description: 'Security overview and metrics'
-    },
-    {
-      name: 'Incidents',
-      href: '/incidents',
-      icon: '🚨',
-      description: 'Manage security incidents'
-    },
-    {
-      name: 'Cloud Security',
-      href: '/cloud-security',
-      icon: '☁️',
-      description: 'Cloud infrastructure scanning'
-    },
-    {
-      name: 'Phishing Detection',
-      href: '/phishing',
-      icon: '🎣',
-      description: 'Email threat analysis'
-    },
-    {
-      name: 'Threat Intelligence',
-      href: '/threat-intel',
-      icon: '🔍',
-      description: 'Threat intelligence feeds'
-    },
-    {
-      name: 'Reports',
-      href: '/reports',
-      icon: '📈',
-      description: 'Security reports and analytics'
-    }
-  ];
-
-  const adminNavigation = [
-    {
-      name: 'Users',
-      href: '/users',
-      icon: '👥',
-      description: 'User management'
-    },
-    {
-      name: 'Settings',
-      href: '/settings',
-      icon: '⚙️',
-      description: 'System configuration'
-    }
-  ];
-
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
 
   return (
     <div className={`bg-cyber-darker border-r border-cyber-accent/30 transition-all duration-300 ${
@@ -91,69 +34,9 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={`flex items-center p-3 rounded-lg transition-all duration-200 group ${
-                isActive(item.href)
-                  ? 'bg-cyber-accent text-white'
-                  : 'text-gray-300 hover:bg-cyber-dark hover:text-white'
-              }`}
-              title={isCollapsed ? item.description : undefined}
-            >
-              <span className="text-lg mr-3">{item.icon}</span>
-              {!isCollapsed && (
-                <div>
-                  <span className="font-medium">{item.name}</span>
-                  {!isCollapsed && (
-                    <p className="text-xs text-gray-400 group-hover:text-gray-300">
-                      {item.description}
-                    </p>
-                  )}
-                </div>
-              )}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Admin Section */}
-        {user?.role === 'admin' && (
-          <div className="p-4 border-t border-cyber-accent/30">
-            <div className="mb-2">
-              {!isCollapsed && (
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Administration
-                </h3>
-              )}
-            </div>
-            <nav className="space-y-2">
-              {adminNavigation.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center p-3 rounded-lg transition-all duration-200 group ${
-                    isActive(item.href)
-                      ? 'bg-cyber-accent text-white'
-                      : 'text-gray-300 hover:bg-cyber-dark hover:text-white'
-                  }`}
-                  title={isCollapsed ? item.description : undefined}
-                >
-                  <span className="text-lg mr-3">{item.icon}</span>
-                  {!isCollapsed && (
-                    <div>
-                      <span className="font-medium">{item.name}</span>
-                      <p className="text-xs text-gray-400 group-hover:text-gray-300">
-                        {item.description}
-                      </p>
-                    </div>
-                  )}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        )}
+        <div className="flex-1 p-4">
+          <RoleBasedNavigation />
+        </div>
 
         {/* User Profile */}
         <div className="p-4 border-t border-cyber-accent/30">

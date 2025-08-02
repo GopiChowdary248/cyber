@@ -1,0 +1,272 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sast_postgres
+    environment:
+      POSTGRES_DB: sast_db
+      POSTGRES_USER: sast_user
+      POSTGRES_PASSWORD: sast_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-sast-db.sql:/docker-entrypoint-initdb.d/init-sast-db.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - sast_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sast_user -d sast_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: sast_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sast_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # SAST Backend API
+  sast_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sast_backend
+    environment:
+      - DATABASE_URL=postgresql://sast_user:sast_password@postgres:5432/sast_db
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=sast_secret_key_2024
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=INFO
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+    volumes:
+      - ./backend:/app
+      - sast_uploads:/app/uploads
+      - sast_reports:/app/reports
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sast_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # SAST Frontend (React Native Web)
+  sast_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sast_frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000
+      - NODE_ENV=production
+    ports:
+      - "3001:3000"
+    depends_on:
+      sast_backend:
+        condition: service_healthy
+    networks:
+      - sast_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # SAST Scanner Worker
+  sast_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sast_worker
+    environment:
+      - DATABASE_URL=postgresql://sast_user:sast_password@postgres:5432/sast_db
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=sast_secret_key_2024
+      - WORKER_MODE=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend:/app
+      - sast_uploads:/app/uploads
+      - sast_reports:/app/reports
+      - sast_scan_cache:/app/scan_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sast_network
+    restart: unless-stopped
+    command: ["python", "-m", "celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: sast_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - sast_reports:/var/www/reports
+    depends_on:
+      - sast_backend
+      - sast_frontend
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+  # Jenkins for CI/CD Integration
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: sast_jenkins
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+  # SonarQube Integration (Optional)
+  sonarqube:
+    image: sonarqube:community
+    container_name: sast_sonarqube
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "9000:9000"
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+  # Prometheus for Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sast_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sast_grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+  # Elasticsearch for Log Aggregation
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: sast_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+  # Kibana for Log Visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: sast_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - sast_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  sast_uploads:
+    driver: local
+  sast_reports:
+    driver: local
+  sast_scan_cache:
+    driver: local
+  jenkins_data:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+
+networks:
+  sast_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

@@ -4,26 +4,30 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface PublicRouteProps {
   children: React.ReactNode;
+  redirectPath?: string;
 }
 
-const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
-  const { isAuthenticated, loading, user } = useAuth();
+const PublicRoute: React.FC<PublicRouteProps> = ({
+  children,
+  redirectPath = '/dashboard'
+}) => {
+  const { isAuthenticated, loading } = useAuth();
 
+  // Show loading spinner while checking authentication
   if (loading) {
     return (
-      <div className="min-h-screen bg-cyber-dark flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyber-accent"></div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-300">Loading...</p>
+        </div>
       </div>
     );
   }
 
+  // Redirect authenticated users to dashboard
   if (isAuthenticated) {
-    // Redirect to appropriate portal based on user role
-    if (user?.role === 'admin') {
-      return <Navigate to="/admin" replace />;
-    } else {
-      return <Navigate to="/user" replace />;
-    }
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <>{children}</>;

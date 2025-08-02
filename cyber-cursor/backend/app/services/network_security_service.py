@@ -26,6 +26,22 @@ import socket
 import threading
 import queue
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func, and_, or_
+from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+import structlog
+
+# Import SQLAlchemy models (not Pydantic schemas)
+from app.models.network_security import (
+    NetworkDevice, FirewallLog, IDSAlert as IDSAlertModel, VPNSession, NACLog
+)
+from app.schemas.network_security import (
+    NetworkDeviceCreate, NetworkDeviceUpdate,
+    FirewallLogCreate, IDSAlertCreate, VPNSessionCreate, NACLogCreate
+)
+
 logger = structlog.get_logger()
 
 class SecurityLevel(Enum):
@@ -111,699 +127,392 @@ class NACPolicy:
     priority: int
 
 class NetworkSecurityService:
-    def __init__(self):
-        self.firewall_rules: Dict[str, FirewallRule] = {}
-        self.ids_alerts: List[IDSAlert] = []
-        self.vpn_connections: Dict[str, VPNConnection] = {}
-        self.nac_policies: Dict[str, NACPolicy] = {}
-        self.blocked_ips: set = set()
-        self.suspicious_ips: Dict[str, Dict[str, Any]] = {}
-        self.dns_blacklist: set = set()
-        self.dns_whitelist: set = set()
-        self.network_segments: Dict[str, Dict[str, Any]] = {}
-        self.ddos_attacks: List[Dict[str, Any]] = []
-        self.security_events: queue.Queue = queue.Queue()
-        
-        # Initialize default configurations
-        self._initialize_default_config()
-        
-        # Start background tasks
-        asyncio.create_task(self._start_network_monitoring())
-        asyncio.create_task(self._start_threat_detection())
-        asyncio.create_task(self._start_ddos_protection())
-        asyncio.create_task(self._start_dns_monitoring())
-        
-    def _initialize_default_config(self):
-        """Initialize default network security configurations"""
-        logger.info("Initializing network security configurations")
-        
-        # Initialize network segments
-        self.network_segments = {
-            NetworkSegment.DMZ.value: {
-                "subnet": "10.0.1.0/24",
-                "description": "Demilitarized Zone",
-                "security_level": SecurityLevel.HIGH.value,
-                "allowed_services": ["http", "https", "ssh"],
-                "monitoring": True
-            },
-            NetworkSegment.INTERNAL.value: {
-                "subnet": "10.0.2.0/24",
-                "description": "Internal Network",
-                "security_level": SecurityLevel.MEDIUM.value,
-                "allowed_services": ["ssh", "rdp", "vnc"],
-                "monitoring": True
-            },
-            NetworkSegment.GUEST.value: {
-                "subnet": "10.0.3.0/24",
-                "description": "Guest Network",
-                "security_level": SecurityLevel.LOW.value,
-                "allowed_services": ["http", "https"],
-                "monitoring": True
-            },
-            NetworkSegment.FINANCE.value: {
-                "subnet": "10.0.4.0/24",
-                "description": "Finance Department",
-                "security_level": SecurityLevel.CRITICAL.value,
-                "allowed_services": ["ssh", "database"],
-                "monitoring": True
-            },
-            NetworkSegment.DEVELOPMENT.value: {
-                "subnet": "10.0.5.0/24",
-                "description": "Development Environment",
-                "security_level": SecurityLevel.MEDIUM.value,
-                "allowed_services": ["ssh", "http", "https", "database"],
-                "monitoring": True
-            }
-        }
-        
-        # Initialize default firewall rules
-        self._create_default_firewall_rules()
-        
-        # Initialize NAC policies
-        self._create_default_nac_policies()
-        
-        # Initialize DNS blacklist
-        self._load_dns_blacklist()
-        
-    def _create_default_firewall_rules(self):
-        """Create default firewall rules"""
-        default_rules = [
-            {
-                "id": "default_deny_all",
-                "name": "Default Deny All",
-                "action": "deny",
-                "protocol": "any",
-                "source_ip": "0.0.0.0/0",
-                "source_port": None,
-                "destination_ip": "0.0.0.0/0",
-                "destination_port": None,
-                "direction": "both",
-                "priority": 1000,
-                "enabled": True,
-                "description": "Default deny rule for all traffic"
-            },
-            {
-                "id": "allow_http_https",
-                "name": "Allow HTTP/HTTPS",
-                "action": "allow",
-                "protocol": "tcp",
-                "source_ip": "0.0.0.0/0",
-                "source_port": None,
-                "destination_ip": "10.0.1.0/24",
-                "destination_port": "80,443",
-                "direction": "inbound",
-                "priority": 100,
-                "enabled": True,
-                "description": "Allow HTTP and HTTPS traffic to DMZ"
-            },
-            {
-                "id": "allow_ssh_internal",
-                "name": "Allow SSH Internal",
-                "action": "allow",
-                "protocol": "tcp",
-                "source_ip": "10.0.0.0/8",
-                "source_port": None,
-                "destination_ip": "10.0.0.0/8",
-                "destination_port": "22",
-                "direction": "both",
-                "priority": 200,
-                "enabled": True,
-                "description": "Allow SSH between internal networks"
-            }
-        ]
-        
-        for rule_data in default_rules:
-            rule = FirewallRule(
-                id=rule_data["id"],
-                name=rule_data["name"],
-                action=rule_data["action"],
-                protocol=rule_data["protocol"],
-                source_ip=rule_data["source_ip"],
-                source_port=rule_data["source_port"],
-                destination_ip=rule_data["destination_ip"],
-                destination_port=rule_data["destination_port"],
-                direction=rule_data["direction"],
-                priority=rule_data["priority"],
-                enabled=rule_data["enabled"],
-                description=rule_data["description"],
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+    """Service class for Network Security operations"""
+    
+    def __init__(self, db: AsyncSession):
+        self.db = db
+    
+    # Network Device Operations
+    async def create_device(self, device_data: NetworkDeviceCreate) -> NetworkDevice:
+        """Create a new network device"""
+        try:
+            device = await NetworkDevice.create_device(
+                self.db,
+                device_name=device_data.device_name,
+                device_type=device_data.device_type,
+                ip_address=device_data.ip_address,
+                vendor=device_data.vendor,
+                model=device_data.model,
+                port=device_data.port,
+                api_key=device_data.api_key,
+                username=device_data.username,
+                password_hash=device_data.password if device_data.password else None
             )
-            self.firewall_rules[rule.id] = rule
+            logger.info("Network device created", device_id=device.id, device_name=device.device_name)
+            return device
+        except Exception as e:
+            logger.error("Failed to create network device", error=str(e))
+            raise
+    
+    async def get_device(self, device_id: int) -> Optional[NetworkDevice]:
+        """Get device by ID"""
+        return await NetworkDevice.get_by_id(self.db, device_id)
+    
+    async def get_devices_by_type(self, device_type: str) -> List[NetworkDevice]:
+        """Get devices by type"""
+        return await NetworkDevice.get_by_type(self.db, device_type)
+    
+    async def get_all_devices(self, skip: int = 0, limit: int = 100) -> List[NetworkDevice]:
+        """Get all devices with pagination"""
+        return await NetworkDevice.get_all(self.db, skip, limit)
+    
+    async def update_device_status(self, device_id: int, status: str) -> Optional[NetworkDevice]:
+        """Update device status"""
+        try:
+            device = await self.get_device(device_id)
+            if device:
+                device.status = status
+                device.last_seen = datetime.utcnow()
+                await self.db.commit()
+                await self.db.refresh(device)
+                logger.info("Device status updated", device_id=device_id, status=status)
+                return device
+        except Exception as e:
+            logger.error("Failed to update device status", error=str(e))
+            raise
+        return None
+    
+    # Firewall Operations
+    async def create_firewall_log(self, log_data: FirewallLogCreate) -> FirewallLog:
+        """Create a new firewall log entry"""
+        try:
+            log = FirewallLog(**log_data.dict())
+            self.db.add(log)
+            await self.db.commit()
+            await self.db.refresh(log)
+            logger.info("Firewall log created", log_id=log.id, device_id=log.device_id)
+            return log
+        except Exception as e:
+            logger.error("Failed to create firewall log", error=str(e))
+            raise
+    
+    async def get_firewall_logs(self, device_id: Optional[int] = None, hours: int = 24) -> List[FirewallLog]:
+        """Get firewall logs"""
+        if device_id:
+            return await FirewallLog.get_by_device(self.db, device_id)
+        else:
+            return await FirewallLog.get_recent_logs(self.db, hours)
+    
+    async def get_firewall_stats(self, hours: int = 24) -> Dict[str, Any]:
+        """Get firewall statistics"""
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
             
-    def _create_default_nac_policies(self):
-        """Create default NAC policies"""
-        default_policies = [
-            {
-                "id": "default_employee",
-                "name": "Default Employee Access",
-                "description": "Standard access for employees",
-                "device_requirements": {
-                    "antivirus_installed": True,
-                    "os_updates": True,
-                    "firewall_enabled": True
-                },
-                "network_access": [NetworkSegment.INTERNAL.value],
-                "time_restrictions": {
-                    "business_hours": True,
-                    "start_time": "08:00",
-                    "end_time": "18:00"
-                },
-                "enabled": True,
-                "priority": 100
-            },
-            {
-                "id": "admin_access",
-                "name": "Administrator Access",
-                "description": "Full network access for administrators",
-                "device_requirements": {
-                    "antivirus_installed": True,
-                    "os_updates": True,
-                    "firewall_enabled": True,
-                    "mfa_enabled": True
-                },
-                "network_access": [NetworkSegment.ADMIN.value, NetworkSegment.INTERNAL.value],
-                "time_restrictions": {
-                    "business_hours": False,
-                    "start_time": "00:00",
-                    "end_time": "23:59"
-                },
-                "enabled": True,
-                "priority": 50
-            }
-        ]
-        
-        for policy_data in default_policies:
-            policy = NACPolicy(
-                id=policy_data["id"],
-                name=policy_data["name"],
-                description=policy_data["description"],
-                device_requirements=policy_data["device_requirements"],
-                network_access=policy_data["network_access"],
-                time_restrictions=policy_data["time_restrictions"],
-                enabled=policy_data["enabled"],
-                priority=policy_data["priority"]
+            # Total logs
+            total_logs = await self.db.execute(
+                select(func.count(FirewallLog.id)).where(FirewallLog.log_time >= cutoff_time)
             )
-            self.nac_policies[policy.id] = policy
+            total_logs = total_logs.scalar()
             
-    def _load_dns_blacklist(self):
-        """Load DNS blacklist from common malware domains"""
-        # Common malware and phishing domains
-        blacklist_domains = [
-            "malware.example.com",
-            "phishing.example.com",
-            "botnet.example.com",
-            "c2.example.com",
-            "malicious.example.com"
-        ]
-        
-        for domain in blacklist_domains:
-            self.dns_blacklist.add(domain)
+            # Action counts
+            action_counts = await self.db.execute(
+                select(FirewallLog.action, func.count(FirewallLog.id))
+                .where(FirewallLog.log_time >= cutoff_time)
+                .group_by(FirewallLog.action)
+            )
+            action_counts = action_counts.all()
             
-    async def start_network_security_service(self):
-        """Start the network security service"""
-        logger.info("Starting network security service")
-        
-        # Start background monitoring tasks
-        asyncio.create_task(self._monitor_network_traffic())
-        asyncio.create_task(self._monitor_vpn_connections())
-        asyncio.create_task(self._cleanup_old_alerts())
-        
-        logger.info("Network security service started successfully")
-        
-    async def _monitor_network_traffic(self):
-        """Monitor network traffic for suspicious activity"""
-        while True:
-            try:
-                # Simulate network traffic monitoring
-                await self._analyze_network_traffic()
-                await asyncio.sleep(30)  # Check every 30 seconds
-            except Exception as e:
-                logger.error("Error monitoring network traffic", error=str(e))
-                await asyncio.sleep(60)
-                
-    async def _analyze_network_traffic(self):
-        """Analyze network traffic for threats"""
-        # Simulate traffic analysis
-        # In a real implementation, this would analyze actual network packets
-        
-        # Check for port scanning
-        await self._detect_port_scanning()
-        
-        # Check for DDoS attacks
-        await self._detect_ddos_attacks()
-        
-        # Check for suspicious connections
-        await self._detect_suspicious_connections()
-        
-    async def _detect_port_scanning(self):
-        """Detect port scanning activities"""
-        # Simulate port scan detection
-        # In real implementation, this would analyze connection patterns
-        
-        suspicious_patterns = [
-            {"source_ip": "192.168.1.100", "ports": [22, 23, 25, 80, 443, 3389]},
-            {"source_ip": "10.0.0.50", "ports": [21, 22, 23, 25, 53, 80]}
-        ]
-        
-        for pattern in suspicious_patterns:
-            if self._is_port_scanning(pattern):
-                await self._create_ids_alert(
-                    source_ip=pattern["source_ip"],
-                    threat_type=ThreatType.PORT_SCAN,
-                    severity=SecurityLevel.HIGH,
-                    description=f"Port scanning detected from {pattern['source_ip']}"
-                )
-                
-    def _is_port_scanning(self, pattern: Dict[str, Any]) -> bool:
-        """Check if traffic pattern indicates port scanning"""
-        # Simple heuristic: if more than 5 ports are accessed in short time
-        return len(pattern["ports"]) > 5
-        
-    async def _detect_ddos_attacks(self):
-        """Detect DDoS attacks"""
-        # Simulate DDoS detection
-        # In real implementation, this would analyze traffic volume and patterns
-        
-        high_traffic_sources = [
-            {"ip": "203.0.113.1", "requests_per_second": 1000},
-            {"ip": "198.51.100.5", "requests_per_second": 800}
-        ]
-        
-        for source in high_traffic_sources:
-            if source["requests_per_second"] > 500:
-                await self._handle_ddos_attack(source["ip"])
-                
-    async def _handle_ddos_attack(self, source_ip: str):
-        """Handle DDoS attack by blocking source IP"""
-        self.blocked_ips.add(source_ip)
-        
-        attack_info = {
-            "source_ip": source_ip,
-            "timestamp": datetime.utcnow(),
-            "type": "DDoS",
-            "severity": SecurityLevel.CRITICAL.value,
-            "action_taken": "IP blocked"
-        }
-        
-        self.ddos_attacks.append(attack_info)
-        
-        await self._create_ids_alert(
-            source_ip=source_ip,
-            threat_type=ThreatType.DDoS,
-            severity=SecurityLevel.CRITICAL,
-            description=f"DDoS attack detected from {source_ip}"
-        )
-        
-        logger.warning("DDoS attack detected and blocked", source_ip=source_ip)
-        
-    async def _detect_suspicious_connections(self):
-        """Detect suspicious network connections"""
-        # Simulate suspicious connection detection
-        suspicious_connections = [
-            {"source_ip": "10.0.2.15", "destination_ip": "8.8.8.8", "port": 53},
-            {"source_ip": "10.0.3.20", "destination_ip": "1.1.1.1", "port": 443}
-        ]
-        
-        for conn in suspicious_connections:
-            if self._is_suspicious_connection(conn):
-                await self._create_ids_alert(
-                    source_ip=conn["source_ip"],
-                    threat_type=ThreatType.SUSPICIOUS_TRAFFIC,
-                    severity=SecurityLevel.MEDIUM,
-                    description=f"Suspicious connection to {conn['destination_ip']}:{conn['port']}"
-                )
-                
-    def _is_suspicious_connection(self, connection: Dict[str, Any]) -> bool:
-        """Check if connection is suspicious"""
-        # Simple heuristic: external connections from internal networks
-        internal_networks = ["10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12"]
-        
-        source_ip = ipaddress.ip_address(connection["source_ip"])
-        dest_ip = ipaddress.ip_address(connection["destination_ip"])
-        
-        # Check if source is internal and destination is external
-        source_internal = any(source_ip in ipaddress.ip_network(net) for net in internal_networks)
-        dest_external = not any(dest_ip in ipaddress.ip_network(net) for net in internal_networks)
-        
-        return source_internal and dest_external
-        
-    async def _create_ids_alert(self, source_ip: str, threat_type: ThreatType, 
-                               severity: SecurityLevel, description: str):
-        """Create an IDS alert"""
-        alert = IDSAlert(
-            id=f"alert_{int(time.time())}",
-            timestamp=datetime.utcnow(),
-            source_ip=source_ip,
-            destination_ip="",
-            threat_type=threat_type,
-            severity=severity,
-            description=description,
-            signature_id=f"sig_{threat_type.value}",
-            packet_data=None,
-            action_taken="logged",
-            status="new"
-        )
-        
-        self.ids_alerts.append(alert)
-        
-        # Add to security events queue
-        self.security_events.put({
-            "type": "ids_alert",
-            "alert": alert,
-            "timestamp": datetime.utcnow()
-        })
-        
-        logger.warning("IDS alert created", 
-                      threat_type=threat_type.value,
-                      severity=severity.value,
-                      source_ip=source_ip)
-        
-    async def _monitor_vpn_connections(self):
-        """Monitor VPN connections"""
-        while True:
-            try:
-                # Check for idle connections
-                current_time = datetime.utcnow()
-                idle_connections = []
-                
-                for conn_id, connection in self.vpn_connections.items():
-                    if connection.status == "connected":
-                        idle_time = current_time - connection.last_activity
-                        if idle_time > timedelta(hours=8):  # 8 hours idle
-                            idle_connections.append(conn_id)
-                            
-                # Disconnect idle connections
-                for conn_id in idle_connections:
-                    await self.disconnect_vpn_user(conn_id)
-                    
-                await asyncio.sleep(300)  # Check every 5 minutes
-                
-            except Exception as e:
-                logger.error("Error monitoring VPN connections", error=str(e))
-                await asyncio.sleep(600)
-                
-    async def _cleanup_old_alerts(self):
-        """Clean up old IDS alerts"""
-        while True:
-            try:
-                current_time = datetime.utcnow()
-                cutoff_time = current_time - timedelta(days=30)
-                
-                # Remove alerts older than 30 days
-                self.ids_alerts = [
-                    alert for alert in self.ids_alerts 
-                    if alert.timestamp > cutoff_time
-                ]
-                
-                await asyncio.sleep(3600)  # Clean up every hour
-                
-            except Exception as e:
-                logger.error("Error cleaning up old alerts", error=str(e))
-                await asyncio.sleep(3600)
-                
-    # Firewall Management Methods
-    async def add_firewall_rule(self, rule_data: Dict[str, Any]) -> FirewallRule:
-        """Add a new firewall rule"""
-        rule = FirewallRule(
-            id=rule_data["id"],
-            name=rule_data["name"],
-            action=rule_data["action"],
-            protocol=rule_data["protocol"],
-            source_ip=rule_data["source_ip"],
-            source_port=rule_data.get("source_port"),
-            destination_ip=rule_data["destination_ip"],
-            destination_port=rule_data.get("destination_port"),
-            direction=rule_data["direction"],
-            priority=rule_data["priority"],
-            enabled=rule_data["enabled"],
-            description=rule_data["description"],
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        
-        self.firewall_rules[rule.id] = rule
-        logger.info("Firewall rule added", rule_id=rule.id, rule_name=rule.name)
-        
-        return rule
-        
-    async def update_firewall_rule(self, rule_id: str, updates: Dict[str, Any]) -> Optional[FirewallRule]:
-        """Update an existing firewall rule"""
-        if rule_id not in self.firewall_rules:
-            return None
+            # Top source IPs
+            top_source_ips = await self.db.execute(
+                select(FirewallLog.source_ip, func.count(FirewallLog.id))
+                .where(FirewallLog.log_time >= cutoff_time)
+                .group_by(FirewallLog.source_ip)
+                .order_by(func.count(FirewallLog.id).desc())
+                .limit(10)
+            )
+            top_source_ips = top_source_ips.all()
             
-        rule = self.firewall_rules[rule_id]
-        
-        for key, value in updates.items():
-            if hasattr(rule, key):
-                setattr(rule, key, value)
-                
-        rule.updated_at = datetime.utcnow()
-        
-        logger.info("Firewall rule updated", rule_id=rule_id)
-        return rule
-        
-    async def delete_firewall_rule(self, rule_id: str) -> bool:
-        """Delete a firewall rule"""
-        if rule_id in self.firewall_rules:
-            del self.firewall_rules[rule_id]
-            logger.info("Firewall rule deleted", rule_id=rule_id)
-            return True
-        return False
-        
-    async def get_firewall_rules(self) -> List[FirewallRule]:
-        """Get all firewall rules"""
-        return list(self.firewall_rules.values())
-        
-    # VPN Management Methods
-    async def connect_vpn_user(self, user_id: str, username: str, ip_address: str, 
-                              client_info: Dict[str, Any]) -> VPNConnection:
-        """Connect a user to VPN"""
-        connection = VPNConnection(
-            id=f"vpn_{user_id}_{int(time.time())}",
-            user_id=user_id,
-            username=username,
-            ip_address=ip_address,
-            connected_at=datetime.utcnow(),
-            last_activity=datetime.utcnow(),
-            bytes_sent=0,
-            bytes_received=0,
-            status="connected",
-            client_info=client_info
-        )
-        
-        self.vpn_connections[connection.id] = connection
-        
-        logger.info("VPN user connected", 
-                   user_id=user_id, 
-                   username=username, 
-                   ip_address=ip_address)
-        
-        return connection
-        
-    async def disconnect_vpn_user(self, connection_id: str) -> bool:
-        """Disconnect a VPN user"""
-        if connection_id in self.vpn_connections:
-            connection = self.vpn_connections[connection_id]
-            connection.status = "disconnected"
+            # Top destination IPs
+            top_dest_ips = await self.db.execute(
+                select(FirewallLog.dest_ip, func.count(FirewallLog.id))
+                .where(FirewallLog.log_time >= cutoff_time)
+                .group_by(FirewallLog.dest_ip)
+                .order_by(func.count(FirewallLog.id).desc())
+                .limit(10)
+            )
+            top_dest_ips = top_dest_ips.all()
             
-            logger.info("VPN user disconnected", 
-                       user_id=connection.user_id,
-                       username=connection.username)
-            
-            return True
-        return False
-        
-    async def get_vpn_connections(self) -> List[VPNConnection]:
-        """Get all VPN connections"""
-        return list(self.vpn_connections.values())
-        
-    # NAC Management Methods
-    async def add_nac_policy(self, policy_data: Dict[str, Any]) -> NACPolicy:
-        """Add a new NAC policy"""
-        policy = NACPolicy(
-            id=policy_data["id"],
-            name=policy_data["name"],
-            description=policy_data["description"],
-            device_requirements=policy_data["device_requirements"],
-            network_access=policy_data["network_access"],
-            time_restrictions=policy_data["time_restrictions"],
-            enabled=policy_data["enabled"],
-            priority=policy_data["priority"]
-        )
-        
-        self.nac_policies[policy.id] = policy
-        
-        logger.info("NAC policy added", policy_id=policy.id, policy_name=policy.name)
-        
-        return policy
-        
-    async def evaluate_device_access(self, device_info: Dict[str, Any], 
-                                   user_id: str) -> Dict[str, Any]:
-        """Evaluate device access based on NAC policies"""
-        # Find applicable policies
-        applicable_policies = []
-        
-        for policy in self.nac_policies.values():
-            if policy.enabled:
-                # Check if device meets requirements
-                if self._device_meets_requirements(device_info, policy.device_requirements):
-                    applicable_policies.append(policy)
-                    
-        if not applicable_policies:
             return {
-                "access_granted": False,
-                "reason": "No applicable NAC policies found",
-                "allowed_networks": []
+                "total_logs": total_logs,
+                "action_counts": {action: count for action, count in action_counts},
+                "top_source_ips": [{"ip": ip, "count": count} for ip, count in top_source_ips],
+                "top_dest_ips": [{"ip": ip, "count": count} for ip, count in top_dest_ips]
             }
+        except Exception as e:
+            logger.error("Failed to get firewall stats", error=str(e))
+            raise
+    
+    # IDS Operations
+    async def create_ids_alert(self, alert_data: IDSAlertCreate) -> IDSAlertModel:
+        """Create a new IDS alert"""
+        try:
+            alert = IDSAlertModel(**alert_data.dict())
+            self.db.add(alert)
+            await self.db.commit()
+            await self.db.refresh(alert)
+            logger.info("IDS alert created", alert_id=alert.id, severity=alert.severity)
+            return alert
+        except Exception as e:
+            logger.error("Failed to create IDS alert", error=str(e))
+            raise
+    
+    async def get_ids_alerts(self, severity: Optional[str] = None, hours: int = 24) -> List[IDSAlertModel]:
+        """Get IDS alerts"""
+        if severity:
+            return await IDSAlertModel.get_by_severity(self.db, severity)
+        else:
+            return await IDSAlertModel.get_recent_alerts(self.db, hours)
+    
+    async def update_alert_status(self, alert_id: int, status: str) -> Optional[IDSAlertModel]:
+        """Update alert status"""
+        try:
+            result = await self.db.execute(select(IDSAlertModel).where(IDSAlertModel.id == alert_id))
+            alert = result.scalar_one_or_none()
+            if alert:
+                alert.status = status
+                await self.db.commit()
+                await self.db.refresh(alert)
+                logger.info("Alert status updated", alert_id=alert_id, status=status)
+                return alert
+        except Exception as e:
+            logger.error("Failed to update alert status", error=str(e))
+            raise
+        return None
+    
+    async def get_ids_stats(self, hours: int = 24) -> Dict[str, Any]:
+        """Get IDS statistics"""
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
             
-        # Sort by priority (lower number = higher priority)
-        applicable_policies.sort(key=lambda p: p.priority)
-        
-        # Get allowed networks from highest priority policy
-        primary_policy = applicable_policies[0]
-        
-        return {
-            "access_granted": True,
-            "policy_applied": primary_policy.name,
-            "allowed_networks": primary_policy.network_access,
-            "time_restrictions": primary_policy.time_restrictions
-        }
-        
-    def _device_meets_requirements(self, device_info: Dict[str, Any], 
-                                  requirements: Dict[str, Any]) -> bool:
-        """Check if device meets NAC requirements"""
-        for requirement, required_value in requirements.items():
-            if requirement in device_info:
-                if device_info[requirement] != required_value:
-                    return False
-            else:
-                return False
-        return True
-        
-    # DNS Security Methods
-    async def check_dns_request(self, domain: str) -> Dict[str, Any]:
-        """Check if DNS request should be allowed"""
-        if domain in self.dns_blacklist:
+            # Total alerts
+            total_alerts = await self.db.execute(
+                select(func.count(IDSAlertModel.id)).where(IDSAlertModel.alert_time >= cutoff_time)
+            )
+            total_alerts = total_alerts.scalar()
+            
+            # Severity counts
+            severity_counts = await self.db.execute(
+                select(IDSAlertModel.severity, func.count(IDSAlertModel.id))
+                .where(IDSAlertModel.alert_time >= cutoff_time)
+                .group_by(IDSAlertModel.severity)
+            )
+            severity_counts = severity_counts.all()
+            
+            # Top categories
+            top_categories = await self.db.execute(
+                select(IDSAlertModel.category, func.count(IDSAlertModel.id))
+                .where(and_(IDSAlertModel.alert_time >= cutoff_time, IDSAlertModel.category.isnot(None)))
+                .group_by(IDSAlertModel.category)
+                .order_by(func.count(IDSAlertModel.id).desc())
+                .limit(10)
+            )
+            top_categories = top_categories.all()
+            
             return {
-                "allowed": False,
-                "reason": "Domain is blacklisted",
-                "action": "block"
+                "total_alerts": total_alerts,
+                "severity_counts": {severity: count for severity, count in severity_counts},
+                "top_categories": [{"category": cat, "count": count} for cat, count in top_categories]
             }
+        except Exception as e:
+            logger.error("Failed to get IDS stats", error=str(e))
+            raise
+    
+    # VPN Operations
+    async def create_vpn_session(self, session_data: VPNSessionCreate) -> VPNSession:
+        """Create a new VPN session"""
+        try:
+            session = VPNSession(**session_data.dict())
+            self.db.add(session)
+            await self.db.commit()
+            await self.db.refresh(session)
+            logger.info("VPN session created", session_id=session.id, username=session.username)
+            return session
+        except Exception as e:
+            logger.error("Failed to create VPN session", error=str(e))
+            raise
+    
+    async def get_active_vpn_sessions(self) -> List[VPNSession]:
+        """Get active VPN sessions"""
+        return await VPNSession.get_active_sessions(self.db)
+    
+    async def end_vpn_session(self, session_id: int) -> Optional[VPNSession]:
+        """End a VPN session"""
+        try:
+            result = await self.db.execute(select(VPNSession).where(VPNSession.id == session_id))
+            session = result.scalar_one_or_none()
+            if session and session.status == "active":
+                session.connection_end = datetime.utcnow()
+                session.status = "disconnected"
+                if session.connection_start:
+                    session.session_duration = int((session.connection_end - session.connection_start).total_seconds())
+                await self.db.commit()
+                await self.db.refresh(session)
+                logger.info("VPN session ended", session_id=session_id)
+                return session
+        except Exception as e:
+            logger.error("Failed to end VPN session", error=str(e))
+            raise
+        return None
+    
+    async def get_vpn_stats(self) -> Dict[str, Any]:
+        """Get VPN statistics"""
+        try:
+            # Active sessions
+            active_sessions = await self.db.execute(
+                select(func.count(VPNSession.id)).where(VPNSession.status == "active")
+            )
+            active_sessions = active_sessions.scalar()
             
-        if domain in self.dns_whitelist:
+            # Total users
+            total_users = await self.db.execute(
+                select(func.count(func.distinct(VPNSession.username)))
+            )
+            total_users = total_users.scalar()
+            
+            # Top users
+            top_users = await self.db.execute(
+                select(VPNSession.username, func.count(VPNSession.id))
+                .group_by(VPNSession.username)
+                .order_by(func.count(VPNSession.id).desc())
+                .limit(10)
+            )
+            top_users = top_users.all()
+            
             return {
-                "allowed": True,
-                "reason": "Domain is whitelisted",
-                "action": "allow"
+                "active_sessions": active_sessions,
+                "total_users": total_users,
+                "top_users": [{"username": user, "count": count} for user, count in top_users]
             }
+        except Exception as e:
+            logger.error("Failed to get VPN stats", error=str(e))
+            raise
+    
+    # NAC Operations
+    async def create_nac_log(self, log_data: NACLogCreate) -> NACLog:
+        """Create a new NAC log entry"""
+        try:
+            log = NACLog(**log_data.dict())
+            self.db.add(log)
+            await self.db.commit()
+            await self.db.refresh(log)
+            logger.info("NAC log created", log_id=log.id, action=log.action)
+            return log
+        except Exception as e:
+            logger.error("Failed to create NAC log", error=str(e))
+            raise
+    
+    async def get_nac_logs(self, action: Optional[str] = None, hours: int = 24) -> List[NACLog]:
+        """Get NAC logs"""
+        if action:
+            return await NACLog.get_by_action(self.db, action)
+        else:
+            return await NACLog.get_recent_logs(self.db, hours)
+    
+    async def get_nac_stats(self, hours: int = 24) -> Dict[str, Any]:
+        """Get NAC statistics"""
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
             
-        # Check for suspicious patterns
-        if self._is_suspicious_domain(domain):
+            # Total events
+            total_events = await self.db.execute(
+                select(func.count(NACLog.id)).where(NACLog.event_time >= cutoff_time)
+            )
+            total_events = total_events.scalar()
+            
+            # Action counts
+            action_counts = await self.db.execute(
+                select(NACLog.action, func.count(NACLog.id))
+                .where(NACLog.event_time >= cutoff_time)
+                .group_by(NACLog.action)
+            )
+            action_counts = action_counts.all()
+            
+            # Top policies
+            top_policies = await self.db.execute(
+                select(NACLog.policy_name, func.count(NACLog.id))
+                .where(and_(NACLog.event_time >= cutoff_time, NACLog.policy_name.isnot(None)))
+                .group_by(NACLog.policy_name)
+                .order_by(func.count(NACLog.id).desc())
+                .limit(10)
+            )
+            top_policies = top_policies.all()
+            
             return {
-                "allowed": False,
-                "reason": "Suspicious domain pattern",
-                "action": "block"
+                "total_events": total_events,
+                "action_counts": {action: count for action, count in action_counts},
+                "top_policies": [{"policy": policy, "count": count} for policy, count in top_policies]
             }
+        except Exception as e:
+            logger.error("Failed to get NAC stats", error=str(e))
+            raise
+    
+    # Dashboard Overview
+    async def get_network_security_overview(self) -> Dict[str, Any]:
+        """Get network security overview for dashboard"""
+        try:
+            # Device counts
+            total_devices = await self.db.execute(select(func.count(NetworkDevice.id)))
+            total_devices = total_devices.scalar()
             
-        return {
-            "allowed": True,
-            "reason": "Domain is clean",
-            "action": "allow"
-        }
-        
-    def _is_suspicious_domain(self, domain: str) -> bool:
-        """Check if domain has suspicious characteristics"""
-        suspicious_patterns = [
-            "malware", "virus", "hack", "crack", "warez",
-            "free", "download", "click", "win", "prize"
-        ]
-        
-        domain_lower = domain.lower()
-        return any(pattern in domain_lower for pattern in suspicious_patterns)
-        
-    async def add_dns_blacklist(self, domain: str) -> bool:
-        """Add domain to DNS blacklist"""
-        self.dns_blacklist.add(domain)
-        logger.info("Domain added to blacklist", domain=domain)
-        return True
-        
-    async def add_dns_whitelist(self, domain: str) -> bool:
-        """Add domain to DNS whitelist"""
-        self.dns_whitelist.add(domain)
-        logger.info("Domain added to whitelist", domain=domain)
-        return True
-        
-    # Network Segmentation Methods
-    async def create_network_segment(self, segment_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new network segment"""
-        segment_id = segment_data["id"]
-        
-        self.network_segments[segment_id] = {
-            "subnet": segment_data["subnet"],
-            "description": segment_data["description"],
-            "security_level": segment_data["security_level"],
-            "allowed_services": segment_data["allowed_services"],
-            "monitoring": segment_data.get("monitoring", True),
-            "created_at": datetime.utcnow()
-        }
-        
-        logger.info("Network segment created", segment_id=segment_id)
-        
-        return self.network_segments[segment_id]
-        
-    async def get_network_segments(self) -> Dict[str, Any]:
-        """Get all network segments"""
-        return self.network_segments
-        
-    # Reporting Methods
-    async def get_security_report(self) -> Dict[str, Any]:
-        """Generate comprehensive security report"""
-        current_time = datetime.utcnow()
-        last_24h = current_time - timedelta(hours=24)
-        
-        # Get alerts from last 24 hours
-        recent_alerts = [
-            alert for alert in self.ids_alerts 
-            if alert.timestamp > last_24h
-        ]
-        
-        # Count alerts by severity
-        severity_counts = defaultdict(int)
-        for alert in recent_alerts:
-            severity_counts[alert.severity.value] += 1
+            online_devices = await self.db.execute(
+                select(func.count(NetworkDevice.id)).where(NetworkDevice.status == "online")
+            )
+            online_devices = online_devices.scalar()
             
-        # Count alerts by threat type
-        threat_counts = defaultdict(int)
-        for alert in recent_alerts:
-            threat_counts[alert.threat_type.value] += 1
+            # 24-hour activity
+            cutoff_time = datetime.utcnow() - timedelta(hours=24)
             
-        return {
-            "report_generated": current_time.isoformat(),
-            "time_period": "24 hours",
-            "total_alerts": len(recent_alerts),
-            "severity_breakdown": dict(severity_counts),
-            "threat_breakdown": dict(threat_counts),
-            "active_vpn_connections": len([c for c in self.vpn_connections.values() if c.status == "connected"]),
-            "blocked_ips": len(self.blocked_ips),
-            "ddos_attacks": len([a for a in self.ddos_attacks if a["timestamp"] > last_24h]),
-            "firewall_rules": len(self.firewall_rules),
-            "nac_policies": len(self.nac_policies)
-        }
-        
-    async def get_network_status(self) -> Dict[str, Any]:
-        """Get current network security status"""
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "active_threats": len([a for a in self.ids_alerts if a.status == "new"]),
-            "blocked_ips_count": len(self.blocked_ips),
-            "vpn_connections": len([c for c in self.vpn_connections.values() if c.status == "connected"]),
-            "network_segments": len(self.network_segments),
-            "firewall_rules_active": len([r for r in self.firewall_rules.values() if r.enabled]),
-            "dns_blacklist_size": len(self.dns_blacklist),
-            "dns_whitelist_size": len(self.dns_whitelist)
-        }
-
-# Global instance
-network_security_service = NetworkSecurityService() 
+            firewall_logs_24h = await self.db.execute(
+                select(func.count(FirewallLog.id)).where(FirewallLog.log_time >= cutoff_time)
+            )
+            firewall_logs_24h = firewall_logs_24h.scalar()
+            
+            ids_alerts_24h = await self.db.execute(
+                select(func.count(IDSAlertModel.id)).where(IDSAlertModel.alert_time >= cutoff_time)
+            )
+            ids_alerts_24h = ids_alerts_24h.scalar()
+            
+            active_vpn_sessions = await self.db.execute(
+                select(func.count(VPNSession.id)).where(VPNSession.status == "active")
+            )
+            active_vpn_sessions = active_vpn_sessions.scalar()
+            
+            nac_events_24h = await self.db.execute(
+                select(func.count(NACLog.id)).where(NACLog.event_time >= cutoff_time)
+            )
+            nac_events_24h = nac_events_24h.scalar()
+            
+            # Alert severity counts
+            severity_counts = await self.db.execute(
+                select(IDSAlertModel.severity, func.count(IDSAlertModel.id))
+                .where(IDSAlertModel.alert_time >= cutoff_time)
+                .group_by(IDSAlertModel.severity)
+            )
+            severity_counts = severity_counts.all()
+            
+            return {
+                "total_devices": total_devices,
+                "online_devices": online_devices,
+                "offline_devices": total_devices - online_devices,
+                "firewall_logs_24h": firewall_logs_24h,
+                "ids_alerts_24h": ids_alerts_24h,
+                "active_vpn_sessions": active_vpn_sessions,
+                "nac_events_24h": nac_events_24h,
+                "critical_alerts": next((count for severity, count in severity_counts if severity == "critical"), 0),
+                "high_alerts": next((count for severity, count in severity_counts if severity == "high"), 0),
+                "medium_alerts": next((count for severity, count in severity_counts if severity == "medium"), 0),
+                "low_alerts": next((count for severity, count in severity_counts if severity == "low"), 0)
+            }
+        except Exception as e:
+            logger.error("Failed to get network security overview", error=str(e))
+            raise 

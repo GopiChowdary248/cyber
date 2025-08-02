@@ -75,25 +75,31 @@ The application includes pre-configured demo accounts for testing:
 - Incident tracking
 - Performance analytics
 
-### 2. **Threat Intelligence**
+### 2. **Application Security** 🆕
+- **SAST**: Static code analysis for vulnerability detection
+- **DAST**: Dynamic application security testing
+- **RASP**: Runtime application self-protection
+- Comprehensive security scanning and monitoring
+
+### 3. **Threat Intelligence**
 - Threat indicator management
 - Campaign tracking
 - Hunting queries
 - Intelligence feeds
 
-### 3. **Data Protection**
+### 4. **Data Protection**
 - Data classification
 - Privacy management
 - Compliance monitoring
 - Breach detection
 
-### 4. **Endpoint Security**
+### 5. **Endpoint Security**
 - Device management
 - Antivirus scanning
 - EDR alerts
 - Application whitelisting
 
-### 5. **Cloud Security**
+### 6. **Cloud Security**
 - Cloud configuration monitoring
 - Security posture assessment
 - Compliance reporting

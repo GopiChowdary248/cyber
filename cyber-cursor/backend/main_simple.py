@@ -8,6 +8,13 @@ from typing import List, Optional
 from pydantic import BaseModel
 import os
 
+# Import SAST components
+from app.sast.scanner import SASTScanner, SASTScanManager
+from app.sast.ai_recommendations import AIRecommendationEngine, RiskScoringEngine
+from app.models.sast import SASTScan, SASTVulnerability, SASTRecommendation
+from app.api.v1.sast import router as sast_router
+from app.database import init_db, check_db_connection
+
 # Configure structured logging
 structlog.configure(
     processors=[
@@ -57,6 +64,17 @@ security = HTTPBearer(auto_error=False)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting CyberShield API")
+    
+    # Initialize database
+    try:
+        init_db()
+        if check_db_connection():
+            logger.info("Database initialized successfully")
+        else:
+            logger.warning("Database connection failed, using fallback mode")
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
+    
     yield
     # Shutdown
     logger.info("Shutting down CyberShield API")
@@ -77,6 +95,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include SAST API router
+app.include_router(sast_router, prefix="/api/v1/sast", tags=["sast"])
 
 # Mock data
 mock_users = [
@@ -245,6 +266,244 @@ async def get_threats(current_user: User = Depends(get_current_user)):
             "timestamp": "2024-01-15T08:30:00Z"
         }
     ]
+
+# Application Security Models
+class SASTResult(BaseModel):
+    id: int
+    file_name: str
+    severity: str
+    description: str
+    recommendation: str
+    scan_date: str
+    line_number: int
+    rule_id: str
+
+class DASTResult(BaseModel):
+    id: int
+    url: str
+    severity: str
+    vulnerability_type: str
+    recommendation: str
+    scan_date: str
+    status: str
+    cwe_id: str
+
+class RASPLog(BaseModel):
+    id: int
+    incident_type: str
+    status: str
+    description: str
+    blocked: bool
+    timestamp: str
+    source_ip: str
+    attack_vector: str
+
+class SecuritySummary(BaseModel):
+    sast_critical: int
+    sast_high: int
+    sast_medium: int
+    sast_low: int
+    dast_critical: int
+    dast_high: int
+    dast_medium: int
+    dast_low: int
+    rasp_blocked: int
+    rasp_incidents: int
+
+# Mock Application Security Data
+mock_sast_results = [
+    SASTResult(
+        id=1,
+        file_name="app/auth/login.py",
+        severity="high",
+        description="SQL Injection vulnerability detected in user input",
+        recommendation="Use parameterized queries or ORM to prevent SQL injection",
+        scan_date="2024-01-15T10:30:00Z",
+        line_number=45,
+        rule_id="SQL_INJECTION_001"
+    ),
+    SASTResult(
+        id=2,
+        file_name="frontend/src/components/Login.tsx",
+        severity="medium",
+        description="XSS vulnerability in user input rendering",
+        recommendation="Sanitize user input and use React's built-in XSS protection",
+        scan_date="2024-01-15T10:30:00Z",
+        line_number=23,
+        rule_id="XSS_001"
+    ),
+    SASTResult(
+        id=3,
+        file_name="backend/api/users.py",
+        severity="critical",
+        description="Hardcoded credentials found in source code",
+        recommendation="Remove hardcoded credentials and use environment variables",
+        scan_date="2024-01-15T10:30:00Z",
+        line_number=12,
+        rule_id="HARDCODED_CREDS_001"
+    )
+]
+
+mock_dast_results = [
+    DASTResult(
+        id=1,
+        url="http://localhost:3000/login",
+        severity="high",
+        vulnerability_type="SQL Injection",
+        recommendation="Implement input validation and use prepared statements",
+        scan_date="2024-01-15T11:00:00Z",
+        status="open",
+        cwe_id="CWE-89"
+    ),
+    DASTResult(
+        id=2,
+        url="http://localhost:3000/api/users",
+        severity="medium",
+        vulnerability_type="Cross-Site Scripting (XSS)",
+        recommendation="Implement proper output encoding and Content Security Policy",
+        scan_date="2024-01-15T11:00:00Z",
+        status="open",
+        cwe_id="CWE-79"
+    ),
+    DASTResult(
+        id=3,
+        url="http://localhost:3000/admin",
+        severity="critical",
+        vulnerability_type="Authentication Bypass",
+        recommendation="Implement proper authentication and authorization checks",
+        scan_date="2024-01-15T11:00:00Z",
+        status="open",
+        cwe_id="CWE-287"
+    )
+]
+
+mock_rasp_logs = [
+    RASPLog(
+        id=1,
+        incident_type="SQL Injection Attempt",
+        status="blocked",
+        description="SQL injection attempt detected and blocked",
+        blocked=True,
+        timestamp="2024-01-15T12:30:00Z",
+        source_ip="192.168.1.100",
+        attack_vector="SQL_INJECTION"
+    ),
+    RASPLog(
+        id=2,
+        incident_type="XSS Attack",
+        status="blocked",
+        description="Cross-site scripting attempt blocked",
+        blocked=True,
+        timestamp="2024-01-15T12:35:00Z",
+        source_ip="10.0.0.50",
+        attack_vector="XSS"
+    ),
+    RASPLog(
+        id=3,
+        incident_type="Brute Force Attack",
+        status="monitoring",
+        description="Multiple failed login attempts detected",
+        blocked=False,
+        timestamp="2024-01-15T12:40:00Z",
+        source_ip="203.0.113.25",
+        attack_vector="BRUTE_FORCE"
+    )
+]
+
+# Application Security Routes
+@app.get("/api/v1/security/summary", response_model=SecuritySummary)
+async def get_security_summary(current_user: User = Depends(get_current_user)):
+    """Get security summary across all tools"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Calculate summary from mock data
+    sast_critical = len([r for r in mock_sast_results if r.severity == "critical"])
+    sast_high = len([r for r in mock_sast_results if r.severity == "high"])
+    sast_medium = len([r for r in mock_sast_results if r.severity == "medium"])
+    sast_low = len([r for r in mock_sast_results if r.severity == "low"])
+    
+    dast_critical = len([r for r in mock_dast_results if r.severity == "critical"])
+    dast_high = len([r for r in mock_dast_results if r.severity == "high"])
+    dast_medium = len([r for r in mock_dast_results if r.severity == "medium"])
+    dast_low = len([r for r in mock_dast_results if r.severity == "low"])
+    
+    rasp_blocked = len([r for r in mock_rasp_logs if r.blocked])
+    rasp_incidents = len(mock_rasp_logs)
+    
+    return SecuritySummary(
+        sast_critical=sast_critical,
+        sast_high=sast_high,
+        sast_medium=sast_medium,
+        sast_low=sast_low,
+        dast_critical=dast_critical,
+        dast_high=dast_high,
+        dast_medium=dast_medium,
+        dast_low=dast_low,
+        rasp_blocked=rasp_blocked,
+        rasp_incidents=rasp_incidents
+    )
+
+@app.get("/api/v1/security/sast/results", response_model=List[SASTResult])
+async def get_sast_results(current_user: User = Depends(get_current_user)):
+    """Get SAST scan results"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return mock_sast_results
+
+@app.post("/api/v1/security/sast/scan")
+async def trigger_sast_scan(current_user: User = Depends(get_current_user)):
+    """Trigger a new SAST scan"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # In a real implementation, this would trigger SonarQube or other SAST tool
+    return {
+        "message": "SAST scan triggered successfully",
+        "scan_id": "sast_scan_123",
+        "estimated_duration": "5-10 minutes"
+    }
+
+@app.get("/api/v1/security/dast/results", response_model=List[DASTResult])
+async def get_dast_results(current_user: User = Depends(get_current_user)):
+    """Get DAST scan results"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return mock_dast_results
+
+@app.post("/api/v1/security/dast/scan")
+async def trigger_dast_scan(current_user: User = Depends(get_current_user)):
+    """Trigger a new DAST scan"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # In a real implementation, this would trigger OWASP ZAP or other DAST tool
+    return {
+        "message": "DAST scan triggered successfully",
+        "scan_id": "dast_scan_456",
+        "estimated_duration": "15-30 minutes"
+    }
+
+@app.get("/api/v1/security/rasp/logs", response_model=List[RASPLog])
+async def get_rasp_logs(current_user: User = Depends(get_current_user)):
+    """Get RASP monitoring logs"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return mock_rasp_logs
+
+@app.get("/api/v1/security/rasp/status")
+async def get_rasp_status(current_user: User = Depends(get_current_user)):
+    """Get RASP protection status"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    return {
+        "status": "active",
+        "protection_enabled": True,
+        "threats_blocked_today": 15,
+        "active_rules": 25,
+        "last_incident": "2024-01-15T12:40:00Z"
+    }
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

@@ -12,9 +12,23 @@ import {
   MagnifyingGlassIcon,
   SunIcon,
   MoonIcon,
-  ComputerDesktopIcon
+  ComputerDesktopIcon,
+  BugAntIcon,
+  ArrowRightOnRectangleIcon,
+  WifiIcon,
+  DevicePhoneMobileIcon,
+  KeyIcon,
+  LockClosedIcon,
+  DocumentTextIcon,
+  ServerIcon,
+  ShieldExclamationIcon,
+  PlayIcon,
+  BoltIcon,
+  GlobeAltIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface NavigationItem {
   id: string;
@@ -37,6 +51,12 @@ const navigationItems: NavigationItem[] = [
     href: '/dashboard'
   },
   {
+    id: 'application-security',
+    label: 'Application Security',
+    icon: <BugAntIcon className="w-5 h-5" />,
+    href: '/application-security'
+  },
+  {
     id: 'cloud-security',
     label: 'Cloud Security',
     icon: <CloudIcon className="w-5 h-5" />,
@@ -50,6 +70,79 @@ const navigationItems: NavigationItem[] = [
       { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/cloud-security/monitoring' }
     ]
   },
+  {
+    id: 'network-security',
+    label: 'Network Security',
+    icon: <WifiIcon className="w-5 h-5" />,
+    href: '/network-security',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/network-security' },
+      { id: 'firewall', label: 'Firewall', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/network-security/firewall' },
+      { id: 'ids-ips', label: 'IDS/IPS', icon: <BellIcon className="w-4 h-4" />, href: '/network-security/ids-ips' },
+      { id: 'vpn', label: 'VPN', icon: <WifiIcon className="w-4 h-4" />, href: '/network-security/vpn' },
+      { id: 'nac', label: 'NAC', icon: <UserCircleIcon className="w-4 h-4" />, href: '/network-security/nac' },
+      { id: 'monitoring', label: 'Monitoring', icon: <ComputerDesktopIcon className="w-4 h-4" />, href: '/network-security/monitoring' }
+    ]
+  },
+  {
+    id: 'endpoint-security',
+    label: 'Endpoint Security',
+    icon: <DevicePhoneMobileIcon className="w-5 h-5" />,
+    href: '/endpoint-security',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/endpoint-security' },
+      { id: 'antivirus', label: 'Antivirus', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/endpoint-security/antivirus' },
+      { id: 'edr', label: 'EDR', icon: <ComputerDesktopIcon className="w-4 h-4" />, href: '/endpoint-security/edr' },
+      { id: 'dlp', label: 'DLP', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/endpoint-security/dlp' },
+      { id: 'patching', label: 'Patching', icon: <CogIcon className="w-4 h-4" />, href: '/endpoint-security/patching' },
+      { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/endpoint-security/monitoring' }
+    ]
+  },
+  {
+    id: 'iam-security',
+    label: 'IAM Security',
+    icon: <KeyIcon className="w-5 h-5" />,
+    href: '/iam-security',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/iam-security' },
+      { id: 'identity-management', label: 'Identity Management', icon: <UserCircleIcon className="w-4 h-4" />, href: '/iam-security/identity-management' },
+      { id: 'sso-mfa', label: 'SSO & MFA', icon: <LockClosedIcon className="w-4 h-4" />, href: '/iam-security/sso-mfa' },
+      { id: 'pam', label: 'PAM', icon: <KeyIcon className="w-4 h-4" />, href: '/iam-security/pam' },
+      { id: 'rbac', label: 'RBAC', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/iam-security/rbac' },
+      { id: 'audit-compliance', label: 'Audit & Compliance', icon: <BellIcon className="w-4 h-4" />, href: '/iam-security/audit-compliance' }
+    ]
+  },
+  {
+    id: 'data-security',
+    label: 'Data Security',
+    icon: <DocumentTextIcon className="w-5 h-5" />,
+    href: '/data-security',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/data-security' },
+      { id: 'encryption', label: 'Encryption', icon: <LockClosedIcon className="w-4 h-4" />, href: '/data-security/encryption' },
+      { id: 'dlp', label: 'DLP', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/data-security/dlp' },
+      { id: 'database-security', label: 'Database Security', icon: <ServerIcon className="w-4 h-4" />, href: '/data-security/database-security' },
+      { id: 'compliance', label: 'Compliance', icon: <DocumentTextIcon className="w-4 h-4" />, href: '/data-security/compliance' },
+      { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/data-security/monitoring' }
+    ]
+  },
+  {
+    id: 'siem-soar',
+    label: 'SIEM & SOAR',
+    icon: <ShieldExclamationIcon className="w-5 h-5" />,
+    href: '/siem-soar',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/siem-soar' },
+      { id: 'log-collection', label: 'Log Collection', icon: <ServerIcon className="w-4 h-4" />, href: '/siem-soar/log-collection' },
+      { id: 'event-correlation', label: 'Event Correlation', icon: <MagnifyingGlassIcon className="w-4 h-4" />, href: '/siem-soar/event-correlation' },
+      { id: 'incident-management', label: 'Incident Management', icon: <ExclamationTriangleIcon className="w-4 h-4" />, href: '/siem-soar/incident-management' },
+      { id: 'playbooks', label: 'Playbooks', icon: <PlayIcon className="w-4 h-4" />, href: '/siem-soar/playbooks' },
+      { id: 'threat-intelligence', label: 'Threat Intelligence', icon: <GlobeAltIcon className="w-4 h-4" />, href: '/siem-soar/threat-intelligence' },
+      { id: 'automation', label: 'Automation', icon: <BoltIcon className="w-4 h-4" />, href: '/siem-soar/automation' },
+      { id: 'compliance', label: 'Compliance', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/siem-soar/compliance' }
+    ]
+  },
+
   {
     id: 'incidents',
     label: 'Incidents',
@@ -72,7 +165,9 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -100,6 +195,11 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
       case 'dark': return <MoonIcon className="w-5 h-5" />;
       case 'auto': return <ComputerDesktopIcon className="w-5 h-5" />;
     }
+  };
+
+  const handleLogout = () => {
+    setShowUserMenu(false);
+    logout();
   };
 
   const renderNavigationItem = (item: NavigationItem, isChild = false) => {
@@ -233,9 +333,46 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
               <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
                 <BellIcon className="w-5 h-5" />
               </button>
-              <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
-                <UserCircleIcon className="w-5 h-5" />
-              </button>
+              
+              {/* User Menu */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+                >
+                  <UserCircleIcon className="w-5 h-5" />
+                </button>
+                
+                {/* User Dropdown Menu */}
+                <AnimatePresence>
+                  {showUserMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute bottom-full right-0 mb-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden z-50"
+                    >
+                      {/* User Info */}
+                      <div className="px-4 py-3 border-b border-gray-700">
+                        <p className="text-sm font-medium text-white">{user?.email}</p>
+                        <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
+                      </div>
+                      
+                      {/* Menu Items */}
+                      <div className="py-1">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors duration-200"
+                        >
+                          <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </div>
@@ -310,10 +447,19 @@ export const EnhancedNavigation: React.FC<EnhancedNavigationProps> = ({
                     <span className="text-sm">Notifications</span>
                   </button>
                   
-                  <button className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200">
-                    <UserCircleIcon className="w-5 h-5" />
-                    <span className="text-sm">Profile</span>
+                  <button 
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+                  >
+                    <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                    <span className="text-sm">Sign Out</span>
                   </button>
+                </div>
+                
+                {/* User Info */}
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  <p className="text-sm text-gray-300">{user?.email}</p>
+                  <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
                 </div>
               </div>
             </motion.div>

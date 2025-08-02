@@ -1,0 +1,138 @@
+{
+  "timestamp": "2025-08-02T22:13:44.927068",
+  "total_tests": 14,
+  "passed": 6,
+  "failed": 8,
+  "warnings": 0,
+  "success_rate": 42.86,
+  "overall_status": "FAIL",
+  "results": [
+    {
+      "test": "Docker Containers",
+      "status": "FAIL",
+      "message": "Only 4 containers running",
+      "timestamp": "2025-08-02T22:13:44.606232",
+      "details": {}
+    },
+    {
+      "test": "Backend Health",
+      "status": "PASS",
+      "message": "Backend is healthy",
+      "timestamp": "2025-08-02T22:13:44.629149",
+      "details": {
+        "status": "healthy",
+        "message": "CyberShield API with core components is running",
+        "version": "2.0.0",
+        "timestamp": "2025-08-02T16:43:44.629204",
+        "database": "postgresql",
+        "services": {
+          "database": "healthy",
+          "api": "healthy",
+          "frontend": "healthy"
+        }
+      }
+    },
+    {
+      "test": "Frontend Accessibility",
+      "status": "PASS",
+      "message": "Frontend is accessible",
+      "timestamp": "2025-08-02T22:13:44.637750",
+      "details": {}
+    },
+    {
+      "test": "API Documentation",
+      "status": "PASS",
+      "message": "API documentation accessible",
+      "timestamp": "2025-08-02T22:13:44.649356",
+      "details": {}
+    },
+    {
+      "test": "Authentication",
+      "status": "PASS",
+      "message": "Login successful",
+      "timestamp": "2025-08-02T22:13:44.662787",
+      "details": {
+        "user_id": 1,
+        "email": "admin@cybershield.com",
+        "role": "admin"
+      }
+    },
+    {
+      "test": "User Profile",
+      "status": "PASS",
+      "message": "User profile retrieved",
+      "timestamp": "2025-08-02T22:13:44.831657",
+      "details": {
+        "email": "admin@cybershield.com",
+        "username": "admin",
+        "full_name": "System Administrator",
+        "role": "admin",
+        "department": "IT Security",
+        "phone": null,
+        "id": 1,
+        "is_active": true,
+        "is_verified": true,
+        "last_login": null,
+        "created_at": "2025-08-02T11:18:06.350366",
+        "updated_at": "2025-08-02T11:18:06.350366",
+        "two_factor_enabled": false
+      }
+    },
+    {
+      "test": "Users List",
+      "status": "PASS",
+      "message": "Retrieved 4 users",
+      "timestamp": "2025-08-02T22:13:44.855553",
+      "details": {}
+    },
+    {
+      "test": "Security Summary",
+      "status": "FAIL",
+      "message": "Security summary failed: 404",
+      "timestamp": "2025-08-02T22:13:44.866541",
+      "details": {}
+    },
+    {
+      "test": "SAST Summary",
+      "status": "FAIL",
+      "message": "SAST summary failed: 404",
+      "timestamp": "2025-08-02T22:13:44.878861",
+      "details": {}
+    },
+    {
+      "test": "SAST Projects",
+      "status": "FAIL",
+      "message": "SAST projects failed: 404",
+      "timestamp": "2025-08-02T22:13:44.886320",
+      "details": {}
+    },
+    {
+      "test": "Dashboard Overview",
+      "status": "FAIL",
+      "message": "Dashboard overview failed: 404",
+      "timestamp": "2025-08-02T22:13:44.897871",
+      "details": {}
+    },
+    {
+      "test": "Analytics Overview",
+      "status": "FAIL",
+      "message": "Analytics overview failed: 404",
+      "timestamp": "2025-08-02T22:13:44.905388",
+      "details": {}
+    },
+    {
+      "test": "Incidents List",
+      "status": "FAIL",
+      "message": "Incidents list failed: 404",
+      "timestamp": "2025-08-02T22:13:44.916620",
+      "details": {}
+    },
+    {
+      "test": "Cloud Security Overview",
+      "status": "FAIL",
+      "message": "Cloud security overview failed: 404",
+      "timestamp": "2025-08-02T22:13:44.925647",
+      "details": {}
+    }
+  ]
+}

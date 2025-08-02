@@ -1,0 +1,74 @@
+# SAST Tool Dependencies
+# Core SAST scanning tools
+bandit>=1.7.5
+pylint>=2.17.0
+semgrep>=1.40.0
+
+# JavaScript/TypeScript scanning
+eslint>=8.0.0
+@typescript-eslint/parser>=5.0.0
+@typescript-eslint/eslint-plugin>=5.0.0
+
+# AI and recommendations
+openai>=1.0.0
+langchain>=0.1.0
+
+# DevSecOps integrations
+PyGithub>=1.59.0
+python-gitlab>=3.15.0
+jenkinsapi>=0.3.13
+
+# Additional security tools
+safety>=2.3.0
+pip-audit>=2.6.0
+bandit-baseline>=1.0.0
+
+# Code analysis and parsing
+ast>=0.0.2
+tree-sitter>=0.20.0
+pygments>=2.15.0
+
+# File handling and processing
+python-magic>=0.4.27
+chardet>=5.2.0
+
+# Async processing
+asyncio-mqtt>=0.13.0
+celery>=5.3.0
+
+# Monitoring and metrics
+prometheus-client>=0.17.0
+structlog>=23.1.0
+
+# Database and ORM
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+psycopg2-binary>=2.9.0
+
+# API and web framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+
+# Background tasks
+celery>=5.3.0
+redis>=5.0.0
+
+# File upload and processing
+python-multipart>=0.0.6
+aiofiles>=23.2.0
+
+# Security and authentication
+python-jose>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.0.1
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+
+# Development tools
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0 

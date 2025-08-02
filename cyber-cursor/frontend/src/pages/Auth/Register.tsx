@@ -18,12 +18,15 @@ import {
   GlobeAltIcon,
   CpuChipIcon
 } from '@heroicons/react/24/outline';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Register: React.FC = () => {
+  const { register } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
+    username: '',
     company: '',
     phone: '',
     password: '',
@@ -77,13 +80,29 @@ const Register: React.FC = () => {
       return;
     }
 
+    if (!formData.username) {
+      setError('Username is required');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Simulate registration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setSuccess('Registration successful! Please check your email for verification.');
+      // Prepare registration data
+      const registrationData = {
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+        confirm_password: formData.confirmPassword,
+        full_name: `${formData.firstName} ${formData.lastName}`.trim(),
+        department: formData.company || undefined,
+        phone: formData.phone || undefined
+      };
+
+      await register(registrationData);
+      setSuccess('Registration successful! Please log in.');
     } catch (error) {
       console.error('Registration failed:', error);
-      setError('Registration failed. Please try again.');
+      setError(error instanceof Error ? error.message : 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -277,6 +296,29 @@ const Register: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter your email address"
                     value={formData.email}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+
+              {/* Username Field */}
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
+                  Username
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <UserIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Choose a username"
+                    value={formData.username}
                     onChange={handleInputChange}
                   />
                 </div>
