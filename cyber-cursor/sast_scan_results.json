@@ -1,0 +1,251 @@
+{
+  "scan_id": "sast_java_webapp_001",
+  "scan_date": "2024-01-15T10:30:00Z",
+  "tool_name": "CyberShield SAST Scanner",
+  "project_name": "Java Web Application Step by Step",
+  "repository_url": "https://github.com/in28minutes/JavaWebApplicationStepByStep",
+  "scan_type": "SAST",
+  "language": "Java",
+  "framework": "Java EE",
+  "total_files_scanned": 15,
+  "total_vulnerabilities": 10,
+  "risk_summary": {
+    "critical": 2,
+    "high": 4,
+    "medium": 3,
+    "low": 1
+  },
+  "vulnerabilities": [
+    {
+      "id": "VULN-001",
+      "title": "Hardcoded Credentials",
+      "severity": "CRITICAL",
+      "cwe_id": "CWE-259",
+      "cvss_score": 9.8,
+      "location": {
+        "file": "src/main/java/com/in28minutes/login/LoginService.java",
+        "line": 7,
+        "column": 1
+      },
+      "description": "Hardcoded username and password in source code",
+      "code_snippet": "if (user.equals(\"in28Minutes\") && password.equals(\"dummy\"))",
+      "impact": "Unauthorized access, credential exposure",
+      "recommendation": "Implement secure authentication with hashed passwords",
+      "status": "OPEN",
+      "tags": ["authentication", "credentials", "hardcoded"]
+    },
+    {
+      "id": "VULN-002",
+      "title": "SQL Injection Vulnerability",
+      "severity": "CRITICAL",
+      "cwe_id": "CWE-89",
+      "cvss_score": 9.1,
+      "location": {
+        "file": "src/main/java/com/in28minutes/todo/AddTodoServlet.java",
+        "line": 32,
+        "column": 1
+      },
+      "description": "Direct parameter usage without validation or sanitization",
+      "code_snippet": "String newTodo = request.getParameter(\"todo\");",
+      "impact": "Database compromise, data manipulation",
+      "recommendation": "Implement parameterized queries and input validation",
+      "status": "OPEN",
+      "tags": ["sql-injection", "input-validation", "database"]
+    },
+    {
+      "id": "VULN-003",
+      "title": "Cross-Site Scripting (XSS)",
+      "severity": "HIGH",
+      "cwe_id": "CWE-79",
+      "cvss_score": 7.2,
+      "location": {
+        "file": "src/main/webapp/WEB-INF/views/login.jsp",
+        "line": 35,
+        "column": 1
+      },
+      "description": "User input directly rendered without encoding",
+      "code_snippet": "<font color=\"red\">${errorMessage}</font>",
+      "impact": "Malicious script execution, session hijacking",
+      "recommendation": "Implement output encoding using JSTL c:out tags",
+      "status": "OPEN",
+      "tags": ["xss", "output-encoding", "client-side"]
+    },
+    {
+      "id": "VULN-004",
+      "title": "Insecure Session Management",
+      "severity": "HIGH",
+      "cwe_id": "CWE-384",
+      "cvss_score": 7.5,
+      "location": {
+        "file": "src/main/java/com/in28minutes/login/LoginServlet.java",
+        "line": 38,
+        "column": 1
+      },
+      "description": "Session fixation vulnerability and missing session security",
+      "code_snippet": "request.getSession().setAttribute(\"name\", name);",
+      "impact": "Session hijacking, privilege escalation",
+      "recommendation": "Implement session invalidation and secure session attributes",
+      "status": "OPEN",
+      "tags": ["session-management", "authentication"]
+    },
+    {
+      "id": "VULN-005",
+      "title": "Missing CSRF Protection",
+      "severity": "HIGH",
+      "cwe_id": "CWE-352",
+      "cvss_score": 7.1,
+      "location": {
+        "file": "src/main/webapp/WEB-INF/views/add-todo.jsp",
+        "line": 6,
+        "column": 1
+      },
+      "description": "No CSRF tokens implemented in forms",
+      "code_snippet": "<form method=\"POST\" action=\"/add-todo.do\">",
+      "impact": "Cross-Site Request Forgery attacks",
+      "recommendation": "Implement CSRF tokens in all forms",
+      "status": "OPEN",
+      "tags": ["csrf", "forms", "client-side"]
+    },
+    {
+      "id": "VULN-006",
+      "title": "Insecure Direct Object References",
+      "severity": "HIGH",
+      "cwe_id": "CWE-639",
+      "cvss_score": 6.5,
+      "location": {
+        "file": "src/main/java/com/in28minutes/todo/DeleteTodoServlet.java",
+        "line": 17,
+        "column": 1
+      },
+      "description": "Direct object manipulation without authorization",
+      "code_snippet": "todoService.deleteTodo(new Todo(request.getParameter(\"todo\"), request.getParameter(\"category\")));",
+      "impact": "Unauthorized data access, data manipulation",
+      "recommendation": "Implement proper authorization checks",
+      "status": "OPEN",
+      "tags": ["authorization", "object-references"]
+    },
+    {
+      "id": "VULN-007",
+      "title": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "cwe_id": "CWE-20",
+      "cvss_score": 5.3,
+      "location": {
+        "file": "src/main/java/com/in28minutes/todo/AddTodoServlet.java",
+        "line": 32,
+        "column": 1
+      },
+      "description": "No input validation or sanitization implemented",
+      "code_snippet": "String newTodo = request.getParameter(\"todo\");",
+      "impact": "Buffer overflow, data corruption",
+      "recommendation": "Implement comprehensive input validation",
+      "status": "OPEN",
+      "tags": ["input-validation", "data-integrity"]
+    },
+    {
+      "id": "VULN-008",
+      "title": "Outdated Dependencies",
+      "severity": "MEDIUM",
+      "cwe_id": "CWE-1104",
+      "cvss_score": 5.0,
+      "location": {
+        "file": "pom.xml",
+        "line": 25,
+        "column": 1
+      },
+      "description": "Using outdated dependencies with known vulnerabilities",
+      "code_snippet": "<version>3.3.6</version>",
+      "impact": "Known vulnerabilities, security patches missing",
+      "recommendation": "Update to latest stable versions",
+      "status": "OPEN",
+      "tags": ["dependencies", "version-control"]
+    },
+    {
+      "id": "VULN-009",
+      "title": "Missing Security Headers",
+      "severity": "MEDIUM",
+      "cwe_id": "CWE-693",
+      "cvss_score": 4.3,
+      "location": {
+        "file": "src/main/webapp/WEB-INF/web.xml",
+        "line": 1,
+        "column": 1
+      },
+      "description": "No security headers configured",
+      "code_snippet": "<web-app xmlns=\"http://java.sun.com/xml/ns/javaee\"",
+      "impact": "Clickjacking, XSS attacks",
+      "recommendation": "Implement security headers (X-Frame-Options, CSP, etc.)",
+      "status": "OPEN",
+      "tags": ["security-headers", "web-security"]
+    },
+    {
+      "id": "VULN-010",
+      "title": "Insecure Error Handling",
+      "severity": "LOW",
+      "cwe_id": "CWE-209",
+      "cvss_score": 2.1,
+      "location": {
+        "file": "src/main/java/com/in28minutes/login/LoginServlet.java",
+        "line": 42,
+        "column": 1
+      },
+      "description": "Detailed error messages may reveal system information",
+      "code_snippet": "request.setAttribute(\"errorMessage\", \"Invalid Credentials!\");",
+      "impact": "Information disclosure, system enumeration",
+      "recommendation": "Implement generic error messages",
+      "status": "OPEN",
+      "tags": ["error-handling", "information-disclosure"]
+    }
+  ],
+  "files_scanned": [
+    "src/main/java/com/in28minutes/todo/Todo.java",
+    "src/main/java/com/in28minutes/todo/AddTodoServlet.java",
+    "src/main/java/com/in28minutes/todo/DeleteTodoServlet.java",
+    "src/main/java/com/in28minutes/todo/TodoService.java",
+    "src/main/java/com/in28minutes/todo/ListTodoServlet.java",
+    "src/main/java/com/in28minutes/login/LoginServlet.java",
+    "src/main/java/com/in28minutes/login/LoginService.java",
+    "src/main/java/com/in28minutes/filter/LoginRequiredFilter.java",
+    "src/main/webapp/WEB-INF/web.xml",
+    "src/main/webapp/WEB-INF/views/login.jsp",
+    "src/main/webapp/WEB-INF/views/add-todo.jsp",
+    "src/main/webapp/WEB-INF/views/list-todos.jsp",
+    "pom.xml"
+  ],
+  "scan_metadata": {
+    "scanner_version": "1.0.0",
+    "scan_duration_seconds": 45,
+    "rules_engine_version": "2024.1",
+    "total_rules_applied": 150,
+    "false_positive_rate": "5%"
+  },
+  "recommendations": {
+    "immediate_actions": [
+      "Remove hardcoded credentials and implement secure authentication",
+      "Implement input validation and sanitization",
+      "Add CSRF protection to all forms",
+      "Update dependencies to latest secure versions"
+    ],
+    "short_term_actions": [
+      "Implement proper session management",
+      "Add security headers",
+      "Implement output encoding",
+      "Add authorization checks"
+    ],
+    "long_term_actions": [
+      "Implement comprehensive logging",
+      "Add security monitoring",
+      "Implement rate limiting",
+      "Add security testing to CI/CD"
+    ]
+  },
+  "compliance_impact": {
+    "owasp_top_10": ["A02", "A03", "A05", "A07"],
+    "pci_dss": "FAIL",
+    "gdpr": "FAIL",
+    "soc_2": "FAIL"
+  },
+  "overall_risk_score": 8.5,
+  "risk_level": "CRITICAL",
+  "next_steps": "Complete security overhaul before production deployment"
+} 

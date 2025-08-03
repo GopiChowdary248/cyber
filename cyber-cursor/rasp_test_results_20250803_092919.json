@@ -1,0 +1,140 @@
+[
+  {
+    "timestamp": "2025-08-03 09:29:18",
+    "test_name": "Session Setup",
+    "status": "PASS",
+    "message": "HTTP session created successfully",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:18",
+    "test_name": "API Connectivity",
+    "status": "PASS",
+    "message": "API is accessible",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:18",
+    "test_name": "Agent Creation",
+    "status": "PASS",
+    "message": "Agent created with ID: 1",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:18",
+    "test_name": "Agent Retrieval",
+    "status": "PASS",
+    "message": "Agent retrieved successfully",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Agent Heartbeat",
+    "status": "PASS",
+    "message": "Agent heartbeat updated successfully",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Rule Creation",
+    "status": "PASS",
+    "message": "Rule created with ID: 1",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Rule Retrieval",
+    "status": "PASS",
+    "message": "Rule retrieved successfully",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Attack Detection",
+    "status": "PASS",
+    "message": "Attack logged with ID: 1",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Attack Retrieval",
+    "status": "PASS",
+    "message": "Attack retrieved successfully",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Vulnerability Retrieval",
+    "status": "PASS",
+    "message": "Retrieved 0 vulnerabilities",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Dashboard Overview",
+    "status": "PASS",
+    "message": "Dashboard overview retrieved successfully",
+    "details": {
+      "total_agents": 1,
+      "total_attacks": 1,
+      "total_vulnerabilities": 0
+    }
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Attack Summary",
+    "status": "PASS",
+    "message": "Attack summary retrieved successfully",
+    "details": {
+      "total_attacks": 1,
+      "blocked_attacks": 1
+    }
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Agent Status",
+    "status": "PASS",
+    "message": "Agent status retrieved for 1 agents",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Webhook Processing",
+    "status": "PASS",
+    "message": "Webhook processed successfully",
+    "details": {
+      "status": "processed",
+      "event_type": "attack_detected",
+      "timestamp": "2025-08-03T03:59:19.390108",
+      "source": "test_agent"
+    }
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Integration Creation",
+    "status": "PASS",
+    "message": "Integration created with ID: 1",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Integration Retrieval",
+    "status": "PASS",
+    "message": "Retrieved 1 integrations",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Alert Retrieval",
+    "status": "PASS",
+    "message": "Retrieved 2 alerts",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 09:29:19",
+    "test_name": "Alert Update",
+    "status": "PASS",
+    "message": "Alert updated successfully",
+    "details": null
+  }
+]

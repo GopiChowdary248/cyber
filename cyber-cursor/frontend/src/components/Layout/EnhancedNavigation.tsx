@@ -25,7 +25,8 @@ import {
   PlayIcon,
   BoltIcon,
   GlobeAltIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  CodeBracketIcon
 } from '@heroicons/react/24/outline';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -50,12 +51,19 @@ const navigationItems: NavigationItem[] = [
     icon: <ChartBarIcon className="w-5 h-5" />,
     href: '/dashboard'
   },
-  {
-    id: 'application-security',
-    label: 'Application Security',
-    icon: <BugAntIcon className="w-5 h-5" />,
-    href: '/application-security'
-  },
+              {
+              id: 'application-security',
+              label: 'Application Security',
+              icon: <BugAntIcon className="w-5 h-5" />,
+              href: '/application-security',
+              children: [
+                { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/application-security' },
+                { id: 'sast', label: 'SAST', icon: <CodeBracketIcon className="w-4 h-4" />, href: '/sast' },
+                { id: 'dast', label: 'DAST', icon: <ShieldExclamationIcon className="w-4 h-4" />, href: '/dast' },
+                { id: 'rasp', label: 'RASP', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/application-security/rasp' },
+                { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/application-security/monitoring' }
+              ]
+            },
   {
     id: 'cloud-security',
     label: 'Cloud Security',

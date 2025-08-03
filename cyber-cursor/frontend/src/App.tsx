@@ -16,6 +16,7 @@ import EndpointSecurity from './pages/EndpointSecurity/EndpointSecurity';
 import IAMSecurity from './pages/IAMSecurity/IAMSecurity';
 import DataSecurity from './pages/DataSecurity/DataSecurity';
 import SIEMSOAR from './pages/SIEMSOAR/SIEMSOAR';
+import SAST from './pages/SAST/SAST';
 import Login from './pages/Login/Login';
 import Register from './pages/Auth/Register';
 import Incidents from './pages/Incidents/Incidents';
@@ -314,6 +315,21 @@ const AppContent: React.FC = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <SIEMSOAR />
+                  </motion.div>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/sast" 
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SAST />
                   </motion.div>
                 </ProtectedRoute>
               } 

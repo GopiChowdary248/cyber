@@ -1,0 +1,20 @@
+﻿{
+    "config":  {
+                   "hooks":  [
+                                 "sqlalchemy.engine.Engine.execute",
+                                 "os.system",
+                                 "subprocess.run",
+                                 "eval",
+                                 "exec"
+                             ],
+                   "heartbeat_interval":  30,
+                   "log_level":  "INFO",
+                   "monitoring_level":  "high",
+                   "api_endpoint":  "http://localhost:8000/api/rasp",
+                   "auto_block":  true
+               },
+    "agent_type":  "python",
+    "app_name":  "your-python-app",
+    "language":  "python",
+    "version":  "1.0.0"
+}

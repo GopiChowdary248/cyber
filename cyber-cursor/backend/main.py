@@ -90,8 +90,43 @@ try:
     app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
     
     logger.info("Essential API routers loaded successfully")
+    logger.info(f"Auth router routes: {[route.path for route in auth_router.routes]}")
 except Exception as e:
     logger.error(f"Failed to load some API routers: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
+# Import and include RASP endpoints
+try:
+    from app.api.v1.endpoints.rasp import router as rasp_router
+    app.include_router(rasp_router, prefix="/api/rasp", tags=["RASP"])
+    logger.info("RASP API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load RASP API router: {e}")
+
+# Import and include DAST endpoints if available
+try:
+    from app.api.v1.endpoints.dast import router as dast_router
+    app.include_router(dast_router, prefix="/api/dast", tags=["DAST"])
+    logger.info("DAST API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load DAST API router: {e}")
+
+# Import and include Cloud Security endpoints
+try:
+    from app.api.v1.endpoints.cloud_security import router as cloud_security_router
+    app.include_router(cloud_security_router, prefix="/api/v1/cloud-security", tags=["Cloud Security"])
+    logger.info("Cloud Security API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Cloud Security API router: {e}")
+
+# Import and include SAST endpoints
+try:
+    from app.api.v1.endpoints.simple_sast import router as sast_router
+    app.include_router(sast_router, prefix="/api/v1/sast", tags=["SAST"])
+    logger.info("SAST API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load SAST API router: {e}")
 
 @app.get("/")
 async def root():

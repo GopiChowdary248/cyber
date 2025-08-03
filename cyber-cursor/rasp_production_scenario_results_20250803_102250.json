@@ -1,0 +1,1942 @@
+{
+  "test_results": [
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Session Setup",
+      "status": "PASS",
+      "message": "HTTP session created successfully",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Production Agent 1",
+      "status": "PASS",
+      "message": "Deployed Customer Portal",
+      "details": {
+        "agent_id": 10,
+        "app_name": "Customer Portal",
+        "traffic_level": "high"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Production Agent 2",
+      "status": "PASS",
+      "message": "Deployed Payment Gateway",
+      "details": {
+        "agent_id": 11,
+        "app_name": "Payment Gateway",
+        "traffic_level": "critical"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Production Agent 3",
+      "status": "PASS",
+      "message": "Deployed Admin Dashboard",
+      "details": {
+        "agent_id": 12,
+        "app_name": "Admin Dashboard",
+        "traffic_level": "medium"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Production Agent 4",
+      "status": "PASS",
+      "message": "Deployed API Gateway",
+      "details": {
+        "agent_id": 13,
+        "app_name": "API Gateway",
+        "traffic_level": "very_high"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Production Agent 5",
+      "status": "PASS",
+      "message": "Deployed Mobile API",
+      "details": {
+        "agent_id": 14,
+        "app_name": "Mobile API",
+        "traffic_level": "high"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:20:16",
+      "test_name": "Normal Traffic Simulation",
+      "status": "INFO",
+      "message": "Starting 2 minute traffic simulation",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:22:16",
+      "test_name": "Normal Traffic Simulation",
+      "status": "PASS",
+      "message": "Completed 880 normal requests",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 1.1",
+      "status": "PASS",
+      "message": "Simulated SQL Injection with Encoding with payload 1",
+      "details": {
+        "attack_id": 17,
+        "vuln_type": "SQLi",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 1.2",
+      "status": "PASS",
+      "message": "Simulated SQL Injection with Encoding with payload 2",
+      "details": {
+        "attack_id": 18,
+        "vuln_type": "SQLi",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 1.3",
+      "status": "PASS",
+      "message": "Simulated SQL Injection with Encoding with payload 3",
+      "details": {
+        "attack_id": 19,
+        "vuln_type": "SQLi",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 1.4",
+      "status": "PASS",
+      "message": "Simulated SQL Injection with Encoding with payload 4",
+      "details": {
+        "attack_id": 20,
+        "vuln_type": "SQLi",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 1.5",
+      "status": "PASS",
+      "message": "Simulated SQL Injection with Encoding with payload 5",
+      "details": {
+        "attack_id": 21,
+        "vuln_type": "SQLi",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 2.1",
+      "status": "PASS",
+      "message": "Simulated XSS with Evasion with payload 1",
+      "details": {
+        "attack_id": 22,
+        "vuln_type": "XSS",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 2.2",
+      "status": "PASS",
+      "message": "Simulated XSS with Evasion with payload 2",
+      "details": {
+        "attack_id": 23,
+        "vuln_type": "XSS",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 2.3",
+      "status": "PASS",
+      "message": "Simulated XSS with Evasion with payload 3",
+      "details": {
+        "attack_id": 24,
+        "vuln_type": "XSS",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 2.4",
+      "status": "PASS",
+      "message": "Simulated XSS with Evasion with payload 4",
+      "details": {
+        "attack_id": 25,
+        "vuln_type": "XSS",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 2.5",
+      "status": "PASS",
+      "message": "Simulated XSS with Evasion with payload 5",
+      "details": {
+        "attack_id": 26,
+        "vuln_type": "XSS",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 3.1",
+      "status": "PASS",
+      "message": "Simulated Command Injection with Bypass with payload 1",
+      "details": {
+        "attack_id": 27,
+        "vuln_type": "Command Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 3.2",
+      "status": "PASS",
+      "message": "Simulated Command Injection with Bypass with payload 2",
+      "details": {
+        "attack_id": 28,
+        "vuln_type": "Command Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 3.3",
+      "status": "PASS",
+      "message": "Simulated Command Injection with Bypass with payload 3",
+      "details": {
+        "attack_id": 29,
+        "vuln_type": "Command Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 3.4",
+      "status": "PASS",
+      "message": "Simulated Command Injection with Bypass with payload 4",
+      "details": {
+        "attack_id": 30,
+        "vuln_type": "Command Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 3.5",
+      "status": "PASS",
+      "message": "Simulated Command Injection with Bypass with payload 5",
+      "details": {
+        "attack_id": 31,
+        "vuln_type": "Command Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 4.1",
+      "status": "PASS",
+      "message": "Simulated Path Traversal with Encoding with payload 1",
+      "details": {
+        "attack_id": 32,
+        "vuln_type": "Path Traversal",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 4.2",
+      "status": "PASS",
+      "message": "Simulated Path Traversal with Encoding with payload 2",
+      "details": {
+        "attack_id": 33,
+        "vuln_type": "Path Traversal",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 4.3",
+      "status": "PASS",
+      "message": "Simulated Path Traversal with Encoding with payload 3",
+      "details": {
+        "attack_id": 34,
+        "vuln_type": "Path Traversal",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 4.4",
+      "status": "PASS",
+      "message": "Simulated Path Traversal with Encoding with payload 4",
+      "details": {
+        "attack_id": 35,
+        "vuln_type": "Path Traversal",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 4.5",
+      "status": "PASS",
+      "message": "Simulated Path Traversal with Encoding with payload 5",
+      "details": {
+        "attack_id": 36,
+        "vuln_type": "Path Traversal",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:17",
+      "test_name": "Advanced Attack 5.1",
+      "status": "PASS",
+      "message": "Simulated NoSQL Injection with payload 1",
+      "details": {
+        "attack_id": 37,
+        "vuln_type": "NoSQL Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:18",
+      "test_name": "Advanced Attack 5.2",
+      "status": "PASS",
+      "message": "Simulated NoSQL Injection with payload 2",
+      "details": {
+        "attack_id": 38,
+        "vuln_type": "NoSQL Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:18",
+      "test_name": "Advanced Attack 5.3",
+      "status": "PASS",
+      "message": "Simulated NoSQL Injection with payload 3",
+      "details": {
+        "attack_id": 39,
+        "vuln_type": "NoSQL Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:18",
+      "test_name": "Advanced Attack 5.4",
+      "status": "PASS",
+      "message": "Simulated NoSQL Injection with payload 4",
+      "details": {
+        "attack_id": 40,
+        "vuln_type": "NoSQL Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:18",
+      "test_name": "Advanced Attack 5.5",
+      "status": "PASS",
+      "message": "Simulated NoSQL Injection with payload 5",
+      "details": {
+        "attack_id": 41,
+        "vuln_type": "NoSQL Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:18",
+      "test_name": "Stress Test",
+      "status": "INFO",
+      "message": "Starting stress test with 50 concurrent users for 30 seconds",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:22:50",
+      "test_name": "Stress Test",
+      "status": "PASS",
+      "message": "Completed stress test",
+      "details": {
+        "total_requests": 1084,
+        "total_errors": 0,
+        "success_rate": "100.0%",
+        "requests_per_second": "36.1"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:50",
+      "test_name": "Real-time Dashboard",
+      "status": "PASS",
+      "message": "Dashboard updated with real-time data",
+      "details": {
+        "total_agents": 14,
+        "total_attacks": 41,
+        "active_agents": 14,
+        "blocked_attacks": 25
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:50",
+      "test_name": "Real-time Attack Summary",
+      "status": "PASS",
+      "message": "Attack summary updated",
+      "details": {
+        "total_attacks": 41,
+        "blocked_attacks": 25,
+        "attack_types": {}
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:22:50",
+      "test_name": "Alert Correlation",
+      "status": "PASS",
+      "message": "Alert correlation analysis completed",
+      "details": {
+        "total_alerts": 41,
+        "critical_alerts": 23,
+        "high_alerts": 14,
+        "correlation_score": "56.1%"
+      }
+    }
+  ],
+  "users": [
+    {
+      "user_id": "user_d06e8f2b",
+      "type": "analyst",
+      "ip_range": "192.168.80.95",
+      "session_id": "session_2c106ca933da",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_1c60facf",
+      "type": "end_user",
+      "ip_range": "192.168.152.122",
+      "session_id": "session_1206ef04ee92",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_3ef5df37",
+      "type": "end_user",
+      "ip_range": "192.168.136.39",
+      "session_id": "session_c0713c5f5a4a",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_fa19812f",
+      "type": "analyst",
+      "ip_range": "192.168.86.19",
+      "session_id": "session_f4af3a849af5",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_4f2f3630",
+      "type": "end_user",
+      "ip_range": "192.168.168.66",
+      "session_id": "session_ae136b6cb3ed",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_50732e7f",
+      "type": "end_user",
+      "ip_range": "192.168.112.1",
+      "session_id": "session_8456fa66b323",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_e64cf3a1",
+      "type": "analyst",
+      "ip_range": "192.168.42.88",
+      "session_id": "session_53e49eef7d7e",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_5cda276a",
+      "type": "end_user",
+      "ip_range": "192.168.52.140",
+      "session_id": "session_f18a940190c8",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_a0012cd5",
+      "type": "developer",
+      "ip_range": "192.168.174.235",
+      "session_id": "session_4e0862d8a847",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_98edf661",
+      "type": "analyst",
+      "ip_range": "192.168.42.190",
+      "session_id": "session_aadac2527231",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_b3995f0e",
+      "type": "end_user",
+      "ip_range": "192.168.219.197",
+      "session_id": "session_78ff1d3d9344",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_c8840ebd",
+      "type": "end_user",
+      "ip_range": "192.168.11.225",
+      "session_id": "session_151192e92ef9",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_7050b6b6",
+      "type": "analyst",
+      "ip_range": "192.168.178.186",
+      "session_id": "session_1be26ccf6c45",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_5021ed97",
+      "type": "analyst",
+      "ip_range": "192.168.48.83",
+      "session_id": "session_84eb53bcf5fb",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_8e94c2e2",
+      "type": "analyst",
+      "ip_range": "192.168.229.100",
+      "session_id": "session_c33aee3bb329",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_5b79a76b",
+      "type": "developer",
+      "ip_range": "192.168.193.126",
+      "session_id": "session_51134ba75490",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_53e7e860",
+      "type": "analyst",
+      "ip_range": "192.168.177.57",
+      "session_id": "session_7bb013f6cbcd",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_1cd1fb7f",
+      "type": "end_user",
+      "ip_range": "192.168.65.52",
+      "session_id": "session_b91f623a2331",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_622edfe8",
+      "type": "end_user",
+      "ip_range": "192.168.137.155",
+      "session_id": "session_116e8bfdcf1b",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_b12b1f02",
+      "type": "admin",
+      "ip_range": "192.168.143.116",
+      "session_id": "session_ff531ee88ade",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          20,
+          50
+        ],
+        "attack_probability": 0.05
+      }
+    },
+    {
+      "user_id": "user_41ad0627",
+      "type": "developer",
+      "ip_range": "192.168.62.209",
+      "session_id": "session_91088bd7231c",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_409d2128",
+      "type": "developer",
+      "ip_range": "192.168.160.123",
+      "session_id": "session_bbf6d086584c",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_d3e8ff10",
+      "type": "end_user",
+      "ip_range": "192.168.81.189",
+      "session_id": "session_af45346acc7b",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_067755a4",
+      "type": "admin",
+      "ip_range": "192.168.3.23",
+      "session_id": "session_0e3ebeb81367",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          20,
+          50
+        ],
+        "attack_probability": 0.05
+      }
+    },
+    {
+      "user_id": "user_a9cb5663",
+      "type": "end_user",
+      "ip_range": "192.168.236.112",
+      "session_id": "session_399916dd7cb5",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_70686a64",
+      "type": "analyst",
+      "ip_range": "192.168.146.71",
+      "session_id": "session_e1a051a7c2af",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_a244630c",
+      "type": "analyst",
+      "ip_range": "192.168.67.190",
+      "session_id": "session_54fb30355a09",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_91692420",
+      "type": "end_user",
+      "ip_range": "192.168.11.245",
+      "session_id": "session_7831bda0384d",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_fbae9cd6",
+      "type": "end_user",
+      "ip_range": "192.168.151.231",
+      "session_id": "session_ccba13747909",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_a4fa373b",
+      "type": "end_user",
+      "ip_range": "192.168.33.16",
+      "session_id": "session_7a86e3fd75d0",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_04792590",
+      "type": "analyst",
+      "ip_range": "192.168.16.28",
+      "session_id": "session_78efe9bfd258",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_2fd5f53d",
+      "type": "developer",
+      "ip_range": "192.168.16.121",
+      "session_id": "session_92eb5b4ce9d7",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_b2ca77dd",
+      "type": "end_user",
+      "ip_range": "192.168.129.181",
+      "session_id": "session_f7db018417b5",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_46d2db63",
+      "type": "developer",
+      "ip_range": "192.168.104.213",
+      "session_id": "session_05b14c8c1699",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_5c79211e",
+      "type": "developer",
+      "ip_range": "192.168.109.188",
+      "session_id": "session_112079b807bc",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_0503a33a",
+      "type": "end_user",
+      "ip_range": "192.168.178.30",
+      "session_id": "session_237622a9d289",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_f09f49db",
+      "type": "end_user",
+      "ip_range": "192.168.45.28",
+      "session_id": "session_a24628b478b4",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_23bcc389",
+      "type": "analyst",
+      "ip_range": "192.168.207.221",
+      "session_id": "session_fb769ca12890",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_96fbe85b",
+      "type": "developer",
+      "ip_range": "192.168.62.163",
+      "session_id": "session_57ff98c6ac53",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_037d9e4b",
+      "type": "developer",
+      "ip_range": "192.168.187.87",
+      "session_id": "session_0426cf7db1e9",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_fb5e4809",
+      "type": "analyst",
+      "ip_range": "192.168.2.181",
+      "session_id": "session_4f6047a41685",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_1ee552cf",
+      "type": "end_user",
+      "ip_range": "192.168.218.55",
+      "session_id": "session_e64b36be5c12",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_3c34f925",
+      "type": "admin",
+      "ip_range": "192.168.189.149",
+      "session_id": "session_236d8828b102",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+      "activity_pattern": {
+        "requests_per_minute": [
+          20,
+          50
+        ],
+        "attack_probability": 0.05
+      }
+    },
+    {
+      "user_id": "user_fb6f9b73",
+      "type": "end_user",
+      "ip_range": "192.168.93.72",
+      "session_id": "session_c70f081d4210",
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_2d570fd3",
+      "type": "admin",
+      "ip_range": "192.168.198.56",
+      "session_id": "session_fceb37dc777e",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          20,
+          50
+        ],
+        "attack_probability": 0.05
+      }
+    },
+    {
+      "user_id": "user_131c8ced",
+      "type": "end_user",
+      "ip_range": "192.168.121.122",
+      "session_id": "session_bed25b58af70",
+      "user_agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_68383288",
+      "type": "developer",
+      "ip_range": "192.168.130.228",
+      "session_id": "session_d788e165fa83",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          30,
+          80
+        ],
+        "attack_probability": 0.02
+      }
+    },
+    {
+      "user_id": "user_b4a07d08",
+      "type": "end_user",
+      "ip_range": "192.168.146.74",
+      "session_id": "session_5d04c56cff63",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          5,
+          15
+        ],
+        "attack_probability": 0.001
+      }
+    },
+    {
+      "user_id": "user_6f9eff54",
+      "type": "analyst",
+      "ip_range": "192.168.164.48",
+      "session_id": "session_268f75451438",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    },
+    {
+      "user_id": "user_19fb2999",
+      "type": "analyst",
+      "ip_range": "192.168.30.184",
+      "session_id": "session_e959180b7d8c",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "activity_pattern": {
+        "requests_per_minute": [
+          10,
+          30
+        ],
+        "attack_probability": 0.01
+      }
+    }
+  ],
+  "agents": [
+    {
+      "app_name": "Customer Portal",
+      "language": "python",
+      "version": "3.2.1",
+      "config": {
+        "monitoring_level": "high",
+        "auto_block": true
+      },
+      "agent_id": 10,
+      "status": "active",
+      "last_seen": "2025-08-03T04:50:16",
+      "created_at": "2025-08-03T04:50:16",
+      "updated_at": "2025-08-03T04:50:16"
+    },
+    {
+      "app_name": "Payment Gateway",
+      "language": "java",
+      "version": "2.8.5",
+      "config": {
+        "monitoring_level": "critical",
+        "auto_block": true
+      },
+      "agent_id": 11,
+      "status": "active",
+      "last_seen": "2025-08-03T04:50:16",
+      "created_at": "2025-08-03T04:50:16",
+      "updated_at": "2025-08-03T04:50:16"
+    },
+    {
+      "app_name": "Admin Dashboard",
+      "language": "nodejs",
+      "version": "4.1.2",
+      "config": {
+        "monitoring_level": "high",
+        "auto_block": false
+      },
+      "agent_id": 12,
+      "status": "active",
+      "last_seen": "2025-08-03T04:50:16",
+      "created_at": "2025-08-03T04:50:16",
+      "updated_at": "2025-08-03T04:50:16"
+    },
+    {
+      "app_name": "API Gateway",
+      "language": "python",
+      "version": "2.5.0",
+      "config": {
+        "monitoring_level": "critical",
+        "auto_block": true
+      },
+      "agent_id": 13,
+      "status": "active",
+      "last_seen": "2025-08-03T04:50:16",
+      "created_at": "2025-08-03T04:50:16",
+      "updated_at": "2025-08-03T04:50:16"
+    },
+    {
+      "app_name": "Mobile API",
+      "language": "java",
+      "version": "1.9.3",
+      "config": {
+        "monitoring_level": "high",
+        "auto_block": true
+      },
+      "agent_id": 14,
+      "status": "active",
+      "last_seen": "2025-08-03T04:50:16",
+      "created_at": "2025-08-03T04:50:16",
+      "updated_at": "2025-08-03T04:50:16"
+    }
+  ],
+  "attacks": [
+    {
+      "agent_id": 11,
+      "source_ip": "192.168.80.95",
+      "url": "/api/vulnerable/endpoint/0",
+      "payload": "'; DROP TABLE users; --",
+      "vuln_type": "SQLi",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: SQL Injection with Encoding",
+      "blocked": true,
+      "context": {
+        "user_id": "user_96fbe85b",
+        "session_id": "session_53e49eef7d7e",
+        "attack_technique": "SQL Injection with Encoding"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 318
+      },
+      "attack_id": 17,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.130.228",
+      "url": "/api/vulnerable/endpoint/0",
+      "payload": "1' UNION SELECT password FROM users--",
+      "vuln_type": "SQLi",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: SQL Injection with Encoding",
+      "blocked": true,
+      "context": {
+        "user_id": "user_0503a33a",
+        "session_id": "session_0426cf7db1e9",
+        "attack_technique": "SQL Injection with Encoding"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 270
+      },
+      "attack_id": 18,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 14,
+      "source_ip": "192.168.2.181",
+      "url": "/api/vulnerable/endpoint/0",
+      "payload": "1' OR '1'='1'--",
+      "vuln_type": "SQLi",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: SQL Injection with Encoding",
+      "blocked": true,
+      "context": {
+        "user_id": "user_b2ca77dd",
+        "session_id": "session_2c106ca933da",
+        "attack_technique": "SQL Injection with Encoding"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 226
+      },
+      "attack_id": 19,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 14,
+      "source_ip": "192.168.164.48",
+      "url": "/api/vulnerable/endpoint/0",
+      "payload": "admin'--",
+      "vuln_type": "SQLi",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: SQL Injection with Encoding",
+      "blocked": true,
+      "context": {
+        "user_id": "user_6f9eff54",
+        "session_id": "session_53e49eef7d7e",
+        "attack_technique": "SQL Injection with Encoding"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 219
+      },
+      "attack_id": 20,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 10,
+      "source_ip": "192.168.229.100",
+      "url": "/api/vulnerable/endpoint/0",
+      "payload": "1' AND (SELECT COUNT(*) FROM users)>0--",
+      "vuln_type": "SQLi",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: SQL Injection with Encoding",
+      "blocked": true,
+      "context": {
+        "user_id": "user_50732e7f",
+        "session_id": "session_ff531ee88ade",
+        "attack_technique": "SQL Injection with Encoding"
+      },
+      "request_data": {
+        "method": "PUT",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 156
+      },
+      "attack_id": 21,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 11,
+      "source_ip": "192.168.109.188",
+      "url": "/api/vulnerable/endpoint/1",
+      "payload": "<script>alert('XSS')</script>",
+      "vuln_type": "XSS",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: XSS with Evasion",
+      "blocked": false,
+      "context": {
+        "user_id": "user_04792590",
+        "session_id": "session_f4af3a849af5",
+        "attack_technique": "XSS with Evasion"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 475
+      },
+      "attack_id": 22,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.229.100",
+      "url": "/api/vulnerable/endpoint/1",
+      "payload": "<img src=x onerror=alert('XSS')>",
+      "vuln_type": "XSS",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: XSS with Evasion",
+      "blocked": false,
+      "context": {
+        "user_id": "user_70686a64",
+        "session_id": "session_ff531ee88ade",
+        "attack_technique": "XSS with Evasion"
+      },
+      "request_data": {
+        "method": "PUT",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 479
+      },
+      "attack_id": 23,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 13,
+      "source_ip": "192.168.177.57",
+      "url": "/api/vulnerable/endpoint/1",
+      "payload": "javascript:alert('XSS')",
+      "vuln_type": "XSS",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: XSS with Evasion",
+      "blocked": false,
+      "context": {
+        "user_id": "user_a0012cd5",
+        "session_id": "session_4e0862d8a847",
+        "attack_technique": "XSS with Evasion"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 83
+      },
+      "attack_id": 24,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.16.121",
+      "url": "/api/vulnerable/endpoint/1",
+      "payload": "<svg onload=alert('XSS')>",
+      "vuln_type": "XSS",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: XSS with Evasion",
+      "blocked": false,
+      "context": {
+        "user_id": "user_b4a07d08",
+        "session_id": "session_116e8bfdcf1b",
+        "attack_technique": "XSS with Evasion"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 193
+      },
+      "attack_id": 25,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.52.140",
+      "url": "/api/vulnerable/endpoint/1",
+      "payload": "&#60;script&#62;alert('XSS')&#60;/script&#62;",
+      "vuln_type": "XSS",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: XSS with Evasion",
+      "blocked": false,
+      "context": {
+        "user_id": "user_23bcc389",
+        "session_id": "session_e1a051a7c2af",
+        "attack_technique": "XSS with Evasion"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 126
+      },
+      "attack_id": 26,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.174.235",
+      "url": "/api/vulnerable/endpoint/2",
+      "payload": "; rm -rf /",
+      "vuln_type": "Command Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: Command Injection with Bypass",
+      "blocked": true,
+      "context": {
+        "user_id": "user_96fbe85b",
+        "session_id": "session_151192e92ef9",
+        "attack_technique": "Command Injection with Bypass"
+      },
+      "request_data": {
+        "method": "PUT",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 201
+      },
+      "attack_id": 27,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 13,
+      "source_ip": "192.168.42.190",
+      "url": "/api/vulnerable/endpoint/2",
+      "payload": "| cat /etc/passwd",
+      "vuln_type": "Command Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: Command Injection with Bypass",
+      "blocked": true,
+      "context": {
+        "user_id": "user_d3e8ff10",
+        "session_id": "session_78efe9bfd258",
+        "attack_technique": "Command Injection with Bypass"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 161
+      },
+      "attack_id": 28,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.189.149",
+      "url": "/api/vulnerable/endpoint/2",
+      "payload": "&& whoami",
+      "vuln_type": "Command Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: Command Injection with Bypass",
+      "blocked": true,
+      "context": {
+        "user_id": "user_3ef5df37",
+        "session_id": "session_91088bd7231c",
+        "attack_technique": "Command Injection with Bypass"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 347
+      },
+      "attack_id": 29,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 10,
+      "source_ip": "192.168.207.221",
+      "url": "/api/vulnerable/endpoint/2",
+      "payload": "`id`",
+      "vuln_type": "Command Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: Command Injection with Bypass",
+      "blocked": true,
+      "context": {
+        "user_id": "user_a9cb5663",
+        "session_id": "session_57ff98c6ac53",
+        "attack_technique": "Command Injection with Bypass"
+      },
+      "request_data": {
+        "method": "PUT",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 455
+      },
+      "attack_id": 30,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 11,
+      "source_ip": "192.168.11.225",
+      "url": "/api/vulnerable/endpoint/2",
+      "payload": "$(cat /etc/shadow)",
+      "vuln_type": "Command Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: Command Injection with Bypass",
+      "blocked": true,
+      "context": {
+        "user_id": "user_1cd1fb7f",
+        "session_id": "session_51134ba75490",
+        "attack_technique": "Command Injection with Bypass"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 138
+      },
+      "attack_id": 31,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 14,
+      "source_ip": "192.168.65.52",
+      "url": "/api/vulnerable/endpoint/3",
+      "payload": "../../../etc/passwd",
+      "vuln_type": "Path Traversal",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: Path Traversal with Encoding",
+      "blocked": false,
+      "context": {
+        "user_id": "user_b12b1f02",
+        "session_id": "session_1be26ccf6c45",
+        "attack_technique": "Path Traversal with Encoding"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 431
+      },
+      "attack_id": 32,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 14,
+      "source_ip": "192.168.146.74",
+      "url": "/api/vulnerable/endpoint/3",
+      "payload": "..%2F..%2F..%2Fetc%2Fpasswd",
+      "vuln_type": "Path Traversal",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: Path Traversal with Encoding",
+      "blocked": false,
+      "context": {
+        "user_id": "user_68383288",
+        "session_id": "session_151192e92ef9",
+        "attack_technique": "Path Traversal with Encoding"
+      },
+      "request_data": {
+        "method": "PUT",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 365
+      },
+      "attack_id": 33,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 11,
+      "source_ip": "192.168.146.71",
+      "url": "/api/vulnerable/endpoint/3",
+      "payload": "....//....//....//etc/passwd",
+      "vuln_type": "Path Traversal",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: Path Traversal with Encoding",
+      "blocked": false,
+      "context": {
+        "user_id": "user_6f9eff54",
+        "session_id": "session_92eb5b4ce9d7",
+        "attack_technique": "Path Traversal with Encoding"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 205
+      },
+      "attack_id": 34,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 14,
+      "source_ip": "192.168.80.95",
+      "url": "/api/vulnerable/endpoint/3",
+      "payload": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+      "vuln_type": "Path Traversal",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: Path Traversal with Encoding",
+      "blocked": false,
+      "context": {
+        "user_id": "user_3c34f925",
+        "session_id": "session_0e3ebeb81367",
+        "attack_technique": "Path Traversal with Encoding"
+      },
+      "request_data": {
+        "method": "PUT",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 207
+      },
+      "attack_id": 35,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 11,
+      "source_ip": "192.168.236.112",
+      "url": "/api/vulnerable/endpoint/3",
+      "payload": "..%252F..%252F..%252Fetc%252Fpasswd",
+      "vuln_type": "Path Traversal",
+      "severity": "high",
+      "stack_trace": "Advanced attack simulation: Path Traversal with Encoding",
+      "blocked": false,
+      "context": {
+        "user_id": "user_b12b1f02",
+        "session_id": "session_e64b36be5c12",
+        "attack_technique": "Path Traversal with Encoding"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15"
+        }
+      },
+      "response_data": {
+        "status_code": 200,
+        "response_time_ms": 429
+      },
+      "attack_id": 36,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 14,
+      "source_ip": "192.168.187.87",
+      "url": "/api/vulnerable/endpoint/4",
+      "payload": "{\"$where\": \"1==1\"}",
+      "vuln_type": "NoSQL Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: NoSQL Injection",
+      "blocked": true,
+      "context": {
+        "user_id": "user_3c34f925",
+        "session_id": "session_53e49eef7d7e",
+        "attack_technique": "NoSQL Injection"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 348
+      },
+      "attack_id": 37,
+      "timestamp": "2025-08-03T04:52:17",
+      "created_at": "2025-08-03T04:52:17"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.136.39",
+      "url": "/api/vulnerable/endpoint/4",
+      "payload": "{\"$ne\": null}",
+      "vuln_type": "NoSQL Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: NoSQL Injection",
+      "blocked": true,
+      "context": {
+        "user_id": "user_1cd1fb7f",
+        "session_id": "session_e1a051a7c2af",
+        "attack_technique": "NoSQL Injection"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 216
+      },
+      "attack_id": 38,
+      "timestamp": "2025-08-03T04:52:18",
+      "created_at": "2025-08-03T04:52:18"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.67.190",
+      "url": "/api/vulnerable/endpoint/4",
+      "payload": "{\"$gt\": \"\"}",
+      "vuln_type": "NoSQL Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: NoSQL Injection",
+      "blocked": true,
+      "context": {
+        "user_id": "user_19fb2999",
+        "session_id": "session_a24628b478b4",
+        "attack_technique": "NoSQL Injection"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Android 11; Mobile; rv:68.0) Gecko/68.0 Firefox/68.0"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 189
+      },
+      "attack_id": 39,
+      "timestamp": "2025-08-03T04:52:18",
+      "created_at": "2025-08-03T04:52:18"
+    },
+    {
+      "agent_id": 12,
+      "source_ip": "192.168.178.30",
+      "url": "/api/vulnerable/endpoint/4",
+      "payload": "{\"$regex\": \".*\"}",
+      "vuln_type": "NoSQL Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: NoSQL Injection",
+      "blocked": true,
+      "context": {
+        "user_id": "user_a4fa373b",
+        "session_id": "session_05b14c8c1699",
+        "attack_technique": "NoSQL Injection"
+      },
+      "request_data": {
+        "method": "GET",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 333
+      },
+      "attack_id": 40,
+      "timestamp": "2025-08-03T04:52:18",
+      "created_at": "2025-08-03T04:52:18"
+    },
+    {
+      "agent_id": 13,
+      "source_ip": "192.168.62.163",
+      "url": "/api/vulnerable/endpoint/4",
+      "payload": "{\"$exists\": true}",
+      "vuln_type": "NoSQL Injection",
+      "severity": "critical",
+      "stack_trace": "Advanced attack simulation: NoSQL Injection",
+      "blocked": true,
+      "context": {
+        "user_id": "user_2d570fd3",
+        "session_id": "session_1206ef04ee92",
+        "attack_technique": "NoSQL Injection"
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      },
+      "response_data": {
+        "status_code": 500,
+        "response_time_ms": 128
+      },
+      "attack_id": 41,
+      "timestamp": "2025-08-03T04:52:18",
+      "created_at": "2025-08-03T04:52:18"
+    }
+  ],
+  "summary": {
+    "total_tests": 38,
+    "passed_tests": 36,
+    "failed_tests": 0,
+    "error_tests": 0,
+    "success_rate": 94.73684210526315
+  }
+}

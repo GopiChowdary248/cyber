@@ -1,0 +1,338 @@
+{
+  "test_results": [
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Session Setup",
+      "status": "PASS",
+      "message": "HTTP session created successfully",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "System Health",
+      "status": "PASS",
+      "message": "RASP API is healthy and accessible",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Dashboard Health",
+      "status": "PASS",
+      "message": "Dashboard is operational",
+      "details": {
+        "total_agents": 6,
+        "total_attacks": 11
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Agent Deployment 1",
+      "status": "PASS",
+      "message": "Deployed E-Commerce Web App agent",
+      "details": {
+        "agent_id": 7,
+        "app_name": "E-Commerce Web App",
+        "language": "python"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Agent Deployment 2",
+      "status": "PASS",
+      "message": "Deployed Banking API agent",
+      "details": {
+        "agent_id": 8,
+        "app_name": "Banking API",
+        "language": "java"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Agent Deployment 3",
+      "status": "PASS",
+      "message": "Deployed Mobile Backend agent",
+      "details": {
+        "agent_id": 9,
+        "app_name": "Mobile Backend",
+        "language": "nodejs"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Attack Simulation 1",
+      "status": "PASS",
+      "message": "Simulated SQL Injection Attack",
+      "details": {
+        "attack_id": 12,
+        "vuln_type": "SQLi",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Attack Simulation 2",
+      "status": "PASS",
+      "message": "Simulated XSS Attack",
+      "details": {
+        "attack_id": 13,
+        "vuln_type": "XSS",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Attack Simulation 3",
+      "status": "PASS",
+      "message": "Simulated Command Injection Attack",
+      "details": {
+        "attack_id": 14,
+        "vuln_type": "Command Injection",
+        "severity": "critical",
+        "blocked": true
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Attack Simulation 4",
+      "status": "PASS",
+      "message": "Simulated Path Traversal Attack",
+      "details": {
+        "attack_id": 15,
+        "vuln_type": "Path Traversal",
+        "severity": "high",
+        "blocked": false
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Agent Heartbeat 1",
+      "status": "PASS",
+      "message": "Heartbeat updated for E-Commerce Web App",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Agent Heartbeat 2",
+      "status": "PASS",
+      "message": "Heartbeat updated for Banking API",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Agent Heartbeat 3",
+      "status": "PASS",
+      "message": "Heartbeat updated for Mobile Backend",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:04",
+      "test_name": "Alert Generation",
+      "status": "PASS",
+      "message": "Generated 15 alerts from attacks",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:05",
+      "test_name": "Alert Management",
+      "status": "PASS",
+      "message": "Alert acknowledged successfully",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:05",
+      "test_name": "Dashboard Analytics",
+      "status": "PASS",
+      "message": "Attack summary retrieved",
+      "details": {
+        "total_attacks": 15,
+        "blocked_attacks": 10,
+        "attack_types": {}
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:05",
+      "test_name": "Agent Status Dashboard",
+      "status": "PASS",
+      "message": "Agent status for 9 agents",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-03 10:17:05",
+      "test_name": "SIEM Integration",
+      "status": "PASS",
+      "message": "Webhook processed successfully",
+      "details": {
+        "status": "processed",
+        "event_type": "attack_detected",
+        "timestamp": "2025-08-03T10:17:05.107462",
+        "source": "end_to_end_test"
+      }
+    },
+    {
+      "timestamp": "2025-08-03 10:17:05",
+      "test_name": "Performance Test",
+      "status": "PASS",
+      "message": "Handled 10/10 concurrent requests",
+      "details": {
+        "response_time_seconds": 0.103,
+        "avg_response_time_ms": 10.3,
+        "success_rate": "100.0%"
+      }
+    }
+  ],
+  "agents": [
+    {
+      "app_name": "E-Commerce Web App",
+      "language": "python",
+      "version": "2.1.0",
+      "config": {
+        "monitoring_level": "high",
+        "auto_block": true
+      },
+      "agent_id": 7,
+      "status": "active",
+      "last_seen": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04",
+      "updated_at": "2025-08-03T04:47:04"
+    },
+    {
+      "app_name": "Banking API",
+      "language": "java",
+      "version": "1.5.2",
+      "config": {
+        "monitoring_level": "critical",
+        "auto_block": true
+      },
+      "agent_id": 8,
+      "status": "active",
+      "last_seen": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04",
+      "updated_at": "2025-08-03T04:47:04"
+    },
+    {
+      "app_name": "Mobile Backend",
+      "language": "nodejs",
+      "version": "3.0.1",
+      "config": {
+        "monitoring_level": "high",
+        "auto_block": false
+      },
+      "agent_id": 9,
+      "status": "active",
+      "last_seen": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04",
+      "updated_at": "2025-08-03T04:47:04"
+    }
+  ],
+  "attacks": [
+    {
+      "agent_id": 7,
+      "source_ip": "192.168.1.100",
+      "url": "/api/users/search",
+      "payload": "'; DROP TABLE users; --",
+      "vuln_type": "SQLi",
+      "severity": "critical",
+      "stack_trace": "Traceback for SQL Injection Attack",
+      "blocked": true,
+      "context": {
+        "user_id": 8507
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response_data": {
+        "status_code": 500
+      },
+      "attack_id": 12,
+      "timestamp": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04"
+    },
+    {
+      "agent_id": 8,
+      "source_ip": "192.168.1.101",
+      "url": "/api/comments",
+      "payload": "<script>alert('XSS')</script>",
+      "vuln_type": "XSS",
+      "severity": "high",
+      "stack_trace": "Traceback for XSS Attack",
+      "blocked": false,
+      "context": {
+        "user_id": 5388
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response_data": {
+        "status_code": 200
+      },
+      "attack_id": 13,
+      "timestamp": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04"
+    },
+    {
+      "agent_id": 9,
+      "source_ip": "192.168.1.102",
+      "url": "/api/system/backup",
+      "payload": "; rm -rf /",
+      "vuln_type": "Command Injection",
+      "severity": "critical",
+      "stack_trace": "Traceback for Command Injection Attack",
+      "blocked": true,
+      "context": {
+        "user_id": 7083
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response_data": {
+        "status_code": 500
+      },
+      "attack_id": 14,
+      "timestamp": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04"
+    },
+    {
+      "agent_id": 7,
+      "source_ip": "192.168.1.103",
+      "url": "/api/files/download",
+      "payload": "../../../etc/passwd",
+      "vuln_type": "Path Traversal",
+      "severity": "high",
+      "stack_trace": "Traceback for Path Traversal Attack",
+      "blocked": false,
+      "context": {
+        "user_id": 5564
+      },
+      "request_data": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "response_data": {
+        "status_code": 200
+      },
+      "attack_id": 15,
+      "timestamp": "2025-08-03T04:47:04",
+      "created_at": "2025-08-03T04:47:04"
+    }
+  ],
+  "summary": {
+    "total_tests": 19,
+    "passed_tests": 19,
+    "failed_tests": 0,
+    "error_tests": 0,
+    "success_rate": 100.0
+  }
+}

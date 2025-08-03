@@ -1,0 +1,19 @@
+﻿{
+    "config":  {
+                   "hooks":  [
+                                 "child_process.exec",
+                                 "child_process.spawn",
+                                 "fs.readFile",
+                                 "eval"
+                             ],
+                   "heartbeat_interval":  30,
+                   "log_level":  "info",
+                   "monitoring_level":  "high",
+                   "api_endpoint":  "http://localhost:8000/api/rasp",
+                   "auto_block":  true
+               },
+    "agent_type":  "nodejs",
+    "app_name":  "your-nodejs-app",
+    "language":  "nodejs",
+    "version":  "1.0.0"
+}

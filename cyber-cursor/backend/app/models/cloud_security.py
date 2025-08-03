@@ -1,201 +1,224 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, JSON, ForeignKey, Float, Enum
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from typing import Optional, List
-from enum import Enum
+from sqlalchemy.sql import func
+import enum
 
-from app.core.database import Base
+Base = declarative_base()
 
-class CloudProvider(str, Enum):
+class CloudProvider(str, enum.Enum):
     AWS = "aws"
     AZURE = "azure"
     GCP = "gcp"
 
-class ResourceType(str, Enum):
-    S3_BUCKET = "s3_bucket"
-    EC2_INSTANCE = "ec2_instance"
-    IAM_ROLE = "iam_role"
-    IAM_USER = "iam_user"
-    SECURITY_GROUP = "security_group"
-    VPC = "vpc"
-    SUBNET = "subnet"
-    RDS_INSTANCE = "rds_instance"
-    LAMBDA_FUNCTION = "lambda_function"
-    CONTAINER_REGISTRY = "container_registry"
-    STORAGE_ACCOUNT = "storage_account"
-    VIRTUAL_MACHINE = "virtual_machine"
-    NETWORK_SECURITY_GROUP = "network_security_group"
-    KEY_VAULT = "key_vault"
-    BLOB_STORAGE = "blob_storage"
-    COMPUTE_INSTANCE = "compute_instance"
-    CLOUD_STORAGE = "cloud_storage"
-    KUBERNETES_CLUSTER = "kubernetes_cluster"
-
-class SeverityLevel(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+class RiskLevel(str, enum.Enum):
     CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFO = "info"
 
-class ComplianceFramework(str, Enum):
-    SOC2 = "soc2"
+class ComplianceStandard(str, enum.Enum):
+    CIS = "cis"
+    NIST = "nist"
     ISO27001 = "iso27001"
     PCI_DSS = "pci_dss"
-    HIPAA = "hipaa"
     GDPR = "gdpr"
-    NIST = "nist"
+    HIPAA = "hipaa"
 
-class CloudResource(Base):
-    __tablename__ = "cloud_resources"
+class AssetType(str, enum.Enum):
+    EC2 = "ec2"
+    S3 = "s3"
+    RDS = "rds"
+    LAMBDA = "lambda"
+    VPC = "vpc"
+    IAM = "iam"
+    CLOUDFRONT = "cloudfront"
+    ECS = "ecs"
+    EKS = "eks"
+    VM = "vm"
+    BLOB = "blob"
+    SQL = "sql"
+    APP_SERVICE = "app_service"
+    KEY_VAULT = "key_vault"
+    COMPUTE_ENGINE = "compute_engine"
+    CLOUD_STORAGE = "cloud_storage"
+    CLOUD_SQL = "cloud_sql"
+    KUBERNETES = "kubernetes"
+
+# CSPM Models
+class CloudAccount(Base):
+    __tablename__ = "cloud_accounts"
     
     id = Column(Integer, primary_key=True, index=True)
-    resource_id = Column(String(255), nullable=False)  # Cloud provider resource ID
-    resource_type = Column(String(50), nullable=False)
-    provider = Column(String(20), nullable=False)
-    region = Column(String(50), nullable=True)
-    name = Column(String(255), nullable=True)
-    description = Column(Text, nullable=True)
-    
-    # Resource details
-    configuration = Column(JSON, nullable=True)  # Current configuration
-    tags = Column(JSON, nullable=True)  # Resource tags
-    cloud_metadata = Column(JSON, nullable=True)  # Additional metadata
-    
-    # Security assessment
-    security_score = Column(Float, nullable=True)  # 0-100 security score
-    last_scan = Column(DateTime, nullable=True)
-    next_scan = Column(DateTime, nullable=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    misconfigurations = relationship("CloudMisconfiguration", back_populates="resource")
-    
-    @classmethod
-    async def get_by_id(cls, db: AsyncSession, resource_id: int) -> Optional["CloudResource"]:
-        """Get cloud resource by ID"""
-        result = await db.execute(select(cls).where(cls.id == resource_id))
-        return result.scalar_one_or_none()
-    
-    @classmethod
-    async def get_by_provider(cls, db: AsyncSession, provider: str) -> List["CloudResource"]:
-        """Get resources by cloud provider"""
-        result = await db.execute(select(cls).where(cls.provider == provider))
-        return result.scalars().all()
-    
-    @classmethod
-    async def get_by_type(cls, db: AsyncSession, resource_type: str) -> List["CloudResource"]:
-        """Get resources by type"""
-        result = await db.execute(select(cls).where(cls.resource_type == resource_type))
-        return result.scalars().all()
-    
-    def __repr__(self):
-        return f"<CloudResource(id={self.id}, type='{self.resource_type}', provider='{self.provider}')>"
+    account_id = Column(String(255), unique=True, index=True)
+    name = Column(String(255))
+    provider = Column(Enum(CloudProvider))
+    region = Column(String(100))
+    status = Column(String(50), default="active")
+    last_scan = Column(DateTime(timezone=True), server_default=func.now())
+    security_score = Column(Float, default=0.0)
+    risk_level = Column(Enum(RiskLevel), default=RiskLevel.INFO)
+    account_metadata = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class CloudMisconfiguration(Base):
-    __tablename__ = "cloud_misconfigurations"
+class CloudAsset(Base):
+    __tablename__ = "cloud_assets"
     
     id = Column(Integer, primary_key=True, index=True)
-    resource_id = Column(Integer, ForeignKey("cloud_resources.id"), nullable=False)
-    title = Column(String(255), nullable=False)
-    description = Column(Text, nullable=False)
-    severity = Column(String(20), default=SeverityLevel.MEDIUM)
+    account_id = Column(Integer, ForeignKey("cloud_accounts.id"))
+    asset_id = Column(String(255), index=True)
+    name = Column(String(255))
+    asset_type = Column(Enum(AssetType))
+    region = Column(String(100))
+    status = Column(String(50))
+    tags = Column(JSON)
+    asset_metadata = Column(JSON)
+    risk_score = Column(Float, default=0.0)
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
     
-    # Misconfiguration details
-    rule_id = Column(String(100), nullable=True)  # Security rule identifier
-    rule_name = Column(String(255), nullable=True)
-    current_value = Column(Text, nullable=True)
-    expected_value = Column(Text, nullable=True)
-    
-    # Compliance
-    compliance_frameworks = Column(JSON, nullable=True)  # Array of affected frameworks
-    remediation_steps = Column(Text, nullable=True)
-    
-    # Status
-    is_fixed = Column(Boolean, default=False)
-    fixed_at = Column(DateTime, nullable=True)
-    fixed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
-    # Timestamps
-    detected_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    resource = relationship("CloudResource", back_populates="misconfigurations")
-    fixed_user = relationship("User")
-    
-    @classmethod
-    async def get_by_severity(cls, db: AsyncSession, severity: str) -> List["CloudMisconfiguration"]:
-        """Get misconfigurations by severity"""
-        result = await db.execute(select(cls).where(cls.severity == severity).order_by(cls.detected_at.desc()))
-        return result.scalars().all()
-    
-    @classmethod
-    async def get_unfixed(cls, db: AsyncSession) -> List["CloudMisconfiguration"]:
-        """Get unfixed misconfigurations"""
-        result = await db.execute(select(cls).where(cls.is_fixed == False).order_by(cls.detected_at.desc()))
-        return result.scalars().all()
-    
-    def __repr__(self):
-        return f"<CloudMisconfiguration(id={self.id}, title='{self.title}', severity='{self.severity}')>"
+    account = relationship("CloudAccount", back_populates="assets")
 
-class CloudScan(Base):
-    __tablename__ = "cloud_scans"
+class Misconfiguration(Base):
+    __tablename__ = "misconfigurations"
     
     id = Column(Integer, primary_key=True, index=True)
-    provider = Column(String(20), nullable=False)
-    scan_type = Column(String(50), nullable=False)  # full, incremental, compliance
-    status = Column(String(20), default="running")  # running, completed, failed
+    asset_id = Column(Integer, ForeignKey("cloud_assets.id"))
+    rule_id = Column(String(255))
+    title = Column(String(500))
+    description = Column(Text)
+    severity = Column(Enum(RiskLevel))
+    category = Column(String(100))
+    compliance_standards = Column(JSON)  # Array of compliance standards
+    remediation_steps = Column(Text)
+    auto_remediable = Column(Boolean, default=False)
+    status = Column(String(50), default="open")
+    detected_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True))
     
-    # Scan results
-    resources_scanned = Column(Integer, default=0)
-    misconfigurations_found = Column(Integer, default=0)
-    security_score = Column(Float, nullable=True)
-    
-    # Scan details
-    scan_config = Column(JSON, nullable=True)  # Scan configuration
-    scan_results = Column(JSON, nullable=True)  # Detailed scan results
-    
-    # Timestamps
-    started_at = Column(DateTime, default=func.now())
-    completed_at = Column(DateTime, nullable=True)
-    
-    # Relationships
-    initiated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    user = relationship("User")
-    
-    def __repr__(self):
-        return f"<CloudScan(id={self.id}, provider='{self.provider}', status='{self.status}')>"
+    asset = relationship("CloudAsset", back_populates="misconfigurations")
 
 class ComplianceReport(Base):
     __tablename__ = "compliance_reports"
     
     id = Column(Integer, primary_key=True, index=True)
-    framework = Column(String(50), nullable=False)
-    provider = Column(String(20), nullable=False)
+    account_id = Column(Integer, ForeignKey("cloud_accounts.id"))
+    standard = Column(Enum(ComplianceStandard))
+    score = Column(Float)
+    total_checks = Column(Integer)
+    passed_checks = Column(Integer)
+    failed_checks = Column(Integer)
+    report_data = Column(JSON)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # Report details
-    overall_score = Column(Float, nullable=True)  # 0-100 compliance score
-    total_controls = Column(Integer, default=0)
-    passed_controls = Column(Integer, default=0)
-    failed_controls = Column(Integer, default=0)
+    account = relationship("CloudAccount", back_populates="compliance_reports")
+
+# CASB Models
+class SaaSApplication(Base):
+    __tablename__ = "saas_applications"
     
-    # Report data
-    report_data = Column(JSON, nullable=True)  # Detailed compliance data
-    recommendations = Column(Text, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    app_name = Column(String(255))
+    app_category = Column(String(100))
+    vendor = Column(String(255))
+    risk_score = Column(Float, default=0.0)
+    status = Column(String(50), default="discovered")  # discovered, sanctioned, blocked
+    user_count = Column(Integer, default=0)
+    data_classification = Column(JSON)
+    security_features = Column(JSON)
+    discovered_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_activity = Column(DateTime(timezone=True))
+
+class UserActivity(Base):
+    __tablename__ = "user_activities"
     
-    # Timestamps
-    generated_at = Column(DateTime, default=func.now())
-    valid_until = Column(DateTime, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), index=True)
+    app_id = Column(Integer, ForeignKey("saas_applications.id"))
+    activity_type = Column(String(100))  # login, upload, download, share, admin_action
+    ip_address = Column(String(45))
+    location = Column(String(255))
+    device_info = Column(JSON)
+    risk_score = Column(Float, default=0.0)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
     
-    # Relationships
-    generated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    user = relationship("User")
+    app = relationship("SaaSApplication", back_populates="activities")
+
+class DLPIncident(Base):
+    __tablename__ = "dlp_incidents"
     
-    def __repr__(self):
-        return f"<ComplianceReport(id={self.id}, framework='{self.framework}', score={self.overall_score})>" 
+    id = Column(Integer, primary_key=True, index=True)
+    app_id = Column(Integer, ForeignKey("saas_applications.id"))
+    user_id = Column(String(255))
+    incident_type = Column(String(100))  # pii, pci, phi, intellectual_property
+    file_name = Column(String(255))
+    file_size = Column(Integer)
+    action_taken = Column(String(100))  # blocked, quarantined, allowed, alerted
+    confidence_score = Column(Float)
+    details = Column(JSON)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    
+    app = relationship("SaaSApplication", back_populates="dlp_incidents")
+
+# Cloud-Native Security Models
+class CloudThreat(Base):
+    __tablename__ = "cloud_threats"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("cloud_accounts.id"))
+    threat_id = Column(String(255))
+    threat_type = Column(String(100))  # ddos, malware, unauthorized_access, data_exfiltration
+    severity = Column(Enum(RiskLevel))
+    source_ip = Column(String(45))
+    target_resource = Column(String(255))
+    description = Column(Text)
+    threat_data = Column(JSON)
+    status = Column(String(50), default="active")
+    detected_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True))
+    
+    account = relationship("CloudAccount", back_populates="threats")
+
+class IAMRisk(Base):
+    __tablename__ = "iam_risks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("cloud_accounts.id"))
+    entity_id = Column(String(255))
+    entity_type = Column(String(50))  # user, role, group, service_account
+    risk_type = Column(String(100))  # over_privileged, unused_permissions, weak_policies
+    severity = Column(Enum(RiskLevel))
+    permissions = Column(JSON)
+    recommendations = Column(JSON)
+    status = Column(String(50), default="open")
+    detected_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    account = relationship("CloudAccount", back_populates="iam_risks")
+
+class DDoSProtection(Base):
+    __tablename__ = "ddos_protection"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("cloud_accounts.id"))
+    protection_id = Column(String(255))
+    service = Column(String(100))  # aws_shield, azure_ddos, gcp_armor
+    status = Column(String(50))
+    protected_resources = Column(JSON)
+    attack_statistics = Column(JSON)
+    last_attack = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    account = relationship("CloudAccount", back_populates="ddos_protection")
+
+# Relationships
+CloudAccount.assets = relationship("CloudAsset", back_populates="account")
+CloudAccount.compliance_reports = relationship("ComplianceReport", back_populates="account")
+CloudAccount.threats = relationship("CloudThreat", back_populates="account")
+CloudAccount.iam_risks = relationship("IAMRisk", back_populates="account")
+CloudAccount.ddos_protection = relationship("DDoSProtection", back_populates="account")
+
+CloudAsset.misconfigurations = relationship("Misconfiguration", back_populates="asset")
+
+SaaSApplication.activities = relationship("UserActivity", back_populates="app")
+SaaSApplication.dlp_incidents = relationship("DLPIncident", back_populates="app") 

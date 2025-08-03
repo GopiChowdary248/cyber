@@ -1,0 +1,270 @@
+{
+  "test_summary": {
+    "total_tests": 34,
+    "passed": 34,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "success_rate": 100.0,
+    "total_duration": 0.7695708274841309
+  },
+  "test_results": [
+    {
+      "test_name": "Session Setup",
+      "status": "PASS",
+      "message": "HTTP session created successfully",
+      "details": null,
+      "duration": 7.796287536621094e-05
+    },
+    {
+      "test_name": "API Connectivity",
+      "status": "PASS",
+      "message": "API is accessible",
+      "details": null,
+      "duration": 0.016737937927246094
+    },
+    {
+      "test_name": "Agent Registration (python)",
+      "status": "PASS",
+      "message": "Agent registered with ID: 2",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Agent Registration (java)",
+      "status": "PASS",
+      "message": "Agent registered with ID: 3",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Agent Registration (nodejs)",
+      "status": "PASS",
+      "message": "Agent registered with ID: 4",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Agent Registration",
+      "status": "PASS",
+      "message": "Registered 3/3 agents",
+      "details": null,
+      "duration": 0.10084986686706543
+    },
+    {
+      "test_name": "Rule Creation (SQLi)",
+      "status": "PASS",
+      "message": "Rule created with ID: 8",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Rule Creation (XSS)",
+      "status": "PASS",
+      "message": "Rule created with ID: 9",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Rule Creation (Command Injection)",
+      "status": "PASS",
+      "message": "Rule created with ID: 10",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Detection Rules",
+      "status": "PASS",
+      "message": "Created 3/3 rules",
+      "details": null,
+      "duration": 0.08439230918884277
+    },
+    {
+      "test_name": "Attack Simulation (SQLi)",
+      "status": "PASS",
+      "message": "Attack logged with ID: 3",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Attack Simulation (XSS)",
+      "status": "PASS",
+      "message": "Attack logged with ID: 4",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Attack Simulation (Command Injection)",
+      "status": "PASS",
+      "message": "Attack logged with ID: 5",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Attack Simulation",
+      "status": "PASS",
+      "message": "Simulated 3/3 attacks",
+      "details": null,
+      "duration": 0.13381695747375488
+    },
+    {
+      "test_name": "Agent Heartbeat (ID: 2)",
+      "status": "PASS",
+      "message": "Heartbeat updated successfully",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Agent Heartbeat (ID: 3)",
+      "status": "PASS",
+      "message": "Heartbeat updated successfully",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Agent Heartbeat (ID: 4)",
+      "status": "PASS",
+      "message": "Heartbeat updated successfully",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Agent Heartbeat",
+      "status": "PASS",
+      "message": "Updated 3/3 agent heartbeats",
+      "details": null,
+      "duration": 0.09030747413635254
+    },
+    {
+      "test_name": "Dashboard Overview",
+      "status": "PASS",
+      "message": "Retrieved Overview data",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Dashboard Attack Summary",
+      "status": "PASS",
+      "message": "Retrieved Attack Summary data",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Dashboard Agent Status",
+      "status": "PASS",
+      "message": "Retrieved Agent Status data",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Dashboard Functionality",
+      "status": "PASS",
+      "message": "Tested 3/3 dashboard endpoints",
+      "details": null,
+      "duration": 0.10935854911804199
+    },
+    {
+      "test_name": "SIEM Integration (Test Splunk Integration)",
+      "status": "PASS",
+      "message": "Integration created with ID: 4",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "SIEM Integration (Test XSOAR Integration)",
+      "status": "PASS",
+      "message": "Integration created with ID: 5",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "SIEM Integration",
+      "status": "PASS",
+      "message": "Created 2/2 integrations",
+      "details": null,
+      "duration": 0.058835506439208984
+    },
+    {
+      "test_name": "Webhook Processing",
+      "status": "PASS",
+      "message": "Webhook processed successfully",
+      "details": null,
+      "duration": 0.03652477264404297
+    },
+    {
+      "test_name": "Alert Retrieval",
+      "status": "PASS",
+      "message": "Retrieved 6 alerts",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Alert Update",
+      "status": "PASS",
+      "message": "Alert updated successfully",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Alert Management",
+      "status": "PASS",
+      "message": "Alert management tested",
+      "details": null,
+      "duration": 0.03807950019836426
+    },
+    {
+      "test_name": "Performance /api/rasp/agents",
+      "status": "PASS",
+      "message": "Response time: 0.014s",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Performance /api/rasp/attacks",
+      "status": "PASS",
+      "message": "Response time: 0.016s",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Performance /api/rasp/rules",
+      "status": "PASS",
+      "message": "Response time: 0.015s",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Performance /api/rasp/dashboard/overview",
+      "status": "PASS",
+      "message": "Response time: 0.055s",
+      "details": null,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Performance Metrics",
+      "status": "PASS",
+      "message": "Average response time: 0.025s, Max: 0.055s",
+      "details": null,
+      "duration": 0.10058999061584473
+    }
+  ],
+  "system_info": {
+    "api_url": "http://localhost:8000",
+    "timestamp": "20250803_094259",
+    "agent_ids": [
+      2,
+      3,
+      4
+    ],
+    "attack_ids": [
+      3,
+      4,
+      5
+    ],
+    "rule_ids": [
+      8,
+      9,
+      10
+    ]
+  }
+}

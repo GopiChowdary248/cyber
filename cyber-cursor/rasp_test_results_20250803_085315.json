@@ -1,0 +1,72 @@
+[
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Session Setup",
+    "status": "PASS",
+    "message": "HTTP session created successfully",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "API Connectivity",
+    "status": "PASS",
+    "message": "API is accessible",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Agent Creation",
+    "status": "FAIL",
+    "message": "Failed to create agent: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Rule Creation",
+    "status": "FAIL",
+    "message": "Failed to create rule: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Dashboard Overview",
+    "status": "FAIL",
+    "message": "Failed to get dashboard overview: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Attack Summary",
+    "status": "FAIL",
+    "message": "Failed to get attack summary: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Agent Status",
+    "status": "FAIL",
+    "message": "Failed to get agent status: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Webhook Processing",
+    "status": "FAIL",
+    "message": "Failed to process webhook: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Integration Creation",
+    "status": "FAIL",
+    "message": "Failed to create integration: 404",
+    "details": null
+  },
+  {
+    "timestamp": "2025-08-03 08:53:15",
+    "test_name": "Alert Retrieval",
+    "status": "FAIL",
+    "message": "Failed to retrieve alerts: 404",
+    "details": null
+  }
+]

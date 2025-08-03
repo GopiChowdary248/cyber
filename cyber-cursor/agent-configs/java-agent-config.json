@@ -1,0 +1,19 @@
+﻿{
+    "config":  {
+                   "hooks":  [
+                                 "java.sql.Statement.executeQuery",
+                                 "java.sql.Statement.executeUpdate",
+                                 "java.lang.Runtime.exec",
+                                 "java.io.FileInputStream.\u003cinit\u003e"
+                             ],
+                   "heartbeat_interval":  30,
+                   "log_level":  "INFO",
+                   "monitoring_level":  "high",
+                   "api_endpoint":  "http://localhost:8000/api/rasp",
+                   "auto_block":  true
+               },
+    "agent_type":  "java",
+    "app_name":  "your-java-app",
+    "language":  "java",
+    "version":  "1.0.0"
+}

@@ -1,181 +1,354 @@
--- SAST Database Initialization Script
--- Creates the necessary tables and schemas for the SAST tool
+-- Initialize SAST Database Tables
+-- Run this script to set up the SAST module database schema
 
--- Enable required extensions
+-- Connect to the database (adjust connection details as needed)
+-- \c cybershield_db;
+
+-- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Create SAST schema
-CREATE SCHEMA IF NOT EXISTS sast;
+-- Create enum types for SAST module
+DO $$ BEGIN
+    CREATE TYPE scan_status AS ENUM ('queued', 'running', 'completed', 'failed', 'cancelled');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- SAST Scans table
-CREATE TABLE IF NOT EXISTS sast.scans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_name VARCHAR(255) NOT NULL,
-    project_path TEXT,
-    scan_config JSONB,
-    status VARCHAR(50) DEFAULT 'pending',
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    completed_at TIMESTAMP WITH TIME ZONE,
-    total_vulnerabilities INTEGER DEFAULT 0,
-    critical_count INTEGER DEFAULT 0,
-    high_count INTEGER DEFAULT 0,
-    medium_count INTEGER DEFAULT 0,
-    low_count INTEGER DEFAULT 0,
-    scan_duration FLOAT,
-    languages_detected TEXT[],
-    tools_used TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+DO $$ BEGIN
+    CREATE TYPE vulnerability_severity AS ENUM ('critical', 'high', 'medium', 'low', 'info');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- SAST Vulnerabilities table
-CREATE TABLE IF NOT EXISTS sast.vulnerabilities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    scan_id UUID REFERENCES sast.scans(id) ON DELETE CASCADE,
-    file_name TEXT NOT NULL,
-    line_number INTEGER,
-    column_number INTEGER,
-    severity VARCHAR(20) NOT NULL,
-    vulnerability_type VARCHAR(100) NOT NULL,
-    description TEXT,
-    recommendation TEXT,
-    rule_id VARCHAR(100),
-    tool VARCHAR(50) NOT NULL,
-    cwe_id VARCHAR(20),
-    code_snippet TEXT,
-    context JSONB,
-    status VARCHAR(50) DEFAULT 'open',
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+DO $$ BEGIN
+    CREATE TYPE vulnerability_status AS ENUM ('open', 'fixed', 'ignored', 'false_positive');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- SAST Recommendations table
-CREATE TABLE IF NOT EXISTS sast.recommendations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    vulnerability_id UUID REFERENCES sast.vulnerabilities(id) ON DELETE CASCADE,
-    recommendation_type VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    code_fix TEXT,
-    before_code TEXT,
-    after_code TEXT,
-    confidence_score FLOAT,
-    reasoning TEXT,
-    tags TEXT[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+DO $$ BEGIN
+    CREATE TYPE auto_fix_status AS ENUM ('available', 'applied', 'not_available', 'failed');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- SAST Projects table
-CREATE TABLE IF NOT EXISTS sast.projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) UNIQUE NOT NULL,
-    description TEXT,
-    repository_url TEXT,
-    branch VARCHAR(100) DEFAULT 'main',
-    scan_config JSONB,
-    last_scan_id UUID REFERENCES sast.scans(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- SAST Scan Configurations table
-CREATE TABLE IF NOT EXISTS sast.scan_configs (
+-- Create SAST Projects Table
+CREATE TABLE IF NOT EXISTS sast_projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
+    repository_url TEXT,
+    language VARCHAR(50),
     description TEXT,
-    config JSONB NOT NULL,
-    is_default BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    
+    -- Project configuration
+    scan_config JSONB,
+    rules_config JSONB,
+    
+    -- Statistics
+    total_scans INTEGER DEFAULT 0,
+    avg_vulnerabilities DECIMAL(5,2) DEFAULT 0.0,
+    security_score DECIMAL(5,2),
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_scan TIMESTAMP WITH TIME ZONE,
+    
+    -- Created by
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 
--- SAST Reports table
-CREATE TABLE IF NOT EXISTS sast.reports (
+-- Create SAST Scans Table
+CREATE TABLE IF NOT EXISTS sast_scans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    scan_id UUID REFERENCES sast.scans(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES sast_projects(id) ON DELETE CASCADE,
+    
+    -- Scan details
+    scan_type VARCHAR(50) NOT NULL,
+    status scan_status DEFAULT 'queued',
+    
+    -- Scan configuration
+    scan_config JSONB,
+    rules_enabled JSONB,
+    
+    -- Scan results
+    vulnerabilities_found INTEGER DEFAULT 0,
+    files_scanned INTEGER DEFAULT 0,
+    lines_of_code INTEGER DEFAULT 0,
+    scan_duration DECIMAL(10,2),
+    
+    -- Scan metadata
+    scan_logs JSONB,
+    scan_summary JSONB,
+    
+    -- Timestamps
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Initiated by
+    initiated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Create SAST Rules Table
+CREATE TABLE IF NOT EXISTS sast_rules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    
+    -- Rule configuration
+    language VARCHAR(50) NOT NULL,
+    regex_pattern TEXT,
+    ast_pattern JSONB,
+    
+    -- Classification
+    severity vulnerability_severity NOT NULL,
+    cwe_id VARCHAR(20),
+    owasp_category VARCHAR(100),
+    
+    -- Auto-fix configuration
+    auto_fix_available BOOLEAN DEFAULT FALSE,
+    auto_fix_template TEXT,
+    recommendation TEXT,
+    
+    -- Rule metadata
+    tags JSONB,
+    metadata JSONB,
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    is_custom BOOLEAN DEFAULT FALSE,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Created by (for custom rules)
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Create SAST Vulnerabilities Table
+CREATE TABLE IF NOT EXISTS sast_vulnerabilities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scan_id UUID NOT NULL REFERENCES sast_scans(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES sast_projects(id) ON DELETE CASCADE,
+    
+    -- Vulnerability details
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    severity vulnerability_severity NOT NULL,
+    status vulnerability_status DEFAULT 'open',
+    
+    -- Code location
+    file_path TEXT NOT NULL,
+    line_number INTEGER NOT NULL,
+    column_number INTEGER,
+    function_name VARCHAR(255),
+    
+    -- Vulnerability classification
+    cwe_id VARCHAR(20),
+    owasp_category VARCHAR(100),
+    language VARCHAR(50),
+    
+    -- Code snippets
+    vulnerable_code TEXT,
+    fixed_code TEXT,
+    context_before TEXT,
+    context_after TEXT,
+    
+    -- Auto-fix information
+    auto_fix_available BOOLEAN DEFAULT FALSE,
+    auto_fix_status auto_fix_status DEFAULT 'not_available',
+    auto_fix_suggestion TEXT,
+    
+    -- Additional metadata
+    tags JSONB,
+    metadata JSONB,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    fixed_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Rule relationship
+    rule_id UUID REFERENCES sast_rules(id) ON DELETE SET NULL
+);
+
+-- Create SAST Reports Table
+CREATE TABLE IF NOT EXISTS sast_reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scan_id UUID NOT NULL REFERENCES sast_scans(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES sast_projects(id) ON DELETE CASCADE,
+    
+    -- Report details
     report_type VARCHAR(50) NOT NULL,
     format VARCHAR(20) NOT NULL,
-    file_path TEXT,
-    generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE
-);
-
--- SAST Integrations table
-CREATE TABLE IF NOT EXISTS sast.integrations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    integration_type VARCHAR(50) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    config JSONB NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- SAST Notifications table
-CREATE TABLE IF NOT EXISTS sast.notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    scan_id UUID REFERENCES sast.scans(id) ON DELETE CASCADE,
-    notification_type VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT,
-    severity VARCHAR(20),
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    
+    -- Report content
+    report_data JSONB,
+    report_file_path TEXT,
+    
+    -- Report metadata
+    generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Status
+    is_public BOOLEAN DEFAULT FALSE,
+    download_count INTEGER DEFAULT 0,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Generated by
+    generated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_sast_scans_project_name ON sast.scans(project_name);
-CREATE INDEX IF NOT EXISTS idx_sast_scans_status ON sast.scans(status);
-CREATE INDEX IF NOT EXISTS idx_sast_scans_started_at ON sast.scans(started_at);
-CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_scan_id ON sast.vulnerabilities(scan_id);
-CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_severity ON sast.vulnerabilities(severity);
-CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_type ON sast.vulnerabilities(vulnerability_type);
-CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_file ON sast.vulnerabilities(file_name);
-CREATE INDEX IF NOT EXISTS idx_sast_recommendations_vuln_id ON sast.recommendations(vulnerability_id);
-CREATE INDEX IF NOT EXISTS idx_sast_projects_name ON sast.projects(name);
-CREATE INDEX IF NOT EXISTS idx_sast_reports_scan_id ON sast.reports(scan_id);
-CREATE INDEX IF NOT EXISTS idx_sast_integrations_type ON sast.integrations(integration_type);
-CREATE INDEX IF NOT EXISTS idx_sast_notifications_scan_id ON sast.notifications(scan_id);
+CREATE INDEX IF NOT EXISTS idx_sast_projects_name ON sast_projects(name);
+CREATE INDEX IF NOT EXISTS idx_sast_projects_language ON sast_projects(language);
+CREATE INDEX IF NOT EXISTS idx_sast_projects_created_by ON sast_projects(created_by);
+CREATE INDEX IF NOT EXISTS idx_sast_projects_is_active ON sast_projects(is_active);
 
--- Create full-text search indexes
-CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_description_fts ON sast.vulnerabilities USING gin(to_tsvector('english', description));
-CREATE INDEX IF NOT EXISTS idx_sast_recommendations_description_fts ON sast.recommendations USING gin(to_tsvector('english', description));
+CREATE INDEX IF NOT EXISTS idx_sast_scans_project_id ON sast_scans(project_id);
+CREATE INDEX IF NOT EXISTS idx_sast_scans_status ON sast_scans(status);
+CREATE INDEX IF NOT EXISTS idx_sast_scans_initiated_by ON sast_scans(initiated_by);
+CREATE INDEX IF NOT EXISTS idx_sast_scans_started_at ON sast_scans(started_at);
+CREATE INDEX IF NOT EXISTS idx_sast_scans_scan_type ON sast_scans(scan_type);
 
--- Insert default scan configuration
-INSERT INTO sast.scan_configs (name, description, config, is_default) VALUES (
-    'Default Configuration',
-    'Default SAST scan configuration with common tools',
-    '{
-        "languages": ["python", "javascript", "java"],
-        "tools": ["bandit", "pylint", "semgrep", "eslint"],
-        "severity_threshold": "low",
-        "max_file_size": 10485760,
-        "exclude_patterns": ["node_modules", ".git", "__pycache__", "venv"],
-        "include_patterns": ["*.py", "*.js", "*.java", "*.php", "*.go"]
-    }',
-    TRUE
-) ON CONFLICT DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_sast_rules_language ON sast_rules(language);
+CREATE INDEX IF NOT EXISTS idx_sast_rules_severity ON sast_rules(severity);
+CREATE INDEX IF NOT EXISTS idx_sast_rules_is_active ON sast_rules(is_active);
+CREATE INDEX IF NOT EXISTS idx_sast_rules_is_custom ON sast_rules(is_custom);
+CREATE INDEX IF NOT EXISTS idx_sast_rules_created_by ON sast_rules(created_by);
 
--- Grant permissions to sast_user
-GRANT USAGE ON SCHEMA sast TO sast_user;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA sast TO sast_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA sast TO sast_user;
-GRANT CREATE ON SCHEMA sast TO sast_user;
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_scan_id ON sast_vulnerabilities(scan_id);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_project_id ON sast_vulnerabilities(project_id);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_severity ON sast_vulnerabilities(severity);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_status ON sast_vulnerabilities(status);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_file_path ON sast_vulnerabilities(file_path);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_cwe_id ON sast_vulnerabilities(cwe_id);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_rule_id ON sast_vulnerabilities(rule_id);
+CREATE INDEX IF NOT EXISTS idx_sast_vulnerabilities_created_at ON sast_vulnerabilities(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_sast_reports_scan_id ON sast_reports(scan_id);
+CREATE INDEX IF NOT EXISTS idx_sast_reports_project_id ON sast_reports(project_id);
+CREATE INDEX IF NOT EXISTS idx_sast_reports_report_type ON sast_reports(report_type);
+CREATE INDEX IF NOT EXISTS idx_sast_reports_format ON sast_reports(format);
+CREATE INDEX IF NOT EXISTS idx_sast_reports_generated_by ON sast_reports(generated_by);
+CREATE INDEX IF NOT EXISTS idx_sast_reports_generated_at ON sast_reports(generated_at);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
+    NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 -- Create triggers for updated_at columns
-CREATE TRIGGER update_sast_scans_updated_at BEFORE UPDATE ON sast.scans FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_sast_vulnerabilities_updated_at BEFORE UPDATE ON sast.vulnerabilities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_sast_projects_updated_at BEFORE UPDATE ON sast.projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_sast_scan_configs_updated_at BEFORE UPDATE ON sast.scan_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_sast_integrations_updated_at BEFORE UPDATE ON sast.integrations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); 
+DROP TRIGGER IF EXISTS update_sast_projects_updated_at ON sast_projects;
+CREATE TRIGGER update_sast_projects_updated_at BEFORE UPDATE ON sast_projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_sast_scans_updated_at ON sast_scans;
+CREATE TRIGGER update_sast_scans_updated_at BEFORE UPDATE ON sast_scans FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_sast_rules_updated_at ON sast_rules;
+CREATE TRIGGER update_sast_rules_updated_at BEFORE UPDATE ON sast_rules FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_sast_vulnerabilities_updated_at ON sast_vulnerabilities;
+CREATE TRIGGER update_sast_vulnerabilities_updated_at BEFORE UPDATE ON sast_vulnerabilities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_sast_reports_updated_at ON sast_reports;
+CREATE TRIGGER update_sast_reports_updated_at BEFORE UPDATE ON sast_reports FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert initial OWASP Top 10 detection rules
+INSERT INTO sast_rules (name, title, description, language, regex_pattern, severity, cwe_id, owasp_category, auto_fix_available, recommendation) VALUES
+-- SQL Injection (A03:2021)
+('sql_injection_concatenation', 'SQL Injection via String Concatenation', 'Detects SQL injection vulnerabilities through string concatenation', 'python', 'cursor\.execute\(.*\+.*\)', 'critical', 'CWE-89', 'A03:2021-Injection', true, 'Use parameterized queries or ORM methods instead of string concatenation'),
+
+-- XSS (A03:2021)
+('xss_innerhtml', 'Cross-Site Scripting via innerHTML', 'Detects potential XSS vulnerabilities through innerHTML assignment', 'javascript', 'innerHTML\s*=\s*.*', 'high', 'CWE-79', 'A03:2021-Injection', true, 'Use textContent or a DOM sanitizer to prevent XSS'),
+
+-- Hardcoded Secrets (A02:2021)
+('hardcoded_secrets', 'Hardcoded API Keys and Secrets', 'Detects hardcoded API keys, secrets, and passwords', 'all', '(api_key|secret|password)\s*=\s*[''""][A-Za-z0-9]{20,}[''""]', 'high', 'CWE-798', 'A02:2021-Cryptographic Failures', false, 'Use environment variables or secret managers instead of hardcoding'),
+
+-- Command Injection (A03:2021)
+('command_injection_os_system', 'Command Injection via os.system', 'Detects command injection vulnerabilities through os.system', 'python', 'os\.system\(.*\+.*\)', 'critical', 'CWE-77', 'A03:2021-Injection', true, 'Use subprocess with argument arrays and avoid shell=True'),
+
+-- Code Injection (A03:2021)
+('code_injection_eval', 'Code Injection via eval', 'Detects code injection vulnerabilities through eval function', 'javascript', 'eval\(.*\)', 'critical', 'CWE-95', 'A03:2021-Injection', false, 'Avoid using eval() function. Use safer alternatives like JSON.parse()'),
+
+-- Path Traversal (A01:2021)
+('path_traversal', 'Path Traversal Vulnerability', 'Detects path traversal vulnerabilities', 'all', '\.\.\/|\.\.\\', 'high', 'CWE-22', 'A01:2021-Broken Access Control', false, 'Validate and sanitize file paths to prevent directory traversal'),
+
+-- Insecure Deserialization (A08:2021)
+('insecure_deserialization', 'Insecure Deserialization', 'Detects insecure deserialization practices', 'python', 'pickle\.loads\(|yaml\.load\(', 'high', 'CWE-502', 'A08:2021-Software and Data Integrity Failures', false, 'Use safe deserialization methods and validate input'),
+
+-- Broken Authentication (A07:2021)
+('weak_password_validation', 'Weak Password Validation', 'Detects weak password validation patterns', 'all', 'password.*len.*<.*8|password.*length.*<.*8', 'medium', 'CWE-521', 'A07:2021-Identification and Authentication Failures', false, 'Implement strong password policies with minimum length and complexity requirements'),
+
+-- Security Misconfiguration (A05:2021)
+('debug_mode_enabled', 'Debug Mode Enabled in Production', 'Detects debug mode enabled in production code', 'python', 'DEBUG\s*=\s*True|debug\s*=\s*True', 'medium', 'CWE-16', 'A05:2021-Security Misconfiguration', true, 'Disable debug mode in production environments'),
+
+-- Sensitive Data Exposure (A02:2021)
+('sensitive_data_logging', 'Sensitive Data in Logs', 'Detects sensitive data being logged', 'all', 'log.*password|log.*secret|log.*token|log.*key', 'medium', 'CWE-532', 'A02:2021-Cryptographic Failures', false, 'Avoid logging sensitive information like passwords, tokens, or secrets');
+
+-- Insert sample SAST projects
+INSERT INTO sast_projects (name, repository_url, language, description, security_score) VALUES
+('E-commerce Platform', 'https://github.com/company/ecommerce', 'python', 'Main e-commerce application with Django backend', 85.5),
+('Mobile API', 'https://github.com/company/mobile-api', 'javascript', 'REST API for mobile applications', 92.3),
+('Admin Dashboard', 'https://github.com/company/admin-dashboard', 'typescript', 'React-based admin dashboard', 78.9),
+('Payment Gateway', 'https://github.com/company/payment-gateway', 'java', 'Secure payment processing service', 95.2),
+('User Management', 'https://github.com/company/user-management', 'csharp', '.NET Core user management service', 88.7);
+
+-- Create views for analytics
+CREATE OR REPLACE VIEW sast_overview_stats AS
+SELECT 
+    COUNT(DISTINCT p.id) as total_projects,
+    COUNT(DISTINCT s.id) as total_scans,
+    COUNT(DISTINCT v.id) as total_vulnerabilities,
+    COUNT(DISTINCT CASE WHEN s.status = 'running' THEN s.id END) as active_scans,
+    AVG(p.security_score) as avg_security_score,
+    COUNT(DISTINCT CASE WHEN v.severity = 'critical' THEN v.id END) as critical_vulnerabilities,
+    COUNT(DISTINCT CASE WHEN v.severity = 'high' THEN v.id END) as high_vulnerabilities,
+    COUNT(DISTINCT CASE WHEN v.severity = 'medium' THEN v.id END) as medium_vulnerabilities,
+    COUNT(DISTINCT CASE WHEN v.severity = 'low' THEN v.id END) as low_vulnerabilities
+FROM sast_projects p
+LEFT JOIN sast_scans s ON p.id = s.project_id
+LEFT JOIN sast_vulnerabilities v ON p.id = v.project_id;
+
+CREATE OR REPLACE VIEW sast_vulnerability_trends AS
+SELECT 
+    DATE_TRUNC('day', v.created_at) as date,
+    COUNT(*) as vulnerabilities_found,
+    COUNT(CASE WHEN v.severity = 'critical' THEN 1 END) as critical_count,
+    COUNT(CASE WHEN v.severity = 'high' THEN 1 END) as high_count,
+    COUNT(CASE WHEN v.severity = 'medium' THEN 1 END) as medium_count,
+    COUNT(CASE WHEN v.severity = 'low' THEN 1 END) as low_count
+FROM sast_vulnerabilities v
+GROUP BY DATE_TRUNC('day', v.created_at)
+ORDER BY date DESC;
+
+-- Add comments
+COMMENT ON TABLE sast_projects IS 'SAST projects for code analysis';
+COMMENT ON TABLE sast_scans IS 'SAST scan history and results';
+COMMENT ON TABLE sast_rules IS 'Detection rules for SAST analysis';
+COMMENT ON TABLE sast_vulnerabilities IS 'Vulnerabilities found during SAST scans';
+COMMENT ON TABLE sast_reports IS 'Generated SAST reports and exports';
+
+-- Grant permissions (adjust as needed for your setup)
+-- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO cybershield_user;
+-- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO cybershield_user;
+-- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO cybershield_user;
+
+-- Verify tables were created
+SELECT 'SAST Database initialization completed successfully!' as status;
+SELECT COUNT(*) as projects_count FROM sast_projects;
+SELECT COUNT(*) as rules_count FROM sast_rules; 
