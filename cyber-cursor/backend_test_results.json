@@ -1,0 +1,24 @@
+{
+  "server_status": true,
+  "endpoints": {
+    "auth": {
+      "/api/v1/auth/login": false,
+      "/api/v1/auth/login/oauth": false
+    },
+    "iam": {
+      "/api/v1/iam/auth/login": false,
+      "/api/v1/iam/health": false
+    }
+  },
+  "errors": [
+    "app.core.config: No module named 'app.core'",
+    "app.core.database: No module named 'app.core'",
+    "app.core.security: No module named 'app.core'",
+    "app.models.iam: No module named 'app.models'",
+    "app.schemas.iam: No module named 'app.schemas'",
+    "app.services.iam_service: No module named 'app.services'",
+    "app.api.v1.endpoints.auth: No module named 'app.api'",
+    "app.api.v1.endpoints.iam: No module named 'app.api'"
+  ],
+  "warnings": []
+}

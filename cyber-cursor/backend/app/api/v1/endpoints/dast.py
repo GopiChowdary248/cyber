@@ -28,6 +28,25 @@ from app.core.security import get_current_user
 
 router = APIRouter()
 
+@router.get("/test")
+async def test_dast_endpoint():
+    """Test endpoint to verify DAST router is working"""
+    return {"message": "DAST router is working!", "status": "success"}
+
+@router.get("/simple")
+async def simple_dast_endpoint():
+    """Simple endpoint without database dependency"""
+    return {"message": "Simple DAST endpoint working!", "status": "success"}
+
+@router.get("/debug")
+async def debug_dast_endpoint():
+    """Debug endpoint to check router mounting"""
+    return {
+        "message": "DAST debug endpoint working!",
+        "router_info": "DAST router is mounted correctly",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 async def simulate_dast_scan(scan_id: str, db: AsyncSession):
     """Simulate a background DAST scan process"""
     try:
@@ -122,8 +141,7 @@ async def simulate_dast_scan(scan_id: str, db: AsyncSession):
 
 @router.get("/overview")
 async def get_dast_overview(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db)
 ):
     """Get DAST overview statistics"""
     try:

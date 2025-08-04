@@ -112,7 +112,7 @@ class DatabaseSettings(BaseSettings):
     """Database configuration settings"""
     
     # Use PostgreSQL in production, SQLite in development
-    DATABASE_URL: str = "postgresql+asyncpg://cybershield_user:cybershield_password@postgres:5432/cybershield"
+    DATABASE_URL: str = "postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield"
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
@@ -126,9 +126,12 @@ class DatabaseSettings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Override with SQLite for local development if PostgreSQL is not available
+        # Use PostgreSQL by default, only fallback to SQLite if explicitly requested
         if os.getenv("USE_SQLITE", "false").lower() == "true":
             self.DATABASE_URL = "sqlite+aiosqlite:///./cybershield.db"
+        # Production PostgreSQL configuration
+        elif os.getenv("ENVIRONMENT", "development") == "production":
+            self.DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield")
 
 class RedisSettings(BaseSettings):
     """Redis configuration settings"""
@@ -150,7 +153,7 @@ class APISettings(BaseSettings):
     # Server Settings
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    DEBUG: bool = True
+    DEBUG: bool = False  # Set to False for production
     
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20

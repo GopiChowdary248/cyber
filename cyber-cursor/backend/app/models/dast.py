@@ -197,7 +197,7 @@ class DASTVulnerability(Base):
     
     # Additional metadata
     tags = Column(JSON, nullable=True)  # Array of tags
-    metadata = Column(JSON, nullable=True)  # Additional vulnerability metadata
+    vuln_metadata = Column(JSON, nullable=True)  # Additional vulnerability metadata
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
@@ -254,7 +254,7 @@ class DASTPayload(Base):
     # Payload metadata
     language = Column(String(50), nullable=True)  # Target language if applicable
     tags = Column(JSON, nullable=True)  # Array of tags
-    metadata = Column(JSON, nullable=True)  # Additional payload metadata
+    payload_metadata = Column(JSON, nullable=True)  # Additional payload metadata
     
     # Status
     is_active = Column(Boolean, default=True)

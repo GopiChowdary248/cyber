@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import boto3
-from azure.mgmt.security import SecurityCenter
-from google.cloud import securitycenter_v1
+# from azure.mgmt.security import SecurityCenter  # Temporarily disabled
+# from google.cloud import securitycenter_v1  # Temporarily disabled
 
 logger = logging.getLogger(__name__)
 
@@ -93,38 +93,38 @@ class EnhancedCSPMService:
                     "check_function": self._check_cloudtrail_disabled
                 }
             },
-            "azure": {
-                "storage_public_access": {
-                    "description": "Storage account with public access",
-                    "severity": "high",
-                    "remediation": "azure_policy",
-                    "compliance": ["cis", "iso27001"],
-                    "check_function": self._check_azure_storage_public
-                },
-                "sql_server_public_access": {
-                    "description": "SQL Server with public access",
-                    "severity": "high",
-                    "remediation": "private_endpoint",
-                    "compliance": ["cis", "pci_dss"],
-                    "check_function": self._check_azure_sql_public
-                }
-            },
-            "gcp": {
-                "bucket_public_access": {
-                    "description": "Cloud Storage bucket with public access",
-                    "severity": "high",
-                    "remediation": "gcp_iam_policy",
-                    "compliance": ["cis"],
-                    "check_function": self._check_gcp_bucket_public
-                },
-                "compute_public_access": {
-                    "description": "Compute instance with public access",
-                    "severity": "high",
-                    "remediation": "vpc_firewall",
-                    "compliance": ["cis"],
-                    "check_function": self._check_gcp_compute_public
-                }
-            }
+            # "azure": {
+            #     "storage_public_access": {
+            #         "description": "Storage account with public access",
+            #         "severity": "high",
+            #         "remediation": "azure_policy",
+            #         "compliance": ["cis", "iso27001"],
+            #         "check_function": self._check_azure_storage_public
+            #     },
+            #     "sql_server_public_access": {
+            #         "description": "SQL Server with public access",
+            #         "severity": "high",
+            #         "remediation": "private_endpoint",
+            #         "compliance": ["cis", "pci_dss"],
+            #         "check_function": self._check_azure_sql_public
+            #     }
+            # },
+            # "gcp": {
+            #     "bucket_public_access": {
+            #         "description": "Cloud Storage bucket with public access",
+            #         "severity": "high",
+            #         "remediation": "gcp_iam_policy",
+            #         "compliance": ["cis"],
+            #         "check_function": self._check_gcp_bucket_public
+            #     },
+            #     "compute_public_access": {
+            #         "description": "Compute instance with public access",
+            #         "severity": "high",
+            #         "remediation": "vpc_firewall",
+            #         "compliance": ["cis"],
+            #         "check_function": self._check_gcp_compute_public
+            #     }
+            # }
         }
     
     async def scan_aws_account(self, account_id: str) -> Dict[str, Any]:

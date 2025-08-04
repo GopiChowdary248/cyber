@@ -1,15 +1,27 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends, BackgroundTasks
 from pydantic import BaseModel
+import logging
 
 from app.services.threat_intelligence_service import (
     threat_intelligence_service,
     ThreatType, ThreatSeverity, ConfidenceLevel, IndicatorType, 
-    HuntingStatus, HuntingType
+    HuntingStatus, HuntingType, ThreatLevel, IoCType
 )
+from app.database import get_db
+from app.schemas.threat_intelligence import (
+    ThreatFeedCreate, ThreatFeedResponse, ThreatFeedUpdate, ThreatFeedListResponse,
+    IoCCreate, IoCResponse, IoCUpdate, IoCListResponse,
+    ThreatAlertCreate, ThreatAlertResponse, ThreatAlertUpdate, ThreatAlertListResponse,
+    IntegrationConfigCreate, IntegrationConfigResponse, IntegrationConfigUpdate, IntegrationConfigListResponse,
+    IoCSearchRequest, IoCSearchResponse, ThreatIntelligenceStats, ThreatIntelligenceHealth,
+    ThreatFeedUpdateRequest, IoCExportRequest, IoCExportResponse
+)
+from app.models.threat_intelligence import ThreatFeed, IoC, ThreatAlert, IntegrationConfig, FeedLog
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Pydantic models for request/response
 class ThreatIndicatorCreate(BaseModel):
@@ -506,3 +518,506 @@ async def health_check():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Service unhealthy: {str(e)}") 
+
+# Threat Feed Management
+@router.post("/feeds", response_model=ThreatFeedResponse, tags=["threat-feeds"])
+async def create_threat_feed(
+    feed_data: ThreatFeedCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new threat feed"""
+    try:
+        service = ThreatIntelligenceService(db)
+        feed = service.feed_manager.create_feed(feed_data)
+        return feed
+    except Exception as e:
+        logger.error(f"Error creating threat feed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/feeds", response_model=ThreatFeedListResponse, tags=["threat-feeds"])
+async def get_threat_feeds(
+    limit: int = Query(50, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Get list of threat feeds"""
+    try:
+        service = ThreatIntelligenceService(db)
+        feeds = service.db.query(service.feed_manager.db.query(ThreatFeed).all())
+        total = len(feeds)
+        
+        return ThreatFeedListResponse(
+            feeds=feeds[offset:offset + limit],
+            total=total,
+            limit=limit,
+            offset=offset
+        )
+    except Exception as e:
+        logger.error(f"Error getting threat feeds: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/feeds/{feed_id}", response_model=ThreatFeedResponse, tags=["threat-feeds"])
+async def get_threat_feed(
+    feed_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a specific threat feed"""
+    try:
+        service = ThreatIntelligenceService(db)
+        feed = service.db.query(service.feed_manager.db.query(ThreatFeed).filter(ThreatFeed.id == feed_id).first())
+        
+        if not feed:
+            raise HTTPException(status_code=404, detail="Threat feed not found")
+        
+        return feed
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting threat feed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/feeds/{feed_id}", response_model=ThreatFeedResponse, tags=["threat-feeds"])
+async def update_threat_feed(
+    feed_id: int,
+    feed_update: ThreatFeedUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update a threat feed"""
+    try:
+        service = ThreatIntelligenceService(db)
+        update_data = feed_update.dict(exclude_unset=True)
+        feed = service.feed_manager.update_feed(feed_id, update_data)
+        
+        if not feed:
+            raise HTTPException(status_code=404, detail="Threat feed not found")
+        
+        return feed
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating threat feed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/feeds/{feed_id}/update", tags=["threat-feeds"])
+async def update_feed_data(
+    feed_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """Update IoCs from a specific feed"""
+    try:
+        service = ThreatIntelligenceService(db)
+        
+        # Run feed update in background
+        background_tasks.add_task(service.feed_manager.update_feed_data, feed_id)
+        
+        return {"message": "Feed update started", "feed_id": feed_id}
+    except Exception as e:
+        logger.error(f"Error starting feed update: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# IoC Management
+@router.post("/iocs", response_model=IoCResponse, tags=["iocs"])
+async def create_ioc(
+    ioc_data: IoCCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new IoC"""
+    try:
+        service = ThreatIntelligenceService(db)
+        ioc = service.ioc_service.create_ioc(ioc_data)
+        return ioc
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating IoC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/iocs", response_model=IoCListResponse, tags=["iocs"])
+async def get_iocs(
+    limit: int = Query(50, le=1000),
+    offset: int = Query(0, ge=0),
+    ioc_type: Optional[str] = None,
+    threat_level: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Get list of IoCs with optional filtering"""
+    try:
+        service = ThreatIntelligenceService(db)
+        
+        # Convert string filters to enums if provided
+        ioc_type_enum = None
+        threat_level_enum = None
+        
+        if ioc_type:
+            try:
+                ioc_type_enum = IoCType(ioc_type)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid IoC type: {ioc_type}")
+        
+        if threat_level:
+            try:
+                threat_level_enum = ThreatLevel(threat_level)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid threat level: {threat_level}")
+        
+        result = service.ioc_service.search_iocs(
+            query="",
+            ioc_type=ioc_type_enum,
+            threat_level=threat_level_enum,
+            limit=limit,
+            offset=offset
+        )
+        
+        return IoCListResponse(
+            iocs=result["iocs"],
+            total=result["total"],
+            limit=limit,
+            offset=offset
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting IoCs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/iocs/search", response_model=IoCSearchResponse, tags=["iocs"])
+async def search_iocs(
+    query: str = Query(..., description="Search query"),
+    ioc_type: Optional[str] = None,
+    threat_level: Optional[str] = None,
+    limit: int = Query(50, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Search IoCs with filters"""
+    try:
+        service = ThreatIntelligenceService(db)
+        
+        # Convert string filters to enums if provided
+        ioc_type_enum = None
+        threat_level_enum = None
+        
+        if ioc_type:
+            try:
+                ioc_type_enum = IoCType(ioc_type)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid IoC type: {ioc_type}")
+        
+        if threat_level:
+            try:
+                threat_level_enum = ThreatLevel(threat_level)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid threat level: {threat_level}")
+        
+        result = service.ioc_service.search_iocs(
+            query=query,
+            ioc_type=ioc_type_enum,
+            threat_level=threat_level_enum,
+            limit=limit,
+            offset=offset
+        )
+        
+        return IoCSearchResponse(
+            iocs=result["iocs"],
+            total=result["total"],
+            limit=limit,
+            offset=offset
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error searching IoCs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/iocs/{ioc_id}", response_model=IoCResponse, tags=["iocs"])
+async def get_ioc(
+    ioc_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a specific IoC"""
+    try:
+        service = ThreatIntelligenceService(db)
+        ioc = service.db.query(IoC).filter(IoC.id == ioc_id).first()
+        
+        if not ioc:
+            raise HTTPException(status_code=404, detail="IoC not found")
+        
+        return ioc
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting IoC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/iocs/{ioc_id}", response_model=IoCResponse, tags=["iocs"])
+async def update_ioc(
+    ioc_id: int,
+    ioc_update: IoCUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update an IoC"""
+    try:
+        service = ThreatIntelligenceService(db)
+        ioc = service.db.query(IoC).filter(IoC.id == ioc_id).first()
+        
+        if not ioc:
+            raise HTTPException(status_code=404, detail="IoC not found")
+        
+        update_data = ioc_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            if hasattr(ioc, field):
+                setattr(ioc, field, value)
+        
+        service.db.commit()
+        service.db.refresh(ioc)
+        
+        return ioc
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating IoC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Threat Alerts
+@router.post("/alerts", response_model=ThreatAlertResponse, tags=["alerts"])
+async def create_threat_alert(
+    alert_data: ThreatAlertCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new threat alert"""
+    try:
+        service = ThreatIntelligenceService(db)
+        
+        # Verify IoC exists
+        ioc = service.db.query(IoC).filter(IoC.id == alert_data.ioc_id).first()
+        if not ioc:
+            raise HTTPException(status_code=404, detail="IoC not found")
+        
+        alert = ThreatAlert(
+            title=alert_data.title,
+            description=alert_data.description,
+            ioc_id=alert_data.ioc_id,
+            threat_level=alert_data.threat_level,
+            source=alert_data.source
+        )
+        
+        service.db.add(alert)
+        service.db.commit()
+        service.db.refresh(alert)
+        
+        return alert
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating threat alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/alerts", response_model=ThreatAlertListResponse, tags=["alerts"])
+async def get_threat_alerts(
+    limit: int = Query(50, le=1000),
+    offset: int = Query(0, ge=0),
+    resolved: Optional[bool] = None,
+    db: Session = Depends(get_db)
+):
+    """Get list of threat alerts"""
+    try:
+        service = ThreatIntelligenceService(db)
+        query = service.db.query(ThreatAlert)
+        
+        if resolved is not None:
+            query = query.filter(ThreatAlert.is_resolved == resolved)
+        
+        total = query.count()
+        alerts = query.offset(offset).limit(limit).all()
+        
+        return ThreatAlertListResponse(
+            alerts=alerts,
+            total=total,
+            limit=limit,
+            offset=offset
+        )
+    except Exception as e:
+        logger.error(f"Error getting threat alerts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/alerts/{alert_id}", response_model=ThreatAlertResponse, tags=["alerts"])
+async def update_threat_alert(
+    alert_id: int,
+    alert_update: ThreatAlertUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update a threat alert"""
+    try:
+        service = ThreatIntelligenceService(db)
+        alert = service.db.query(ThreatAlert).filter(ThreatAlert.id == alert_id).first()
+        
+        if not alert:
+            raise HTTPException(status_code=404, detail="Threat alert not found")
+        
+        update_data = alert_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            if hasattr(alert, field):
+                setattr(alert, field, value)
+        
+        service.db.commit()
+        service.db.refresh(alert)
+        
+        return alert
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating threat alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Integration Management
+@router.post("/integrations", response_model=IntegrationConfigResponse, tags=["integrations"])
+async def create_integration(
+    integration_data: IntegrationConfigCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new integration configuration"""
+    try:
+        service = ThreatIntelligenceService(db)
+        integration = service.integration_service.create_integration(integration_data)
+        return integration
+    except Exception as e:
+        logger.error(f"Error creating integration: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/integrations", response_model=IntegrationConfigListResponse, tags=["integrations"])
+async def get_integrations(
+    limit: int = Query(50, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Get list of integration configurations"""
+    try:
+        service = ThreatIntelligenceService(db)
+        integrations = service.db.query(IntegrationConfig).all()
+        total = len(integrations)
+        
+        return IntegrationConfigListResponse(
+            integrations=integrations[offset:offset + limit],
+            total=total,
+            limit=limit,
+            offset=offset
+        )
+    except Exception as e:
+        logger.error(f"Error getting integrations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/integrations/{integration_id}/export", tags=["integrations"])
+async def export_iocs_to_integration(
+    integration_id: int,
+    export_request: IoCExportRequest,
+    db: Session = Depends(get_db)
+):
+    """Export IoCs to external integration"""
+    try:
+        service = ThreatIntelligenceService(db)
+        result = await service.integration_service.export_iocs_to_integration(
+            integration_id, 
+            export_request.ioc_ids, 
+            export_request.format
+        )
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=400, detail=result["message"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting IoCs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Dashboard and Statistics
+@router.get("/dashboard/stats", response_model=ThreatIntelligenceStats, tags=["dashboard"])
+async def get_dashboard_stats(
+    db: Session = Depends(get_db)
+):
+    """Get dashboard statistics"""
+    try:
+        service = ThreatIntelligenceService(db)
+        stats = service.get_dashboard_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/health", response_model=ThreatIntelligenceHealth, tags=["health"])
+async def get_health_status(
+    db: Session = Depends(get_db)
+):
+    """Get health status of the Threat Intelligence system"""
+    try:
+        service = ThreatIntelligenceService(db)
+        health = service.get_health_status()
+        return health
+    except Exception as e:
+        logger.error(f"Error getting health status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Threat Scoring
+@router.get("/iocs/{ioc_id}/score", tags=["threat-scoring"])
+async def get_ioc_threat_score(
+    ioc_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get threat score for a specific IoC"""
+    try:
+        service = ThreatIntelligenceService(db)
+        ioc = service.db.query(IoC).filter(IoC.id == ioc_id).first()
+        
+        if not ioc:
+            raise HTTPException(status_code=404, detail="IoC not found")
+        
+        score = service.threat_scoring.calculate_threat_score(ioc)
+        
+        return {
+            "ioc_id": ioc_id,
+            "threat_score": score,
+            "threat_level": ioc.threat_level.value,
+            "confidence_score": ioc.confidence_score
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating threat score: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Feed Logs
+@router.get("/feeds/{feed_id}/logs", tags=["threat-feeds"])
+async def get_feed_logs(
+    feed_id: int,
+    limit: int = Query(50, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Get logs for a specific feed"""
+    try:
+        service = ThreatIntelligenceService(db)
+        
+        # Verify feed exists
+        feed = service.db.query(ThreatFeed).filter(ThreatFeed.id == feed_id).first()
+        if not feed:
+            raise HTTPException(status_code=404, detail="Threat feed not found")
+        
+        logs = service.db.query(FeedLog).filter(FeedLog.feed_id == feed_id).order_by(
+            FeedLog.created_at.desc()
+        ).offset(offset).limit(limit).all()
+        
+        total = service.db.query(FeedLog).filter(FeedLog.feed_id == feed_id).count()
+        
+        return {
+            "logs": logs,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting feed logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) 

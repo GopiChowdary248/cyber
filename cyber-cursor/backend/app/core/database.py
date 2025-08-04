@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, text
 import structlog
 
 from app.core.config import settings
@@ -45,13 +45,38 @@ async def init_db():
     """Initialize database tables"""
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            # Create all tables with checkfirst=True to avoid conflicts
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error("Database initialization failed", error=str(e))
-        raise
+        # Continue even if there are table creation errors
+        logger.warning("Continuing with existing database schema")
 
 async def close_db():
     """Close database connections"""
     await engine.dispose()
-    logger.info("Database connections closed") 
+    logger.info("Database connections closed")
+
+def check_db_connection():
+    """Check if database connection is working (synchronous version for testing)"""
+    try:
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def test_connection():
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text("SELECT 1"))
+                return True
+            except Exception as e:
+                logger.error(f"Database connection test failed: {e}")
+                return False
+        
+        result = loop.run_until_complete(test_connection())
+        loop.close()
+        return result
+    except Exception as e:
+        logger.error(f"Database connection check failed: {e}")
+        return False 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, users, incidents, cloud_security, phishing, dashboard, mfa, integrations, ai_ml, compliance, health, websocket, analytics, workflows, security, network_security, endpoint_security, application_security, data_protection, monitoring_siem_soar, threat_intelligence, simple_sast, siem_soar, dast
+from app.api.v1.endpoints import auth, users, incidents, cloud_security, phishing, dashboard, mfa, integrations, ai_ml, compliance, health, websocket, analytics, workflows, security, network_security, endpoint_security, application_security, data_protection, monitoring_siem_soar, threat_intelligence, sast, siem_soar, iam, data_security
 
 api_router = APIRouter()
 
@@ -28,6 +28,7 @@ api_router.include_router(application_security.router, prefix="/application-secu
 api_router.include_router(data_protection.router, prefix="/data-protection", tags=["data-protection"])
 api_router.include_router(monitoring_siem_soar.router, prefix="/monitoring-siem-soar", tags=["monitoring-siem-soar"])
 api_router.include_router(threat_intelligence.router, prefix="/threat-intelligence", tags=["threat-intelligence"])
-api_router.include_router(simple_sast.router, prefix="/sast", tags=["sast"])
+api_router.include_router(sast.router, prefix="/sast", tags=["sast"])
 api_router.include_router(siem_soar.router, prefix="/siem-soar", tags=["siem-soar"])
-api_router.include_router(dast.router, prefix="/dast", tags=["dast"]) 
+api_router.include_router(iam.router, prefix="/iam", tags=["iam"])
+api_router.include_router(data_security.router, prefix="/data-security", tags=["data-security"]) 

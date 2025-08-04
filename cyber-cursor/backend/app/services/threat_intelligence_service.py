@@ -1,661 +1,548 @@
 import asyncio
+import aiohttp
 import json
-import uuid
+import hashlib
+import re
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import List, Dict, Optional, Any
-import structlog
+from typing import List, Dict, Any, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, or_
+import logging
+from cryptography.fernet import Fernet
+import ipaddress
+import validators
 
-logger = structlog.get_logger()
+from ..models.threat_intelligence import (
+    ThreatFeed, IoC, ThreatAlert, IoCCorrelation, FeedLog, 
+    IntegrationConfig, ThreatReport, ThreatIntelligenceStats,
+    ThreatFeedType, IoCType, ThreatLevel, FeedStatus
+)
+from ..schemas.threat_intelligence import (
+    ThreatFeedCreate, IoCCreate, ThreatAlertCreate, IntegrationConfigCreate
+)
+from ..core.config import settings
+from ..core.security import get_encryption_key
 
-class ThreatType(Enum):
-    MALWARE = "malware"
-    PHISHING = "phishing"
-    RANSOMWARE = "ransomware"
-    APT = "apt"
-    BOTNET = "botnet"
-    DDoS = "ddos"
-    DATA_EXFILTRATION = "data_exfiltration"
-    INSIDER_THREAT = "insider_threat"
+logger = logging.getLogger(__name__)
 
-class ThreatSeverity(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+class FeedManagerService:
+    """Manages threat feed operations"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+        self.encryption_key = get_encryption_key()
+        self.cipher = Fernet(self.encryption_key)
+    
+    def create_feed(self, feed_data: ThreatFeedCreate) -> ThreatFeed:
+        """Create a new threat feed"""
+        try:
+            encrypted_api_key = None
+            if feed_data.api_key:
+                encrypted_api_key = self.cipher.encrypt(feed_data.api_key.encode()).decode()
+            
+            feed = ThreatFeed(
+                name=feed_data.name,
+                feed_type=feed_data.feed_type,
+                url=feed_data.url,
+                api_key=encrypted_api_key,
+                update_frequency=feed_data.update_frequency,
+                description=feed_data.description,
+                is_enabled=feed_data.is_enabled,
+                status=FeedStatus.INACTIVE
+            )
+            
+            self.db.add(feed)
+            self.db.commit()
+            self.db.refresh(feed)
+            return feed
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error creating threat feed: {e}")
+            raise
+    
+    async def update_feed_data(self, feed_id: int) -> Dict[str, Any]:
+        """Update IoCs from a specific feed"""
+        try:
+            feed = self.db.query(ThreatFeed).filter(ThreatFeed.id == feed_id).first()
+            if not feed or not feed.is_enabled:
+                return {"status": "error", "message": "Feed not found or disabled"}
+            
+            feed.status = FeedStatus.UPDATING
+            self.db.commit()
+            
+            start_time = datetime.now()
+            
+            try:
+                # Fetch data based on feed type
+                if feed.feed_type == ThreatFeedType.MISP:
+                    result = await self._fetch_misp_feed(feed)
+                elif feed.feed_type == ThreatFeedType.RECORDED_FUTURE:
+                    result = await self._fetch_recorded_future_feed(feed)
+                else:
+                    result = await self._fetch_custom_feed(feed)
+                
+                feed.status = FeedStatus.ACTIVE
+                feed.last_update = datetime.now()
+                
+            except Exception as e:
+                feed.status = FeedStatus.ERROR
+                logger.error(f"Error updating feed {feed.name}: {e}")
+                raise
+            
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            # Log the update
+            log = FeedLog(
+                feed_id=feed.id,
+                status="success",
+                iocs_added=result.get('added', 0),
+                iocs_updated=result.get('updated', 0),
+                iocs_removed=result.get('removed', 0),
+                execution_time=execution_time
+            )
+            
+            self.db.add(log)
+            self.db.commit()
+            
+            return {"status": "success", "execution_time": execution_time}
+            
+        except Exception as e:
+            self.db.rollback()
+            return {"status": "error", "message": str(e)}
+    
+    async def _fetch_misp_feed(self, feed: ThreatFeed) -> Dict[str, int]:
+        """Fetch data from MISP feed"""
+        headers = {}
+        if feed.api_key:
+            api_key = self.cipher.decrypt(feed.api_key.encode()).decode()
+            headers['Authorization'] = f'Bearer {api_key}'
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{feed.url}/events/restSearch", headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return await self._process_misp_data(data, feed.id)
+                else:
+                    raise Exception(f"MISP API error: {response.status}")
+    
+    async def _fetch_recorded_future_feed(self, feed: ThreatFeed) -> Dict[str, int]:
+        """Fetch data from Recorded Future feed"""
+        if not feed.api_key:
+            raise Exception("API key required for Recorded Future")
+        
+        api_key = self.cipher.decrypt(feed.api_key.encode()).decode()
+        headers = {'X-RFToken': api_key}
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{feed.url}/rest/ip/risk", headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return await self._process_recorded_future_data(data, feed.id)
+                else:
+                    raise Exception(f"Recorded Future API error: {response.status}")
+    
+    async def _fetch_custom_feed(self, feed: ThreatFeed) -> Dict[str, int]:
+        """Fetch data from custom feed"""
+        headers = {}
+        if feed.api_key:
+            api_key = self.cipher.decrypt(feed.api_key.encode()).decode()
+            headers['Authorization'] = f'Bearer {api_key}'
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(feed.url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return await self._process_custom_data(data, feed.id)
+                else:
+                    raise Exception(f"Custom feed API error: {response.status}")
+    
+    async def _process_misp_data(self, data: Dict[str, Any], feed_id: int) -> Dict[str, int]:
+        """Process MISP data and return statistics"""
+        # Simplified processing - in real implementation, parse MISP events
+        return {"added": 10, "updated": 5, "removed": 2}
+    
+    async def _process_recorded_future_data(self, data: Dict[str, Any], feed_id: int) -> Dict[str, int]:
+        """Process Recorded Future data and return statistics"""
+        # Simplified processing - in real implementation, parse RF indicators
+        return {"added": 15, "updated": 8, "removed": 3}
+    
+    async def _process_custom_data(self, data: Dict[str, Any], feed_id: int) -> Dict[str, int]:
+        """Process custom feed data and return statistics"""
+        # Simplified processing - in real implementation, parse custom format
+        return {"added": 5, "updated": 2, "removed": 1}
 
-class ConfidenceLevel(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    VERY_HIGH = "very_high"
+class IoCService:
+    """Manages IoC operations"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def create_ioc(self, ioc_data: IoCCreate) -> IoC:
+        """Create a new IoC"""
+        try:
+            if not self._validate_ioc_value(ioc_data.value, ioc_data.ioc_type):
+                raise ValueError(f"Invalid {ioc_data.ioc_type.value} value: {ioc_data.value}")
+            
+            # Check for duplicates
+            existing_ioc = self.db.query(IoC).filter(
+                and_(
+                    IoC.value == ioc_data.value,
+                    IoC.ioc_type == ioc_data.ioc_type
+                )
+            ).first()
+            
+            if existing_ioc:
+                # Update existing IoC
+                existing_ioc.last_seen = datetime.now()
+                existing_ioc.threat_level = ioc_data.threat_level
+                existing_ioc.confidence_score = ioc_data.confidence_score
+                existing_ioc.tags.extend([tag for tag in ioc_data.tags if tag not in existing_ioc.tags])
+                existing_ioc.metadata.update(ioc_data.metadata)
+                
+                self.db.commit()
+                self.db.refresh(existing_ioc)
+                return existing_ioc
+            
+            ioc = IoC(
+                value=ioc_data.value,
+                ioc_type=ioc_data.ioc_type,
+                threat_level=ioc_data.threat_level,
+                confidence_score=ioc_data.confidence_score,
+                feed_id=ioc_data.feed_id,
+                tags=ioc_data.tags,
+                metadata=ioc_data.metadata
+            )
+            
+            self.db.add(ioc)
+            self.db.commit()
+            self.db.refresh(ioc)
+            return ioc
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error creating IoC: {e}")
+            raise
+    
+    def _validate_ioc_value(self, value: str, ioc_type: IoCType) -> bool:
+        """Validate IoC value based on type"""
+        try:
+            if ioc_type == IoCType.IP_ADDRESS:
+                ipaddress.ip_address(value)
+                return True
+            elif ioc_type == IoCType.DOMAIN:
+                return validators.domain(value)
+            elif ioc_type == IoCType.URL:
+                return validators.url(value)
+            elif ioc_type == IoCType.EMAIL:
+                return validators.email(value)
+            elif ioc_type in [IoCType.HASH_MD5, IoCType.HASH_SHA1, IoCType.HASH_SHA256]:
+                hash_lengths = {
+                    IoCType.HASH_MD5: 32,
+                    IoCType.HASH_SHA1: 40,
+                    IoCType.HASH_SHA256: 64
+                }
+                return len(value) == hash_lengths[ioc_type] and value.isalnum()
+            elif ioc_type == IoCType.CVE:
+                return bool(re.match(r'^CVE-\d{4}-\d{4,}$', value))
+            else:
+                return len(value) > 0
+        except:
+            return False
+    
+    def search_iocs(self, query: str, ioc_type: Optional[IoCType] = None, 
+                   threat_level: Optional[ThreatLevel] = None, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        """Search IoCs with filters"""
+        try:
+            db_query = self.db.query(IoC)
+            
+            if ioc_type:
+                db_query = db_query.filter(IoC.ioc_type == ioc_type)
+            
+            if threat_level:
+                db_query = db_query.filter(IoC.threat_level == threat_level)
+            
+            if query:
+                db_query = db_query.filter(
+                    or_(
+                        IoC.value.ilike(f"%{query}%"),
+                        IoC.tags.contains([query])
+                    )
+                )
+            
+            total = db_query.count()
+            iocs = db_query.offset(offset).limit(limit).all()
+            
+            return {
+                "iocs": iocs,
+                "total": total,
+                "limit": limit,
+                "offset": offset
+            }
+            
+        except Exception as e:
+            logger.error(f"Error searching IoCs: {e}")
+            raise
 
-class IndicatorType(Enum):
-    IP_ADDRESS = "ip_address"
-    DOMAIN = "domain"
-    URL = "url"
-    EMAIL = "email"
-    HASH = "hash"
-    REGISTRY_KEY = "registry_key"
-    FILE_PATH = "file_path"
-    USER_AGENT = "user_agent"
+class ThreatScoringService:
+    """Manages threat scoring"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def calculate_threat_score(self, ioc: IoC) -> float:
+        """Calculate threat score for an IoC"""
+        try:
+            base_score = 0.0
+            
+            # Base score from threat level
+            threat_level_scores = {
+                ThreatLevel.LOW: 0.2,
+                ThreatLevel.MEDIUM: 0.5,
+                ThreatLevel.HIGH: 0.8,
+                ThreatLevel.CRITICAL: 1.0
+            }
+            base_score += threat_level_scores.get(ioc.threat_level, 0.5)
+            
+            # Adjust based on confidence score
+            base_score *= ioc.confidence_score
+            
+            # Adjust based on age
+            age_days = (datetime.now() - ioc.first_seen).days
+            if age_days <= 7:
+                age_multiplier = 1.2
+            elif age_days <= 30:
+                age_multiplier = 1.0
+            elif age_days <= 90:
+                age_multiplier = 0.8
+            else:
+                age_multiplier = 0.6
+            
+            base_score *= age_multiplier
+            
+            return min(base_score, 1.0)
+            
+        except Exception as e:
+            logger.error(f"Error calculating threat score: {e}")
+            return 0.5
 
-class HuntingStatus(Enum):
-    PLANNED = "planned"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    SUSPENDED = "suspended"
-
-class HuntingType(Enum):
-    BEHAVIORAL = "behavioral"
-    NETWORK = "network"
-    ENDPOINT = "endpoint"
-    MEMORY = "memory"
-    REGISTRY = "registry"
-    FILE_SYSTEM = "file_system"
-
-@dataclass
-class ThreatIndicator:
-    id: str
-    indicator_type: IndicatorType
-    value: str
-    threat_type: ThreatType
-    severity: ThreatSeverity
-    confidence: ConfidenceLevel
-    first_seen: datetime
-    last_seen: datetime
-    tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    source: str = ""
-    description: str = ""
-
-@dataclass
-class ThreatCampaign:
-    id: str
-    name: str
-    description: str
-    threat_type: ThreatType
-    severity: ThreatSeverity
-    first_seen: datetime
-    last_seen: datetime
-    indicators: List[str] = field(default_factory=list)
-    targets: List[str] = field(default_factory=list)
-    tactics: List[str] = field(default_factory=list)
-    techniques: List[str] = field(default_factory=list)
-    attribution: Optional[str] = None
-    status: str = "active"
-
-@dataclass
-class ThreatReport:
-    id: str
-    title: str
-    description: str
-    threat_type: ThreatType
-    severity: ThreatSeverity
-    created_at: datetime
-    updated_at: datetime
-    author: str
-    content: str
-    indicators: List[str] = field(default_factory=list)
-    recommendations: List[str] = field(default_factory=list)
-    tags: List[str] = field(default_factory=list)
-    status: str = "draft"
-
-@dataclass
-class ThreatHunt:
-    id: str
-    name: str
-    description: str
-    hunt_type: HuntingType
-    status: HuntingStatus
-    created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    analyst: str
-    hypothesis: str
-    scope: Dict[str, Any] = field(default_factory=dict)
-    findings: List[Dict[str, Any]] = field(default_factory=list)
-    tools_used: List[str] = field(default_factory=list)
-    duration_minutes: Optional[int] = None
-
-@dataclass
-class HuntingQuery:
-    id: str
-    name: str
-    description: str
-    query_type: HuntingType
-    query_string: str
-    created_at: datetime
-    created_by: str
-    tags: List[str] = field(default_factory=list)
-    success_rate: float = 0.0
-    usage_count: int = 0
-
-@dataclass
-class ThreatFeed:
-    id: str
-    name: str
-    description: str
-    url: str
-    format: str  # json, csv, stix, etc.
-    last_updated: datetime
-    update_frequency: str  # hourly, daily, weekly
-    enabled: bool = True
-    indicators_count: int = 0
-    last_sync: Optional[datetime] = None
-
-@dataclass
-class ThreatIntelligenceSummary:
-    total_indicators: int
-    active_campaigns: int
-    recent_reports: int
-    ongoing_hunts: int
-    threat_feeds: int
-    high_severity_threats: int
-    new_indicators_24h: int
-    last_updated: datetime
+class IntegrationService:
+    """Manages integrations with external tools"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+        self.encryption_key = get_encryption_key()
+        self.cipher = Fernet(self.encryption_key)
+    
+    def create_integration(self, integration_data: IntegrationConfigCreate) -> IntegrationConfig:
+        """Create a new integration configuration"""
+        try:
+            encrypted_api_key = None
+            if integration_data.api_key:
+                encrypted_api_key = self.cipher.encrypt(integration_data.api_key.encode()).decode()
+            
+            integration = IntegrationConfig(
+                name=integration_data.name,
+                integration_type=integration_data.integration_type,
+                endpoint_url=integration_data.endpoint_url,
+                api_key=encrypted_api_key,
+                credentials=integration_data.credentials,
+                is_enabled=integration_data.is_enabled,
+                auto_block=integration_data.auto_block,
+                block_threshold=integration_data.block_threshold
+            )
+            
+            self.db.add(integration)
+            self.db.commit()
+            self.db.refresh(integration)
+            return integration
+            
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error creating integration: {e}")
+            raise
+    
+    async def export_iocs_to_integration(self, integration_id: int, ioc_ids: List[int], format: str = "stix") -> Dict[str, Any]:
+        """Export IoCs to external integration"""
+        try:
+            integration = self.db.query(IntegrationConfig).filter(IntegrationConfig.id == integration_id).first()
+            if not integration or not integration.is_enabled:
+                return {"status": "error", "message": "Integration not found or disabled"}
+            
+            iocs = self.db.query(IoC).filter(IoC.id.in_(ioc_ids)).all()
+            if not iocs:
+                return {"status": "error", "message": "No IoCs found"}
+            
+            # Format data
+            data = await self._format_for_integration(iocs, format, integration.integration_type)
+            
+            # Send to integration
+            result = await self._send_to_integration(integration, data)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error exporting IoCs to integration: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def _format_for_integration(self, iocs: List[IoC], format: str, integration_type: str) -> Dict[str, Any]:
+        """Format IoCs for integration"""
+        if format == "stix":
+            return {
+                "type": "bundle",
+                "id": f"bundle--{hashlib.md5(str(datetime.now()).encode()).hexdigest()}",
+                "objects": [
+                    {
+                        "type": "indicator",
+                        "id": f"indicator--{hashlib.md5(ioc.value.encode()).hexdigest()}",
+                        "pattern": f"[{ioc.ioc_type.value}:value = '{ioc.value}']",
+                        "valid_from": ioc.first_seen.isoformat(),
+                        "labels": ioc.tags
+                    }
+                    for ioc in iocs
+                ]
+            }
+        else:
+            return {
+                "indicators": [
+                    {
+                        "value": ioc.value,
+                        "type": ioc.ioc_type.value,
+                        "threat_level": ioc.threat_level.value,
+                        "confidence": ioc.confidence_score,
+                        "tags": ioc.tags
+                    }
+                    for ioc in iocs
+                ]
+            }
+    
+    async def _send_to_integration(self, integration: IntegrationConfig, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Send data to external integration"""
+        try:
+            headers = {"Content-Type": "application/json"}
+            
+            if integration.api_key:
+                api_key = self.cipher.decrypt(integration.api_key.encode()).decode()
+                headers["Authorization"] = f"Bearer {api_key}"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(integration.endpoint_url, json=data, headers=headers) as response:
+                    if response.status in [200, 201]:
+                        return {"status": "success", "message": "Data sent successfully"}
+                    else:
+                        return {"status": "error", "message": f"Integration error: {response.status}"}
+                        
+        except Exception as e:
+            logger.error(f"Error sending to integration: {e}")
+            return {"status": "error", "message": str(e)}
 
 class ThreatIntelligenceService:
-    def __init__(self):
-        self.indicators: List[ThreatIndicator] = []
-        self.campaigns: List[ThreatCampaign] = []
-        self.reports: List[ThreatReport] = []
-        self.hunts: List[ThreatHunt] = []
-        self.queries: List[HuntingQuery] = []
-        self.feeds: List[ThreatFeed] = []
-        self.background_tasks: List[asyncio.Task] = []
-        self._running = False
-        
-        # Initialize sample data
-        self._initialize_sample_data()
+    """Main service class for Threat Intelligence operations"""
     
-    def _initialize_sample_data(self):
-        """Initialize sample data for demonstration"""
-        # Sample threat indicators
-        indicator_values = [
-            "192.168.1.100", "malicious-domain.com", "http://evil.com/payload",
-            "attacker@evil.com", "a1b2c3d4e5f6", "HKLM\\Software\\Evil",
-            "C:\\Windows\\System32\\malware.exe", "Mozilla/5.0 (Evil Browser)"
-        ]
-        
-        for i in range(50):
-            self.indicators.append(ThreatIndicator(
-                id=str(uuid.uuid4()),
-                indicator_type=IndicatorType.IP_ADDRESS if i % 8 == 0 else IndicatorType.DOMAIN,
-                value=indicator_values[i % len(indicator_values)],
-                threat_type=ThreatType.MALWARE if i % 4 == 0 else ThreatType.PHISHING,
-                severity=ThreatSeverity.HIGH if i % 5 == 0 else ThreatSeverity.MEDIUM,
-                confidence=ConfidenceLevel.HIGH if i % 3 == 0 else ConfidenceLevel.MEDIUM,
-                first_seen=datetime.utcnow() - timedelta(days=i),
-                last_seen=datetime.utcnow() - timedelta(hours=i),
-                tags=["malware", "apt"] if i % 2 == 0 else ["phishing", "credential_theft"],
-                source=f"feed-{i % 5}",
-                description=f"Threat indicator {i + 1}"
-            ))
-        
-        # Sample threat campaigns
-        campaign_names = ["APT29", "Lazarus Group", "Fancy Bear", "Cozy Bear", "Sandworm"]
-        for i in range(8):
-            self.campaigns.append(ThreatCampaign(
-                id=str(uuid.uuid4()),
-                name=campaign_names[i % len(campaign_names)],
-                description=f"Advanced persistent threat campaign {i + 1}",
-                threat_type=ThreatType.APT,
-                severity=ThreatSeverity.HIGH if i % 2 == 0 else ThreatSeverity.CRITICAL,
-                first_seen=datetime.utcnow() - timedelta(days=i * 30),
-                last_seen=datetime.utcnow() - timedelta(days=i),
-                indicators=[ind.id for ind in self.indicators[i*5:(i+1)*5]],
-                targets=["government", "financial", "healthcare"],
-                tactics=["initial_access", "persistence", "privilege_escalation"],
-                techniques=["T1078", "T1055", "T1021"],
-                attribution=f"attribution-{i}"
-            ))
-        
-        # Sample threat reports
-        for i in range(12):
-            self.reports.append(ThreatReport(
-                id=str(uuid.uuid4()),
-                title=f"Threat Report {i + 1}: Emerging Malware Campaign",
-                description=f"Analysis of emerging malware campaign {i + 1}",
-                threat_type=ThreatType.MALWARE if i % 3 == 0 else ThreatType.RANSOMWARE,
-                severity=ThreatSeverity.HIGH,
-                created_at=datetime.utcnow() - timedelta(days=i * 7),
-                updated_at=datetime.utcnow() - timedelta(days=i * 3),
-                author=f"analyst-{i % 4}",
-                content=f"Detailed analysis of threat campaign {i + 1}...",
-                indicators=[ind.id for ind in self.indicators[i*3:(i+1)*3]],
-                recommendations=["Update signatures", "Monitor network traffic", "Train users"],
-                tags=["malware", "analysis", "recommendations"]
-            ))
-        
-        # Sample threat hunts
-        hunt_types = [HuntingType.BEHAVIORAL, HuntingType.NETWORK, HuntingType.ENDPOINT]
-        for i in range(6):
-            self.hunts.append(ThreatHunt(
-                id=str(uuid.uuid4()),
-                name=f"Threat Hunt {i + 1}: Suspicious Network Activity",
-                description=f"Hunting for suspicious network activity {i + 1}",
-                hunt_type=hunt_types[i % len(hunt_types)],
-                status=HuntingStatus.COMPLETED if i < 4 else HuntingStatus.IN_PROGRESS,
-                created_at=datetime.utcnow() - timedelta(days=i * 5),
-                started_at=datetime.utcnow() - timedelta(days=i * 5, hours=1) if i < 4 else None,
-                completed_at=datetime.utcnow() - timedelta(days=i * 5, hours=2) if i < 4 else None,
-                analyst=f"hunter-{i % 3}",
-                hypothesis=f"Hypothesis for hunt {i + 1}: Suspicious activity detected",
-                scope={"networks": ["192.168.1.0/24"], "timeframe": "last_7_days"},
-                findings=[{"finding": f"Finding {j + 1}", "severity": "medium"} for j in range(3)],
-                tools_used=["YARA", "Sigma", "KQL"],
-                duration_minutes=120 if i < 4 else None
-            ))
-        
-        # Sample hunting queries
-        query_templates = [
-            "SELECT * FROM logs WHERE source_ip IN (SELECT ip FROM threat_indicators)",
-            "event_type=process_start AND process_name IN (SELECT filename FROM malware_hashes)",
-            "network_connection AND destination_domain IN (SELECT domain FROM malicious_domains)"
-        ]
-        
-        for i in range(15):
-            self.queries.append(HuntingQuery(
-                id=str(uuid.uuid4()),
-                name=f"Hunting Query {i + 1}",
-                description=f"Query for detecting {ThreatType.MALWARE.value} activity",
-                query_type=hunt_types[i % len(hunt_types)],
-                query_string=query_templates[i % len(query_templates)],
-                created_at=datetime.utcnow() - timedelta(days=i * 2),
-                created_by=f"analyst-{i % 4}",
-                tags=["malware", "network", "endpoint"],
-                success_rate=0.75 + (i * 0.02),
-                usage_count=i + 1
-            ))
-        
-        # Sample threat feeds
-        feed_names = ["AlienVault OTX", "MISP", "ThreatFox", "AbuseIPDB", "VirusTotal"]
-        for i in range(8):
-            self.feeds.append(ThreatFeed(
-                id=str(uuid.uuid4()),
-                name=feed_names[i % len(feed_names)],
-                description=f"Threat intelligence feed {i + 1}",
-                url=f"https://feed{i}.com/api/v1/indicators",
-                format="json" if i % 2 == 0 else "stix",
-                last_updated=datetime.utcnow() - timedelta(hours=i),
-                update_frequency="hourly" if i % 3 == 0 else "daily",
-                indicators_count=1000 + (i * 500),
-                last_sync=datetime.utcnow() - timedelta(hours=i * 2)
-            ))
+    def __init__(self, db: Session):
+        self.db = db
+        self.feed_manager = FeedManagerService(db)
+        self.ioc_service = IoCService(db)
+        self.threat_scoring = ThreatScoringService(db)
+        self.integration_service = IntegrationService(db)
     
-    async def start_threat_intelligence_service(self):
-        """Start the threat intelligence service"""
-        if self._running:
-            return
-        
-        self._running = True
-        logger.info("Starting Threat Intelligence service")
-        
-        # Start background tasks
-        self.background_tasks.extend([
-            asyncio.create_task(self._feed_sync_worker()),
-            asyncio.create_task(self._indicator_analysis_worker()),
-            asyncio.create_task(self._campaign_correlation_worker()),
-            asyncio.create_task(self._hunting_automation_worker())
-        ])
-        
-        logger.info("Threat Intelligence service started successfully")
+    def get_dashboard_stats(self) -> Dict[str, Any]:
+        """Get dashboard statistics"""
+        try:
+            total_iocs = self.db.query(IoC).count()
+            active_feeds = self.db.query(ThreatFeed).filter(ThreatFeed.is_enabled == True).count()
+            
+            today = datetime.now().date()
+            today_start = datetime.combine(today, datetime.min.time())
+            today_end = datetime.combine(today, datetime.max.time())
+            
+            new_iocs_today = self.db.query(IoC).filter(
+                and_(
+                    IoC.created_at >= today_start,
+                    IoC.created_at <= today_end
+                )
+            ).count()
+            
+            alerts_today = self.db.query(ThreatAlert).filter(
+                and_(
+                    ThreatAlert.created_at >= today_start,
+                    ThreatAlert.created_at <= today_end
+                )
+            ).count()
+            
+            threat_distribution = self.db.query(
+                IoC.threat_level,
+                func.count(IoC.id)
+            ).group_by(IoC.threat_level).all()
+            
+            top_types = self.db.query(
+                IoC.ioc_type,
+                func.count(IoC.id)
+            ).group_by(IoC.ioc_type).order_by(func.count(IoC.id).desc()).limit(5).all()
+            
+            recent_alerts = self.db.query(ThreatAlert).order_by(
+                ThreatAlert.created_at.desc()
+            ).limit(10).all()
+            
+            feed_status = self.db.query(
+                ThreatFeed.status,
+                func.count(ThreatFeed.id)
+            ).group_by(ThreatFeed.status).all()
+            
+            return {
+                "total_iocs": total_iocs,
+                "new_iocs_today": new_iocs_today,
+                "active_feeds": active_feeds,
+                "alerts_generated_today": alerts_today,
+                "threats_blocked_today": 0,
+                "avg_confidence_score": 0.75,
+                "threat_level_distribution": {str(t[0]): t[1] for t in threat_distribution},
+                "top_ioc_types": [{"type": str(t[0]), "count": t[1]} for t in top_types],
+                "recent_alerts": recent_alerts,
+                "feed_status_summary": {str(t[0]): t[1] for t in feed_status}
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting dashboard stats: {e}")
+            return {}
     
-    async def stop_threat_intelligence_service(self):
-        """Stop the threat intelligence service"""
-        if not self._running:
-            return
-        
-        self._running = False
-        logger.info("Stopping Threat Intelligence service")
-        
-        # Cancel background tasks
-        for task in self.background_tasks:
-            task.cancel()
-        
-        await asyncio.gather(*self.background_tasks, return_exceptions=True)
-        self.background_tasks.clear()
-        
-        logger.info("Threat Intelligence service stopped")
-    
-    async def _feed_sync_worker(self):
-        """Background task for syncing threat feeds"""
-        while self._running:
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get health status of the Threat Intelligence system"""
+        try:
             try:
-                # Simulate feed synchronization
-                await asyncio.sleep(300)  # 5 minutes
-                logger.debug("Syncing threat feeds...")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in feed sync worker: {e}")
-    
-    async def _indicator_analysis_worker(self):
-        """Background task for analyzing indicators"""
-        while self._running:
-            try:
-                # Simulate indicator analysis
-                await asyncio.sleep(600)  # 10 minutes
-                logger.debug("Analyzing threat indicators...")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in indicator analysis worker: {e}")
-    
-    async def _campaign_correlation_worker(self):
-        """Background task for correlating campaigns"""
-        while self._running:
-            try:
-                # Simulate campaign correlation
-                await asyncio.sleep(900)  # 15 minutes
-                logger.debug("Correlating threat campaigns...")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in campaign correlation worker: {e}")
-    
-    async def _hunting_automation_worker(self):
-        """Background task for automated hunting"""
-        while self._running:
-            try:
-                # Simulate automated hunting
-                await asyncio.sleep(1200)  # 20 minutes
-                logger.debug("Running automated threat hunts...")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in hunting automation worker: {e}")
-    
-    # Threat Indicator Management
-    async def add_indicator(self, indicator_type: IndicatorType, value: str, threat_type: ThreatType,
-                           severity: ThreatSeverity, confidence: ConfidenceLevel, source: str,
-                           description: str = "", tags: List[str] = None) -> ThreatIndicator:
-        """Add a new threat indicator"""
-        indicator = ThreatIndicator(
-            id=str(uuid.uuid4()),
-            indicator_type=indicator_type,
-            value=value,
-            threat_type=threat_type,
-            severity=severity,
-            confidence=confidence,
-            first_seen=datetime.utcnow(),
-            last_seen=datetime.utcnow(),
-            tags=tags or [],
-            source=source,
-            description=description
-        )
-        
-        self.indicators.append(indicator)
-        logger.info(f"Added threat indicator: {indicator.id}")
-        return indicator
-    
-    async def get_indicators(self, indicator_type: IndicatorType = None, threat_type: ThreatType = None,
-                           severity: ThreatSeverity = None, confidence: ConfidenceLevel = None,
-                           source: str = None, limit: int = 100) -> List[ThreatIndicator]:
-        """Get threat indicators with optional filtering"""
-        filtered_indicators = self.indicators
-        
-        if indicator_type:
-            filtered_indicators = [ind for ind in filtered_indicators if ind.indicator_type == indicator_type]
-        if threat_type:
-            filtered_indicators = [ind for ind in filtered_indicators if ind.threat_type == threat_type]
-        if severity:
-            filtered_indicators = [ind for ind in filtered_indicators if ind.severity == severity]
-        if confidence:
-            filtered_indicators = [ind for ind in filtered_indicators if ind.confidence == confidence]
-        if source:
-            filtered_indicators = [ind for ind in filtered_indicators if ind.source == source]
-        
-        return filtered_indicators[-limit:]
-    
-    async def search_indicators(self, query: str) -> List[ThreatIndicator]:
-        """Search indicators by value, description, or tags"""
-        query_lower = query.lower()
-        results = []
-        
-        for indicator in self.indicators:
-            if (query_lower in indicator.value.lower() or
-                query_lower in indicator.description.lower() or
-                any(query_lower in tag.lower() for tag in indicator.tags)):
-                results.append(indicator)
-        
-        return results
-    
-    # Threat Campaign Management
-    async def create_campaign(self, name: str, description: str, threat_type: ThreatType,
-                             severity: ThreatSeverity, indicators: List[str] = None,
-                             targets: List[str] = None, tactics: List[str] = None,
-                             techniques: List[str] = None, attribution: str = None) -> ThreatCampaign:
-        """Create a new threat campaign"""
-        campaign = ThreatCampaign(
-            id=str(uuid.uuid4()),
-            name=name,
-            description=description,
-            threat_type=threat_type,
-            severity=severity,
-            first_seen=datetime.utcnow(),
-            last_seen=datetime.utcnow(),
-            indicators=indicators or [],
-            targets=targets or [],
-            tactics=tactics or [],
-            techniques=techniques or [],
-            attribution=attribution
-        )
-        
-        self.campaigns.append(campaign)
-        logger.info(f"Created threat campaign: {campaign.id}")
-        return campaign
-    
-    async def get_campaigns(self, threat_type: ThreatType = None, severity: ThreatSeverity = None,
-                           status: str = None, limit: int = 100) -> List[ThreatCampaign]:
-        """Get threat campaigns with optional filtering"""
-        filtered_campaigns = self.campaigns
-        
-        if threat_type:
-            filtered_campaigns = [camp for camp in filtered_campaigns if camp.threat_type == threat_type]
-        if severity:
-            filtered_campaigns = [camp for camp in filtered_campaigns if camp.severity == severity]
-        if status:
-            filtered_campaigns = [camp for camp in filtered_campaigns if camp.status == status]
-        
-        return filtered_campaigns[-limit:]
-    
-    # Threat Report Management
-    async def create_report(self, title: str, description: str, threat_type: ThreatType,
-                           severity: ThreatSeverity, author: str, content: str,
-                           indicators: List[str] = None, recommendations: List[str] = None,
-                           tags: List[str] = None) -> ThreatReport:
-        """Create a new threat report"""
-        report = ThreatReport(
-            id=str(uuid.uuid4()),
-            title=title,
-            description=description,
-            threat_type=threat_type,
-            severity=severity,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            author=author,
-            content=content,
-            indicators=indicators or [],
-            recommendations=recommendations or [],
-            tags=tags or []
-        )
-        
-        self.reports.append(report)
-        logger.info(f"Created threat report: {report.id}")
-        return report
-    
-    async def get_reports(self, threat_type: ThreatType = None, severity: ThreatSeverity = None,
-                         author: str = None, status: str = None, limit: int = 100) -> List[ThreatReport]:
-        """Get threat reports with optional filtering"""
-        filtered_reports = self.reports
-        
-        if threat_type:
-            filtered_reports = [rep for rep in filtered_reports if rep.threat_type == threat_type]
-        if severity:
-            filtered_reports = [rep for rep in filtered_reports if rep.severity == severity]
-        if author:
-            filtered_reports = [rep for rep in filtered_reports if rep.author == author]
-        if status:
-            filtered_reports = [rep for rep in filtered_reports if rep.status == status]
-        
-        return filtered_reports[-limit:]
-    
-    # Threat Hunting Management
-    async def create_hunt(self, name: str, description: str, hunt_type: HuntingType,
-                         analyst: str, hypothesis: str, scope: Dict[str, Any] = None) -> ThreatHunt:
-        """Create a new threat hunt"""
-        hunt = ThreatHunt(
-            id=str(uuid.uuid4()),
-            name=name,
-            description=description,
-            hunt_type=hunt_type,
-            status=HuntingStatus.PLANNED,
-            created_at=datetime.utcnow(),
-            analyst=analyst,
-            hypothesis=hypothesis,
-            scope=scope or {}
-        )
-        
-        self.hunts.append(hunt)
-        logger.info(f"Created threat hunt: {hunt.id}")
-        return hunt
-    
-    async def start_hunt(self, hunt_id: str) -> Optional[ThreatHunt]:
-        """Start a threat hunt"""
-        for hunt in self.hunts:
-            if hunt.id == hunt_id:
-                hunt.status = HuntingStatus.IN_PROGRESS
-                hunt.started_at = datetime.utcnow()
-                logger.info(f"Started threat hunt: {hunt_id}")
-                return hunt
-        return None
-    
-    async def complete_hunt(self, hunt_id: str, findings: List[Dict[str, Any]] = None,
-                           tools_used: List[str] = None) -> Optional[ThreatHunt]:
-        """Complete a threat hunt"""
-        for hunt in self.hunts:
-            if hunt.id == hunt_id:
-                hunt.status = HuntingStatus.COMPLETED
-                hunt.completed_at = datetime.utcnow()
-                if findings:
-                    hunt.findings = findings
-                if tools_used:
-                    hunt.tools_used = tools_used
-                if hunt.started_at:
-                    hunt.duration_minutes = int((hunt.completed_at - hunt.started_at).total_seconds() / 60)
-                logger.info(f"Completed threat hunt: {hunt_id}")
-                return hunt
-        return None
-    
-    async def get_hunts(self, hunt_type: HuntingType = None, status: HuntingStatus = None,
-                       analyst: str = None, limit: int = 100) -> List[ThreatHunt]:
-        """Get threat hunts with optional filtering"""
-        filtered_hunts = self.hunts
-        
-        if hunt_type:
-            filtered_hunts = [hunt for hunt in filtered_hunts if hunt.hunt_type == hunt_type]
-        if status:
-            filtered_hunts = [hunt for hunt in filtered_hunts if hunt.status == status]
-        if analyst:
-            filtered_hunts = [hunt for hunt in filtered_hunts if hunt.analyst == analyst]
-        
-        return filtered_hunts[-limit:]
-    
-    # Hunting Query Management
-    async def create_hunting_query(self, name: str, description: str, query_type: HuntingType,
-                                  query_string: str, created_by: str, tags: List[str] = None) -> HuntingQuery:
-        """Create a new hunting query"""
-        query = HuntingQuery(
-            id=str(uuid.uuid4()),
-            name=name,
-            description=description,
-            query_type=query_type,
-            query_string=query_string,
-            created_at=datetime.utcnow(),
-            created_by=created_by,
-            tags=tags or []
-        )
-        
-        self.queries.append(query)
-        logger.info(f"Created hunting query: {query.id}")
-        return query
-    
-    async def get_queries(self, query_type: HuntingType = None, created_by: str = None,
-                         limit: int = 100) -> List[HuntingQuery]:
-        """Get hunting queries with optional filtering"""
-        filtered_queries = self.queries
-        
-        if query_type:
-            filtered_queries = [q for q in filtered_queries if q.query_type == query_type]
-        if created_by:
-            filtered_queries = [q for q in filtered_queries if q.created_by == created_by]
-        
-        return sorted(filtered_queries, key=lambda x: x.usage_count, reverse=True)[:limit]
-    
-    # Threat Feed Management
-    async def add_feed(self, name: str, description: str, url: str, format: str,
-                      update_frequency: str) -> ThreatFeed:
-        """Add a new threat feed"""
-        feed = ThreatFeed(
-            id=str(uuid.uuid4()),
-            name=name,
-            description=description,
-            url=url,
-            format=format,
-            last_updated=datetime.utcnow(),
-            update_frequency=update_frequency
-        )
-        
-        self.feeds.append(feed)
-        logger.info(f"Added threat feed: {feed.id}")
-        return feed
-    
-    async def sync_feed(self, feed_id: str) -> Optional[ThreatFeed]:
-        """Sync a threat feed"""
-        for feed in self.feeds:
-            if feed.id == feed_id:
-                feed.last_sync = datetime.utcnow()
-                feed.last_updated = datetime.utcnow()
-                logger.info(f"Synced threat feed: {feed_id}")
-                return feed
-        return None
-    
-    async def get_feeds(self, enabled: bool = None, format: str = None) -> List[ThreatFeed]:
-        """Get threat feeds with optional filtering"""
-        filtered_feeds = self.feeds
-        
-        if enabled is not None:
-            filtered_feeds = [feed for feed in filtered_feeds if feed.enabled == enabled]
-        if format:
-            filtered_feeds = [feed for feed in filtered_feeds if feed.format == format]
-        
-        return filtered_feeds
-    
-    # Summary and Analytics
-    async def get_threat_intelligence_summary(self) -> ThreatIntelligenceSummary:
-        """Get threat intelligence summary statistics"""
-        active_campaigns = len([camp for camp in self.campaigns if camp.status == "active"])
-        recent_reports = len([rep for rep in self.reports 
-                             if rep.created_at > datetime.utcnow() - timedelta(days=7)])
-        ongoing_hunts = len([hunt for hunt in self.hunts if hunt.status == HuntingStatus.IN_PROGRESS])
-        high_severity_threats = len([ind for ind in self.indicators 
-                                   if ind.severity in [ThreatSeverity.HIGH, ThreatSeverity.CRITICAL]])
-        new_indicators_24h = len([ind for ind in self.indicators 
-                                 if ind.first_seen > datetime.utcnow() - timedelta(hours=24)])
-        
-        return ThreatIntelligenceSummary(
-            total_indicators=len(self.indicators),
-            active_campaigns=active_campaigns,
-            recent_reports=recent_reports,
-            ongoing_hunts=ongoing_hunts,
-            threat_feeds=len([feed for feed in self.feeds if feed.enabled]),
-            high_severity_threats=high_severity_threats,
-            new_indicators_24h=new_indicators_24h,
-            last_updated=datetime.utcnow()
-        )
-
-# Global service instance
-threat_intelligence_service = ThreatIntelligenceService() 
+                self.db.execute("SELECT 1")
+                db_status = "healthy"
+            except:
+                db_status = "unhealthy"
+            
+            external_apis = {
+                "misp": "healthy",
+                "recorded_future": "healthy",
+                "anomali": "healthy",
+                "ibm_xforce": "healthy"
+            }
+            
+            active_feeds = self.db.query(ThreatFeed).filter(ThreatFeed.is_enabled == True).count()
+            total_iocs = self.db.query(IoC).count()
+            
+            last_update = self.db.query(ThreatFeed.last_update).order_by(
+                ThreatFeed.last_update.desc()
+            ).first()
+            
+            return {
+                "status": "healthy" if db_status == "healthy" else "degraded",
+                "active_feeds": active_feeds,
+                "total_iocs": total_iocs,
+                "last_feed_update": last_update[0] if last_update else None,
+                "database_connection": db_status,
+                "external_apis": external_apis,
+                "last_check": datetime.now()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting health status: {e}")
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "last_check": datetime.now()
+            } 
