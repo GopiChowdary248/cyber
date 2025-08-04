@@ -1,0 +1,58 @@
+{
+  "overall_status": "broken",
+  "server_status": true,
+  "endpoints": {
+    "/": {
+      "status": "working",
+      "status_code": 200,
+      "description": "Root endpoint"
+    },
+    "/health": {
+      "status": "working",
+      "status_code": 200,
+      "description": "Health check"
+    },
+    "/test": {
+      "status": "working",
+      "status_code": 200,
+      "description": "Test endpoint"
+    },
+    "/api/v1/auth/login": {
+      "status": "failed",
+      "status_code": 500,
+      "description": "Auth login"
+    },
+    "/api/v1/iam/health": {
+      "status": "working",
+      "status_code": 200,
+      "description": "IAM health"
+    },
+    "/docs": {
+      "status": "working",
+      "status_code": 200,
+      "description": "API documentation"
+    }
+  },
+  "import_issues": [
+    "app.core.config: No module named 'app.core'",
+    "app.core.database: No module named 'app.core'",
+    "app.core.security: No module named 'app.core'",
+    "app.models.iam: No module named 'app.models'",
+    "app.schemas.iam: No module named 'app.schemas'",
+    "app.services.iam_service: No module named 'app.services'",
+    "app.api.v1.endpoints.auth: No module named 'app.api'",
+    "app.api.v1.endpoints.iam: No module named 'app.api'",
+    "app.api.v1.endpoints.health: No module named 'app.api'"
+  ],
+  "database_issues": [
+    "Database test failed: No module named 'app.core'"
+  ],
+  "configuration_issues": [
+    "Configuration test failed: No module named 'app.core'"
+  ],
+  "recommendations": [
+    "Fix import issues by ensuring all required modules are available",
+    "Review and fix configuration settings",
+    "Set up database connection (PostgreSQL or SQLite)"
+  ]
+}

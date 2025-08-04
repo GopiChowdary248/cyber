@@ -100,12 +100,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       
-      const formData = new FormData();
+      // Use OAuth login endpoint which has demo users configured
+      const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      const response = await fetch(`${API_URL}/api/v1/auth/login/oauth`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
         body: formData,
       });
 

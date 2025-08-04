@@ -1,322 +1,233 @@
 """
-SAST (Static Application Security Testing) Pydantic Schemas
-Defines request and response models for SAST API endpoints
+SAST Schemas for request/response models
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
 
-class SeverityLevel(str, Enum):
-    """Vulnerability severity levels"""
+class ScanStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+class VulnerabilitySeverity(str, Enum):
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
     INFO = "info"
 
-class ScanStatus(str, Enum):
-    """Scan status values"""
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
 class VulnerabilityStatus(str, Enum):
-    """Vulnerability status values"""
     OPEN = "open"
     FIXED = "fixed"
     FALSE_POSITIVE = "false_positive"
     WONT_FIX = "wont_fix"
-    IN_PROGRESS = "in_progress"
 
-class ScanType(str, Enum):
-    """Scan type values"""
-    FULL = "full"
-    QUICK = "quick"
-    INCREMENTAL = "incremental"
+class AutoFixStatus(str, Enum):
+    AVAILABLE = "available"
+    NOT_AVAILABLE = "not_available"
+    APPLIED = "applied"
+    FAILED = "failed"
 
-class ReportType(str, Enum):
-    """Report type values"""
-    PDF = "pdf"
-    CSV = "csv"
-    JSON = "json"
-    HTML = "html"
-
-# Project Schemas
-class ProjectCreate(BaseModel):
-    """Schema for creating a new project"""
-    name: str = Field(..., min_length=1, max_length=255, description="Project name")
-    description: Optional[str] = Field(None, max_length=1000, description="Project description")
-    repo_url: Optional[str] = Field(None, description="Git repository URL")
-    language: Optional[str] = Field(None, description="Primary programming language")
-    framework: Optional[str] = Field(None, description="Framework used")
-    
-    @validator('repo_url')
-    def validate_repo_url(cls, v):
-        if v and not (v.startswith('http') or v.startswith('git@')):
-            raise ValueError('Repository URL must be a valid HTTP or SSH URL')
-        return v
-
-class ProjectUpdate(BaseModel):
-    """Schema for updating a project"""
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = Field(None, max_length=1000)
-    repo_url: Optional[str] = Field(None)
-    language: Optional[str] = Field(None)
-    framework: Optional[str] = Field(None)
-    
-    @validator('repo_url')
-    def validate_repo_url(cls, v):
-        if v and not (v.startswith('http') or v.startswith('git@')):
-            raise ValueError('Repository URL must be a valid HTTP or SSH URL')
-        return v
-
-class ProjectResponse(BaseModel):
-    """Schema for project response"""
-    id: int
-    name: str
-    description: Optional[str]
-    repo_url: Optional[str]
-    language: Optional[str]
-    framework: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-    created_by: Optional[int]
-    
-    class Config:
-        from_attributes = True
-
-# Scan Schemas
-class ScanCreate(BaseModel):
-    """Schema for creating a new scan"""
-    project_id: int = Field(..., description="Project ID to scan")
-    scan_type: ScanType = Field(ScanType.FULL, description="Type of scan to perform")
+# Request Models
+class SASTProjectCreate(BaseModel):
+    name: str = Field(..., description="Project name")
+    repository_url: Optional[str] = Field(None, description="Repository URL")
+    language: str = Field(..., description="Primary programming language")
+    description: Optional[str] = Field(None, description="Project description")
     scan_config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Scan configuration")
-    tools_enabled: Optional[List[str]] = Field(None, description="List of tools to enable")
-    severity_threshold: Optional[SeverityLevel] = Field(None, description="Minimum severity to report")
-    
-    @validator('tools_enabled')
-    def validate_tools(cls, v):
-        if v:
-            valid_tools = ['bandit', 'pylint', 'semgrep', 'eslint', 'pylint']
-            for tool in v:
-                if tool not in valid_tools:
-                    raise ValueError(f'Invalid tool: {tool}. Must be one of: {valid_tools}')
-        return v
+    rules_config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Rules configuration")
 
-class ScanResponse(BaseModel):
-    """Schema for scan response"""
-    id: int
-    project_id: int
-    triggered_by: str
-    start_time: datetime
-    end_time: Optional[datetime]
+class SASTScanCreate(BaseModel):
+    project_id: str = Field(..., description="Project ID")
+    scan_type: str = Field(default="static", description="Type of scan")
+    scan_config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Scan configuration")
+    rules_enabled: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Enabled rules")
+
+class VulnerabilityCreate(BaseModel):
+    scan_id: str = Field(..., description="Scan ID")
+    project_id: str = Field(..., description="Project ID")
+    title: str = Field(..., description="Vulnerability title")
+    description: str = Field(..., description="Vulnerability description")
+    severity: VulnerabilitySeverity = Field(..., description="Vulnerability severity")
+    file_path: str = Field(..., description="File path")
+    line_number: int = Field(..., description="Line number")
+    cwe_id: str = Field(..., description="CWE ID")
+    vulnerable_code: str = Field(..., description="Vulnerable code snippet")
+
+# Response Models
+class SASTProjectResponse(BaseModel):
+    id: str
+    name: str
+    repository_url: Optional[str]
+    language: str
+    description: Optional[str]
+    scan_config: Optional[Dict[str, Any]]
+    rules_config: Optional[Dict[str, Any]]
+    total_scans: Optional[int]
+    avg_vulnerabilities: Optional[float]
+    security_score: Optional[float]
+    is_active: Optional[bool]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    last_scan: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class SASTScanResponse(BaseModel):
+    id: str
+    project_id: str
+    scan_type: str
     status: ScanStatus
-    scan_type: ScanType
-    scan_config: Dict[str, Any]
-    total_files: Optional[int]
-    scanned_files: Optional[int]
+    scan_config: Optional[Dict[str, Any]]
+    rules_enabled: Optional[Dict[str, Any]]
     vulnerabilities_found: Optional[int]
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class ScanProgress(BaseModel):
-    """Schema for scan progress"""
-    scan_id: int
-    status: ScanStatus
-    start_time: datetime
-    end_time: Optional[datetime]
-    total_files: int
-    scanned_files: int
-    vulnerabilities_found: int
-    progress_percentage: float
-
-# Vulnerability Schemas
-class VulnerabilityResponse(BaseModel):
-    """Schema for vulnerability response"""
-    id: int
-    scan_id: int
-    file_path: str
-    line_no: Optional[int]
-    column_no: Optional[int]
-    vulnerability: str
-    severity: SeverityLevel
-    recommendation: Optional[str]
-    tool_name: str
-    cwe_id: Optional[str]
-    confidence: str
-    status: VulnerabilityStatus
-    detected_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class VulnerabilityUpdate(BaseModel):
-    """Schema for updating vulnerability status"""
-    status: VulnerabilityStatus
-    notes: Optional[str] = Field(None, max_length=1000)
-
-# Summary Schemas
-class ScanSummary(BaseModel):
-    """Schema for scan summary"""
-    scan_id: int
-    project_name: str
-    total_vulnerabilities: int
-    critical_count: int
-    high_count: int
-    medium_count: int
-    low_count: int
-    info_count: int
-    risk_score: float
+    files_scanned: Optional[int]
+    lines_of_code: Optional[int]
     scan_duration: Optional[float]
-    languages_detected: List[str]
-    tools_used: List[str]
-    most_common_vulnerabilities: List[Dict[str, Any]]
-    severity_distribution: Dict[str, int]
+    scan_logs: Optional[Dict[str, Any]]
+    scan_summary: Optional[Dict[str, Any]]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
-class ProjectSummary(BaseModel):
-    """Schema for project summary"""
-    project_id: int
-    project_name: str
-    total_scans: int
-    total_vulnerabilities: int
-    critical_count: int
-    high_count: int
-    medium_count: int
-    low_count: int
-    info_count: int
-    average_risk_score: float
-    last_scan_date: Optional[datetime]
-    scan_trends: List[Dict[str, Any]]
-    vulnerability_trends: List[Dict[str, Any]]
+    class Config:
+        from_attributes = True
 
-class SASTSummary(BaseModel):
-    """Schema for overall SAST summary"""
+class VulnerabilityResponse(BaseModel):
+    id: str
+    scan_id: str
+    project_id: str
+    title: str
+    description: str
+    severity: VulnerabilitySeverity
+    status: Optional[VulnerabilityStatus]
+    file_path: str
+    line_number: int
+    column_number: Optional[int]
+    function_name: Optional[str]
+    cwe_id: str
+    owasp_category: Optional[str]
+    language: Optional[str]
+    vulnerable_code: str
+    fixed_code: Optional[str]
+    context_before: Optional[str]
+    context_after: Optional[str]
+    auto_fix_available: Optional[bool]
+    auto_fix_status: Optional[AutoFixStatus]
+    auto_fix_suggestion: Optional[str]
+    tags: Optional[Dict[str, Any]]
+    vuln_metadata: Optional[Dict[str, Any]]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    fixed_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class SASTOverviewResponse(BaseModel):
+    overview: Dict[str, Any]
+
+class SASTProjectsResponse(BaseModel):
+    projects: List[SASTProjectResponse]
+
+class SASTVulnerabilitiesResponse(BaseModel):
+    vulnerabilities: List[VulnerabilityResponse]
+
+class SASTProjectDetailResponse(BaseModel):
+    project: Dict[str, Any]
+
+class SASTScanHistoryResponse(BaseModel):
+    scans: List[SASTScanResponse]
+
+class SASTStatisticsResponse(BaseModel):
     total_projects: int
     total_scans: int
     total_vulnerabilities: int
-    critical_count: int
-    high_count: int
-    medium_count: int
-    low_count: int
-    info_count: int
-    average_risk_score: float
-    most_common_vulnerabilities: List[Dict[str, Any]]
-    scan_trends: List[Dict[str, Any]]
-    vulnerability_trends: List[Dict[str, Any]]
-    top_projects_by_risk: List[Dict[str, Any]]
+    vulnerabilities_by_severity: Dict[str, int]
+    security_score: float
+    recent_scans: List[Dict[str, Any]]
+    top_vulnerabilities: List[Dict[str, Any]]
 
-# Report Schemas
-class ReportRequest(BaseModel):
-    """Schema for report generation request"""
-    scan_id: int
-    report_type: ReportType
-    include_details: bool = Field(True, description="Include detailed vulnerability information")
-    include_recommendations: bool = Field(True, description="Include remediation recommendations")
-    include_code_snippets: bool = Field(False, description="Include code snippets in report")
-    custom_title: Optional[str] = Field(None, description="Custom report title")
-
-class ReportResponse(BaseModel):
-    """Schema for report response"""
-    report_id: int
-    scan_id: int
-    report_type: ReportType
-    file_path: str
-    file_size: int
+class SASTReportResponse(BaseModel):
+    report_id: str
+    project_id: str
+    scan_id: str
+    report_type: str
+    report_data: Dict[str, Any]
     generated_at: datetime
-    download_url: str
+    download_url: Optional[str]
 
-# Configuration Schemas
-class SASTConfig(BaseModel):
-    """Schema for SAST configuration"""
-    tools_config: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
-    severity_threshold: SeverityLevel = Field(SeverityLevel.LOW)
-    max_scan_duration: int = Field(3600, description="Maximum scan duration in seconds")
-    parallel_scans: int = Field(3, description="Maximum parallel scans")
-    auto_scan_on_push: bool = Field(False, description="Automatically scan on code push")
-    exclude_patterns: List[str] = Field(default_factory=list, description="File patterns to exclude")
-    include_patterns: List[str] = Field(default_factory=list, description="File patterns to include")
+# Dashboard Models
+class SASTDashboardStats(BaseModel):
+    total_projects: int
+    active_scans: int
+    total_vulnerabilities: int
+    critical_vulnerabilities: int
+    high_vulnerabilities: int
+    medium_vulnerabilities: int
+    low_vulnerabilities: int
+    security_score: float
+    recent_activity: List[Dict[str, Any]]
 
-class ToolConfig(BaseModel):
-    """Schema for individual tool configuration"""
-    enabled: bool = Field(True, description="Whether the tool is enabled")
-    config_file: Optional[str] = Field(None, description="Path to tool configuration file")
-    custom_rules: Optional[List[str]] = Field(None, description="Custom rules to apply")
-    timeout: int = Field(300, description="Tool timeout in seconds")
-
-# Webhook Schemas
-class GitHubWebhookPayload(BaseModel):
-    """Schema for GitHub webhook payload"""
-    ref: str
-    ref_type: str
-    repository: Dict[str, Any]
-    sender: Dict[str, Any]
-    commits: Optional[List[Dict[str, Any]]] = None
-    
-    class Config:
-        extra = "allow"  # Allow additional fields from GitHub
-
-class WebhookResponse(BaseModel):
-    """Schema for webhook response"""
-    success: bool
-    message: str
-    scan_id: Optional[int] = None
-    project_id: Optional[int] = None
-
-# Error Schemas
-class SASTError(BaseModel):
-    """Schema for SAST error response"""
-    error_code: str
-    message: str
-    details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-# Filter Schemas
-class VulnerabilityFilter(BaseModel):
-    """Schema for vulnerability filtering"""
-    severity: Optional[SeverityLevel] = None
-    tool_name: Optional[str] = None
-    status: Optional[VulnerabilityStatus] = None
-    file_path: Optional[str] = None
-    cwe_id: Optional[str] = None
-    date_from: Optional[datetime] = None
-    date_to: Optional[datetime] = None
-
-class ScanFilter(BaseModel):
-    """Schema for scan filtering"""
-    project_id: Optional[int] = None
-    status: Optional[ScanStatus] = None
-    scan_type: Optional[ScanType] = None
-    triggered_by: Optional[str] = None
-    date_from: Optional[datetime] = None
-    date_to: Optional[datetime] = None
-
-# Analytics Schemas
-class VulnerabilityTrend(BaseModel):
-    """Schema for vulnerability trend data"""
-    date: datetime
+class SASTProjectSummary(BaseModel):
+    id: str
+    name: str
+    language: str
+    last_scan: Optional[datetime]
     total_vulnerabilities: int
     critical_count: int
     high_count: int
     medium_count: int
     low_count: int
-    info_count: int
+    security_score: float
+    status: str
 
-class ScanTrend(BaseModel):
-    """Schema for scan trend data"""
-    date: datetime
-    total_scans: int
-    completed_scans: int
-    failed_scans: int
-    average_duration: float
+class SASTScanSummary(BaseModel):
+    id: str
+    project_name: str
+    scan_type: str
+    status: ScanStatus
+    vulnerabilities_found: int
+    scan_duration: float
+    started_at: datetime
+    completed_at: Optional[datetime]
 
-class RiskMetrics(BaseModel):
-    """Schema for risk metrics"""
-    risk_score: float
-    risk_level: str
-    factors: List[Dict[str, Any]]
-    recommendations: List[str] 
+# Filter Models
+class SASTVulnerabilityFilter(BaseModel):
+    severity: Optional[VulnerabilitySeverity]
+    status: Optional[VulnerabilityStatus]
+    cwe_id: Optional[str]
+    file_path: Optional[str]
+    language: Optional[str]
+    project_id: Optional[str]
+    scan_id: Optional[str]
+
+class SASTScanFilter(BaseModel):
+    project_id: Optional[str]
+    status: Optional[ScanStatus]
+    scan_type: Optional[str]
+    date_from: Optional[datetime]
+    date_to: Optional[datetime]
+
+# Configuration Models
+class SASTScanConfiguration(BaseModel):
+    include_patterns: List[str] = Field(default_factory=list)
+    exclude_patterns: List[str] = Field(default_factory=list)
+    max_file_size: int = Field(default=10485760)  # 10MB
+    timeout: int = Field(default=3600)  # 1 hour
+    parallel_scans: int = Field(default=4)
+    enable_auto_fix: bool = Field(default=False)
+    custom_rules: List[Dict[str, Any]] = Field(default_factory=list)
+
+class SASTRulesConfiguration(BaseModel):
+    enabled_rules: List[str] = Field(default_factory=list)
+    rule_severity_overrides: Dict[str, VulnerabilitySeverity] = Field(default_factory=dict)
+    custom_patterns: List[Dict[str, Any]] = Field(default_factory=list)
+    ignore_patterns: List[str] = Field(default_factory=list) 

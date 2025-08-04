@@ -1,6 +1,6 @@
 from datetime import timedelta, datetime
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,13 +15,61 @@ from app.schemas.auth import (
     Token, UserCreate, User as UserSchema, UserLogin,
     PasswordChange, PasswordReset, PasswordResetConfirm
 )
+from app.schemas.iam import LoginRequest, TokenResponse
+from app.services.iam_service import iam_service
 import structlog
 
 logger = structlog.get_logger()
 router = APIRouter()
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=TokenResponse)
 async def login(
+    login_data: LoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    JSON-based login endpoint for React Native frontend
+    """
+    try:
+        client_ip = request.client.host
+        user_agent = request.headers.get("user-agent")
+        
+        user, auth_status = await iam_service.authenticate_user(
+            db, login_data.username, login_data.password,
+            ip_address=client_ip, user_agent=user_agent,
+            device_info=login_data.device_info
+        )
+        
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        
+        if auth_status == "mfa_required":
+            return {
+                "access_token": None, "refresh_token": None, "token_type": "bearer",
+                "expires_in": 0, "user_id": user.id, "email": user.email,
+                "role": user.role, "mfa_required": True
+            }
+        
+        session = await iam_service.session_service.create_session(
+            db, user.id, ip_address=client_ip, user_agent=user_agent,
+            device_info=login_data.device_info
+        )
+        
+        return {
+            "access_token": session.token, "refresh_token": session.refresh_token,
+            "token_type": "bearer", "expires_in": 3600, "user_id": user.id,
+            "email": user.email, "role": user.role, "mfa_required": False
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Login failed", error=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Login failed")
+
+@router.post("/login/oauth", response_model=Token)
+async def login_oauth(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ) -> Any:

@@ -1,14 +1,9 @@
 """
 SAST (Static Application Security Testing) API Endpoints
-Provides comprehensive REST API for SAST functionality including:
-- Project management
-- Code scanning
-- Vulnerability analysis
-- Report generation
-- CI/CD integration
+Provides comprehensive REST API for SAST functionality
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query, UploadFile, File
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import uuid
@@ -17,41 +12,103 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.core.database import get_db
-from app.models.sast import (
-    SASTProject, SASTScan, SASTVulnerability, SASTRule, SASTReport,
-    ScanStatus, VulnerabilitySeverity, VulnerabilityStatus, AutoFixStatus
-)
+from app.models.sast import SASTProject, SASTScan, SASTVulnerability, ScanStatus
 from app.models.user import User
 from app.core.security import get_current_user
+from app.services.sast_service import sast_service
+from app.schemas.sast_schemas import (
+    SASTProjectCreate, SASTScanCreate, SASTOverviewResponse, SASTProjectsResponse,
+    SASTVulnerabilitiesResponse, SASTProjectDetailResponse, SASTScanHistoryResponse,
+    SASTStatisticsResponse, SASTDashboardStats, SASTVulnerabilityFilter, SASTScanFilter
+)
 
 router = APIRouter()
 
-async def simulate_scan(scan_id: str, db: AsyncSession):
-    """Simulate a background scan process"""
-    try:
-        # Update scan status to running
-        scan = await SASTScan.get_by_id(db, scan_id)
-        if scan:
-            scan.status = ScanStatus.RUNNING
-            await db.commit()
-            
-            # Simulate scan processing time
-            import asyncio
-            await asyncio.sleep(2)
-            
-            # Update scan status to completed
-            scan.status = ScanStatus.COMPLETED
-            scan.completed_at = datetime.utcnow()
-            scan.scan_duration = 120.5  # Simulated duration
-            await db.commit()
-    except Exception as e:
-        # Update scan status to failed
-        scan = await SASTScan.get_by_id(db, scan_id)
-        if scan:
-            scan.status = ScanStatus.FAILED
-            await db.commit()
+# ============================================================================
+# Dashboard & Overview Endpoints
+# ============================================================================
 
-@router.get("/overview")
+@router.get("/dashboard", response_model=SASTDashboardStats)
+async def get_sast_dashboard(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get SAST dashboard statistics"""
+    try:
+        # Get total projects
+        projects_result = await db.execute(select(func.count(SASTProject.id)))
+        total_projects = projects_result.scalar() or 0
+        
+        # Get active scans
+        active_scans_result = await db.execute(
+            select(func.count(SASTScan.id)).where(SASTScan.status == ScanStatus.RUNNING)
+        )
+        active_scans = active_scans_result.scalar() or 0
+        
+        # Get total vulnerabilities
+        vulns_result = await db.execute(select(func.count(SASTVulnerability.id)))
+        total_vulnerabilities = vulns_result.scalar() or 0
+        
+        # Get vulnerabilities by severity
+        critical_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "critical")
+        )
+        critical_vulns = critical_result.scalar() or 0
+        
+        high_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "high")
+        )
+        high_vulns = high_result.scalar() or 0
+        
+        medium_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "medium")
+        )
+        medium_vulns = medium_result.scalar() or 0
+        
+        low_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "low")
+        )
+        low_vulns = low_result.scalar() or 0
+        
+        # Calculate security score
+        security_score = max(0, 100 - (critical_vulns * 20 + high_vulns * 10 + medium_vulns * 5 + low_vulns * 1))
+        
+        # Get recent activity (last 10 scans)
+        recent_scans_result = await db.execute(
+            select(SASTScan)
+            .order_by(SASTScan.started_at.desc())
+            .limit(10)
+        )
+        recent_scans = recent_scans_result.scalars().all()
+        
+        recent_activity = [
+            {
+                "id": str(scan.id),
+                "type": "scan",
+                "project_id": scan.project_id,
+                "status": scan.status,
+                "timestamp": scan.started_at.isoformat() if scan.started_at else None,
+                "vulnerabilities_found": scan.vulnerabilities_found or 0
+            }
+            for scan in recent_scans
+        ]
+        
+        return SASTDashboardStats(
+            total_projects=total_projects,
+            active_scans=active_scans,
+            total_vulnerabilities=total_vulnerabilities,
+            critical_vulnerabilities=critical_vulns,
+            high_vulnerabilities=high_vulns,
+            medium_vulnerabilities=medium_vulns,
+            low_vulnerabilities=low_vulns,
+            security_score=security_score,
+            recent_activity=recent_activity
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting SAST dashboard: {str(e)}")
+
+@router.get("/overview", response_model=SASTOverviewResponse)
 async def get_sast_overview(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -60,217 +117,173 @@ async def get_sast_overview(
     try:
         # Get total projects
         projects_result = await db.execute(select(func.count(SASTProject.id)))
-        total_projects = projects_result.scalar()
+        total_projects = projects_result.scalar() or 0
         
         # Get total scans
         scans_result = await db.execute(select(func.count(SASTScan.id)))
-        total_scans = scans_result.scalar()
+        total_scans = scans_result.scalar() or 0
         
         # Get active scans
         active_scans_result = await db.execute(
             select(func.count(SASTScan.id)).where(SASTScan.status == ScanStatus.RUNNING)
         )
-        active_scans = active_scans_result.scalar()
+        active_scans = active_scans_result.scalar() or 0
         
         # Get total vulnerabilities
         vulns_result = await db.execute(select(func.count(SASTVulnerability.id)))
-        total_vulnerabilities = vulns_result.scalar()
+        total_vulnerabilities = vulns_result.scalar() or 0
         
         # Get vulnerabilities by severity
         critical_result = await db.execute(
-            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == VulnerabilitySeverity.CRITICAL)
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "critical")
         )
-        critical_vulns = critical_result.scalar()
+        critical_vulns = critical_result.scalar() or 0
         
         high_result = await db.execute(
-            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == VulnerabilitySeverity.HIGH)
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "high")
         )
-        high_vulns = high_result.scalar()
+        high_vulns = high_result.scalar() or 0
         
         medium_result = await db.execute(
-            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == VulnerabilitySeverity.MEDIUM)
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "medium")
         )
-        medium_vulns = medium_result.scalar()
+        medium_vulns = medium_result.scalar() or 0
         
         low_result = await db.execute(
-            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == VulnerabilitySeverity.LOW)
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "low")
         )
-        low_vulns = low_result.scalar()
+        low_vulns = low_result.scalar() or 0
         
         # Calculate security score
-        avg_security_score = 85.5  # This would be calculated from actual data
+        security_score = max(0, 100 - (critical_vulns * 20 + high_vulns * 10 + medium_vulns * 5 + low_vulns * 1))
         
-        return {
-            "overview": {
-                "totalProjects": total_projects or 0,
-                "totalScans": total_scans or 0,
-                "activeScans": active_scans or 0,
-                "totalVulnerabilities": total_vulnerabilities or 0,
-                "securityScore": avg_security_score
-            },
-            "vulnerabilities": {
-                "critical": critical_vulns or 0,
-                "high": high_vulns or 0,
-                "medium": medium_vulns or 0,
-                "low": low_vulns or 0,
-                "total": total_vulnerabilities or 0
-            },
-            "languages": {
-                "python": 45,
-                "javascript": 32,
-                "java": 18,
-                "csharp": 12,
-                "php": 8
-            },
-            "recentScans": [
-                {
-                    "id": "scan-001",
-                    "projectName": "E-commerce Platform",
-                    "status": "completed",
-                    "vulnerabilities": 3,
-                    "duration": "2m 34s",
-                    "timestamp": "2025-08-02T18:00:00Z"
-                }
-            ]
-        }
+        return SASTOverviewResponse(
+            overview={
+                "totalProjects": total_projects,
+                "totalScans": total_scans,
+                "activeScans": active_scans,
+                "totalVulnerabilities": total_vulnerabilities,
+                "vulnerabilitiesBySeverity": {
+                    "critical": critical_vulns,
+                    "high": high_vulns,
+                    "medium": medium_vulns,
+                    "low": low_vulns
+                },
+                "securityScore": security_score
+            }
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting SAST overview: {str(e)}")
 
-@router.get("/projects")
+# ============================================================================
+# Project Management Endpoints
+# ============================================================================
+
+@router.get("/projects", response_model=SASTProjectsResponse)
 async def get_sast_projects(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all SAST projects"""
     try:
-        projects = await SASTProject.get_all(db, skip=skip, limit=limit)
-        return {
-            "projects": [
+        result = await db.execute(
+            select(SASTProject).offset(skip).limit(limit)
+        )
+        projects = result.scalars().all()
+        
+        return SASTProjectsResponse(
+            projects=[
                 {
                     "id": str(project.id),
                     "name": project.name,
                     "repository_url": project.repository_url,
                     "language": project.language,
+                    "description": project.description,
                     "created_at": project.created_at.isoformat() if project.created_at else None,
-                    "last_scan": project.last_scan.isoformat() if project.last_scan else None,
-                    "total_scans": project.total_scans,
-                    "avg_vulnerabilities": float(project.avg_vulnerabilities) if project.avg_vulnerabilities else 0.0,
-                    "security_score": float(project.security_score) if project.security_score else None
+                    "total_scans": project.total_scans or 0,
+                    "security_score": project.security_score or 0
                 }
                 for project in projects
             ]
-        }
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting SAST projects: {str(e)}")
 
-@router.post("/projects")
+@router.post("/projects", response_model=Dict[str, Any])
 async def create_sast_project(
-    project_data: Dict[str, Any],
+    project_data: SASTProjectCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new SAST project"""
     try:
-        project = SASTProject(
-            name=project_data.get("name"),
-            repository_url=project_data.get("repository_url"),
-            language=project_data.get("language"),
-            description=project_data.get("description"),
-            scan_config=project_data.get("scan_config"),
-            rules_config=project_data.get("rules_config"),
-            created_by=current_user.id
-        )
-        
-        db.add(project)
-        await db.commit()
-        await db.refresh(project)
+        project = await sast_service.create_project(db, project_data)
         
         return {
-            "id": str(project.id),
-            "name": project.name,
-            "repository_url": project.repository_url,
-            "language": project.language,
-            "created_at": project.created_at.isoformat() if project.created_at else None
+            "message": "SAST project created successfully",
+            "project": {
+                "id": str(project.id),
+                "name": project.name,
+                "repository_url": project.repository_url,
+                "language": project.language,
+                "description": project.description,
+                "created_at": project.created_at.isoformat() if project.created_at else None
+            }
         }
+        
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating SAST project: {str(e)}")
 
-@router.get("/scans")
-async def get_sast_scans(
-    project_id: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+@router.get("/projects/{project_id}", response_model=SASTProjectDetailResponse)
+async def get_sast_project(
+    project_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get SAST scans, optionally filtered by project"""
+    """Get specific SAST project details"""
     try:
-        if project_id:
-            scans = await SASTScan.get_by_project(db, project_id, skip=skip, limit=limit)
-        else:
-            scans_result = await db.execute(
-                select(SASTScan).offset(skip).limit(limit)
-            )
-            scans = scans_result.scalars().all()
+        project_overview = await sast_service.get_project_overview(db, project_id)
+        return SASTProjectDetailResponse(project=project_overview)
         
-        return {
-            "scans": [
-                {
-                    "id": str(scan.id),
-                    "project_id": str(scan.project_id),
-                    "project_name": scan.project.name if scan.project else "Unknown",
-                    "status": scan.status,
-                    "started_at": scan.started_at.isoformat() if scan.started_at else None,
-                    "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
-                    "duration": f"{int(scan.scan_duration)}s" if scan.scan_duration else None,
-                    "vulnerabilities_found": scan.vulnerabilities_found,
-                    "files_scanned": scan.files_scanned,
-                    "lines_of_code": scan.lines_of_code
-                }
-                for scan in scans
-            ]
-        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting SAST project: {str(e)}")
 
-@router.post("/scans")
-async def create_sast_scan(
-    scan_data: Dict[str, Any],
+# ============================================================================
+# Scan Management Endpoints
+# ============================================================================
+
+@router.post("/scans", response_model=Dict[str, Any])
+async def start_sast_scan(
+    scan_data: SASTScanCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new SAST scan"""
+    """Start a new SAST scan"""
     try:
-        scan = SASTScan(
-            project_id=scan_data.get("project_id"),
-            scan_type=scan_data.get("scan_type", "full"),
-            scan_config=scan_data.get("scan_config"),
-            rules_enabled=scan_data.get("rules_enabled"),
-            initiated_by=current_user.id
-        )
-        
-        db.add(scan)
-        await db.commit()
-        await db.refresh(scan)
-        
-        # Add background task to simulate scan
-        background_tasks.add_task(simulate_scan, str(scan.id), db)
+        scan = await sast_service.start_scan(db, scan_data)
         
         return {
-            "id": str(scan.id),
-            "project_id": str(scan.project_id),
-            "status": scan.status,
-            "started_at": scan.started_at.isoformat() if scan.started_at else None
+            "message": "SAST scan started successfully",
+            "scan": {
+                "id": str(scan.id),
+                "project_id": scan.project_id,
+                "scan_type": scan.scan_type,
+                "status": scan.status,
+                "started_at": scan.started_at.isoformat() if scan.started_at else None
+            }
         }
+        
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error starting SAST scan: {str(e)}")
 
-@router.get("/scans/{scan_id}")
+@router.get("/scans/{scan_id}", response_model=Dict[str, Any])
 async def get_sast_scan(
     scan_id: str,
     db: AsyncSession = Depends(get_db),
@@ -278,325 +291,248 @@ async def get_sast_scan(
 ):
     """Get specific SAST scan details"""
     try:
-        scan = await SASTScan.get_by_id(db, scan_id)
+        result = await db.execute(select(SASTScan).where(SASTScan.id == scan_id))
+        scan = result.scalar_one_or_none()
+        
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
         
         return {
-            "id": str(scan.id),
-            "project_id": str(scan.project_id),
-            "project_name": scan.project.name if scan.project else "Unknown",
-            "status": scan.status,
-            "started_at": scan.started_at.isoformat() if scan.started_at else None,
-            "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
-            "duration": f"{int(scan.scan_duration)}s" if scan.scan_duration else None,
-            "vulnerabilities_found": scan.vulnerabilities_found,
-            "files_scanned": scan.files_scanned,
-            "lines_of_code": scan.lines_of_code,
-            "scan_config": scan.scan_config,
-            "scan_summary": scan.scan_summary
+            "scan": {
+                "id": str(scan.id),
+                "project_id": scan.project_id,
+                "scan_type": scan.scan_type,
+                "status": scan.status,
+                "vulnerabilities_found": scan.vulnerabilities_found or 0,
+                "files_scanned": scan.files_scanned or 0,
+                "lines_of_code": scan.lines_of_code or 0,
+                "scan_duration": scan.scan_duration or 0,
+                "started_at": scan.started_at.isoformat() if scan.started_at else None,
+                "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+                "scan_summary": scan.scan_summary
+            }
         }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-@router.get("/scans/{scan_id}/vulnerabilities")
-async def get_scan_vulnerabilities(
-    scan_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get vulnerabilities for a specific scan"""
-    try:
-        vulnerabilities = await SASTVulnerability.get_by_scan(db, scan_id)
         
-        return {
-            "vulnerabilities": [
-                {
-                    "id": str(vuln.id),
-                    "scan_id": str(vuln.scan_id),
-                    "project_id": str(vuln.project_id),
-                    "file_path": vuln.file_path,
-                    "line_number": vuln.line_number,
-                    "language": vuln.language,
-                    "severity": vuln.severity,
-                    "cwe_id": vuln.cwe_id,
-                    "owasp_category": vuln.owasp_category,
-                    "title": vuln.title,
-                    "description": vuln.description,
-                    "vulnerable_code": vuln.vulnerable_code,
-                    "fixed_code": vuln.fixed_code,
-                    "auto_fix_available": vuln.auto_fix_available,
-                    "auto_fix_suggestion": vuln.auto_fix_suggestion,
-                    "created_at": vuln.created_at.isoformat() if vuln.created_at else None
-                }
-                for vuln in vulnerabilities
-            ]
-        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting SAST scan: {str(e)}")
 
-@router.get("/vulnerabilities")
-async def get_all_vulnerabilities(
-    severity: Optional[str] = None,
-    language: Optional[str] = None,
-    project_id: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+@router.get("/projects/{project_id}/scans", response_model=SASTScanHistoryResponse)
+async def get_project_scan_history(
+    project_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all vulnerabilities with optional filtering"""
+    """Get scan history for a project"""
+    try:
+        scans = await sast_service.get_scan_history(db, project_id)
+        return SASTScanHistoryResponse(scans=scans)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting scan history: {str(e)}")
+
+# ============================================================================
+# Vulnerability Management Endpoints
+# ============================================================================
+
+@router.get("/vulnerabilities", response_model=SASTVulnerabilitiesResponse)
+async def get_sast_vulnerabilities(
+    severity: Optional[str] = Query(None),
+    project_id: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all SAST vulnerabilities with optional filtering"""
     try:
         query = select(SASTVulnerability)
         
         if severity:
             query = query.where(SASTVulnerability.severity == severity)
-        if language:
-            query = query.where(SASTVulnerability.language == language)
         if project_id:
             query = query.where(SASTVulnerability.project_id == project_id)
-        
-        query = query.offset(skip).limit(limit)
-        result = await db.execute(query)
+            
+        result = await db.execute(query.offset(skip).limit(limit))
         vulnerabilities = result.scalars().all()
         
-        return {
-            "vulnerabilities": [
+        return SASTVulnerabilitiesResponse(
+            vulnerabilities=[
                 {
                     "id": str(vuln.id),
                     "scan_id": str(vuln.scan_id),
                     "project_id": str(vuln.project_id),
-                    "file_path": vuln.file_path,
-                    "line_number": vuln.line_number,
-                    "language": vuln.language,
-                    "severity": vuln.severity,
-                    "cwe_id": vuln.cwe_id,
-                    "owasp_category": vuln.owasp_category,
                     "title": vuln.title,
                     "description": vuln.description,
+                    "severity": vuln.severity,
+                    "file_path": vuln.file_path,
+                    "line_number": vuln.line_number,
+                    "cwe_id": vuln.cwe_id,
                     "vulnerable_code": vuln.vulnerable_code,
-                    "fixed_code": vuln.fixed_code,
-                    "auto_fix_available": vuln.auto_fix_available,
-                    "auto_fix_suggestion": vuln.auto_fix_suggestion,
                     "created_at": vuln.created_at.isoformat() if vuln.created_at else None
                 }
                 for vuln in vulnerabilities
             ]
-        }
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting SAST vulnerabilities: {str(e)}")
+
+@router.get("/projects/{project_id}/vulnerabilities", response_model=SASTVulnerabilitiesResponse)
+async def get_project_vulnerabilities(
+    project_id: str,
+    severity: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get vulnerabilities for a specific project"""
+    try:
+        vulnerabilities = await sast_service.get_vulnerabilities(db, project_id, severity)
+        return SASTVulnerabilitiesResponse(vulnerabilities=vulnerabilities)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting project vulnerabilities: {str(e)}")
+
+# ============================================================================
+# Statistics & Analytics Endpoints
+# ============================================================================
+
+@router.get("/statistics", response_model=SASTStatisticsResponse)
+async def get_sast_statistics(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive SAST statistics"""
+    try:
+        # Get total projects
+        projects_result = await db.execute(select(func.count(SASTProject.id)))
+        total_projects = projects_result.scalar() or 0
+        
+        # Get total scans
+        scans_result = await db.execute(select(func.count(SASTScan.id)))
+        total_scans = scans_result.scalar() or 0
+        
+        # Get total vulnerabilities
+        vulns_result = await db.execute(select(func.count(SASTVulnerability.id)))
+        total_vulnerabilities = vulns_result.scalar() or 0
+        
+        # Get vulnerabilities by severity
+        critical_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "critical")
+        )
+        critical_vulns = critical_result.scalar() or 0
+        
+        high_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "high")
+        )
+        high_vulns = high_result.scalar() or 0
+        
+        medium_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "medium")
+        )
+        medium_vulns = medium_result.scalar() or 0
+        
+        low_result = await db.execute(
+            select(func.count(SASTVulnerability.id)).where(SASTVulnerability.severity == "low")
+        )
+        low_vulns = low_result.scalar() or 0
+        
+        # Calculate security score
+        security_score = max(0, 100 - (critical_vulns * 20 + high_vulns * 10 + medium_vulns * 5 + low_vulns * 1))
+        
+        # Get recent scans
+        recent_scans_result = await db.execute(
+            select(SASTScan)
+            .order_by(SASTScan.started_at.desc())
+            .limit(5)
+        )
+        recent_scans = recent_scans_result.scalars().all()
+        
+        recent_scans_data = [
+            {
+                "id": str(scan.id),
+                "project_id": scan.project_id,
+                "scan_type": scan.scan_type,
+                "status": scan.status,
+                "vulnerabilities_found": scan.vulnerabilities_found or 0,
+                "started_at": scan.started_at.isoformat() if scan.started_at else None
+            }
+            for scan in recent_scans
+        ]
+        
+        # Get top vulnerabilities
+        top_vulns_result = await db.execute(
+            select(SASTVulnerability)
+            .order_by(SASTVulnerability.created_at.desc())
+            .limit(10)
+        )
+        top_vulns = top_vulns_result.scalars().all()
+        
+        top_vulnerabilities = [
+            {
+                "id": str(vuln.id),
+                "title": vuln.title,
+                "severity": vuln.severity,
+                "cwe_id": vuln.cwe_id,
+                "file_path": vuln.file_path,
+                "created_at": vuln.created_at.isoformat() if vuln.created_at else None
+            }
+            for vuln in top_vulns
+        ]
+        
+        return SASTStatisticsResponse(
+            total_projects=total_projects,
+            total_scans=total_scans,
+            total_vulnerabilities=total_vulnerabilities,
+            vulnerabilities_by_severity={
+                "critical": critical_vulns,
+                "high": high_vulns,
+                "medium": medium_vulns,
+                "low": low_vulns
+            },
+            security_score=security_score,
+            recent_scans=recent_scans_data,
+            top_vulnerabilities=top_vulnerabilities
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting SAST statistics: {str(e)}")
+
+# ============================================================================
+# Configuration & Rules Endpoints
+# ============================================================================
 
 @router.get("/rules")
 async def get_detection_rules(
-    language: Optional[str] = None,
-    severity: Optional[str] = None,
+    language: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all detection rules"""
+    """Get available detection rules"""
     try:
+        rules = sast_service.scan_rules
+        
         if language:
-            rules = await SASTRule.get_by_language(db, language)
-        elif severity:
-            rules = await SASTRule.get_by_severity(db, severity)
-        else:
-            rules = await SASTRule.get_active_rules(db)
+            rules = {lang: rules[lang] for lang in rules if lang == language}
         
         return {
-            "rules": [
-                {
-                    "id": str(rule.id),
-                    "name": rule.name,
-                    "title": rule.title,
-                    "description": rule.description,
-                    "language": rule.language,
-                    "regex_pattern": rule.regex_pattern,
-                    "ast_pattern": rule.ast_pattern,
-                    "severity": rule.severity,
-                    "cwe_id": rule.cwe_id,
-                    "owasp_category": rule.owasp_category,
-                    "auto_fix_available": rule.auto_fix_available,
-                    "auto_fix_template": rule.auto_fix_template,
-                    "recommendation": rule.recommendation,
-                    "is_active": rule.is_active,
-                    "is_custom": rule.is_custom,
-                    "created_at": rule.created_at.isoformat() if rule.created_at else None
-                }
-                for rule in rules
-            ]
+            "rules": rules,
+            "supported_languages": list(sast_service.supported_languages.keys())
         }
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting detection rules: {str(e)}")
 
-@router.post("/rules")
-async def create_detection_rule(
-    rule_data: Dict[str, Any],
-    db: AsyncSession = Depends(get_db),
+@router.get("/languages")
+async def get_supported_languages(
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new detection rule"""
+    """Get supported programming languages"""
     try:
-        rule = SASTRule(
-            name=rule_data.get("name"),
-            title=rule_data.get("title"),
-            description=rule_data.get("description"),
-            language=rule_data.get("language"),
-            regex_pattern=rule_data.get("regex_pattern"),
-            ast_pattern=rule_data.get("ast_pattern"),
-            severity=rule_data.get("severity"),
-            cwe_id=rule_data.get("cwe_id"),
-            owasp_category=rule_data.get("owasp_category"),
-            auto_fix_available=rule_data.get("auto_fix_available", False),
-            auto_fix_template=rule_data.get("auto_fix_template"),
-            recommendation=rule_data.get("recommendation"),
-            tags=rule_data.get("tags"),
-            metadata=rule_data.get("metadata"),
-            is_custom=True,
-            created_by=current_user.id
-        )
-        
-        db.add(rule)
-        await db.commit()
-        await db.refresh(rule)
-        
         return {
-            "id": str(rule.id),
-            "name": rule.name,
-            "title": rule.title,
-            "language": rule.language,
-            "severity": rule.severity,
-            "created_at": rule.created_at.isoformat() if rule.created_at else None
+            "languages": sast_service.supported_languages,
+            "rules": sast_service.scan_rules
         }
+        
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create rule: {str(e)}")
-
-@router.get("/auto-fix/{vulnerability_id}")
-async def get_auto_fix_suggestion(
-    vulnerability_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get auto-fix suggestion for a vulnerability"""
-    try:
-        vulnerability = await SASTVulnerability.get_by_id(db, vulnerability_id)
-        if not vulnerability:
-            raise HTTPException(status_code=404, detail="Vulnerability not found")
-        
-        if not vulnerability.auto_fix_available:
-            raise HTTPException(status_code=400, detail="Auto-fix not available for this vulnerability")
-        
-        return {
-            "vulnerability_id": str(vulnerability.id),
-            "title": vulnerability.title,
-            "vulnerable_code": vulnerability.vulnerable_code,
-            "fixed_code": vulnerability.fixed_code,
-            "suggestion": vulnerability.auto_fix_suggestion,
-            "status": vulnerability.auto_fix_status
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-@router.post("/auto-fix/{vulnerability_id}/apply")
-async def apply_auto_fix(
-    vulnerability_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Apply auto-fix for a vulnerability"""
-    try:
-        vulnerability = await SASTVulnerability.get_by_id(db, vulnerability_id)
-        if not vulnerability:
-            raise HTTPException(status_code=404, detail="Vulnerability not found")
-        
-        if not vulnerability.auto_fix_available:
-            raise HTTPException(status_code=400, detail="Auto-fix not available for this vulnerability")
-        
-        # Update vulnerability status
-        vulnerability.status = VulnerabilityStatus.FIXED
-        vulnerability.auto_fix_status = AutoFixStatus.APPLIED
-        vulnerability.fixed_at = datetime.utcnow()
-        
-        await db.commit()
-        
-        return {
-            "vulnerability_id": str(vulnerability.id),
-            "status": "fixed",
-            "applied_at": vulnerability.fixed_at.isoformat() if vulnerability.fixed_at else None,
-            "message": "Auto-fix applied successfully"
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to apply auto-fix: {str(e)}")
-
-@router.get("/reports/{scan_id}")
-async def generate_scan_report(
-    scan_id: str,
-    format: str = "json",
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Generate scan report in specified format"""
-    try:
-        scan = await SASTScan.get_by_id(db, scan_id)
-        if not scan:
-            raise HTTPException(status_code=404, detail="Scan not found")
-        
-        vulnerabilities = await SASTVulnerability.get_by_scan(db, scan_id)
-        
-        # Create report
-        report = SASTReport(
-            scan_id=scan_id,
-            project_id=str(scan.project_id),
-            report_type="detailed",
-            format=format,
-            report_data={
-                "scan_info": {
-                    "id": str(scan.id),
-                    "project_name": scan.project.name if scan.project else "Unknown",
-                    "status": scan.status,
-                    "started_at": scan.started_at.isoformat() if scan.started_at else None,
-                    "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
-                    "duration": scan.scan_duration,
-                    "files_scanned": scan.files_scanned,
-                    "lines_of_code": scan.lines_of_code
-                },
-                "vulnerabilities": [
-                    {
-                        "id": str(vuln.id),
-                        "title": vuln.title,
-                        "severity": vuln.severity,
-                        "file_path": vuln.file_path,
-                        "line_number": vuln.line_number,
-                        "description": vuln.description,
-                        "cwe_id": vuln.cwe_id,
-                        "owasp_category": vuln.owasp_category
-                    }
-                    for vuln in vulnerabilities
-                ]
-            },
-            generated_by=current_user.id
-        )
-        
-        db.add(report)
-        await db.commit()
-        await db.refresh(report)
-        
-        return {
-            "report_id": str(report.id),
-            "scan_id": str(scan.id),
-            "format": format,
-            "generated_at": report.generated_at.isoformat() if report.generated_at else None,
-            "download_url": f"/api/v1/sast/reports/{report.id}/download"
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error getting supported languages: {str(e)}") 

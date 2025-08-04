@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from app.services.security_service import security_service, MFAMethod
 from app.models.user import User
 from app.core.database import get_db
+from app.core.security import get_current_user
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -13,7 +14,7 @@ router = APIRouter()
 @router.post("/mfa/setup")
 async def setup_mfa(
     method: MFAMethod = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Setup MFA for the current user"""
     try:
@@ -32,7 +33,7 @@ async def setup_mfa(
 async def verify_mfa(
     method: MFAMethod = Body(..., embed=True),
     code: str = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Verify MFA code"""
     try:
@@ -54,7 +55,7 @@ async def verify_mfa(
 
 @router.delete("/mfa/disable")
 async def disable_mfa(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Disable MFA for the current user"""
     try:
@@ -76,7 +77,7 @@ async def disable_mfa(
 
 @router.post("/mfa/backup-codes")
 async def generate_backup_codes(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Generate new backup codes for MFA"""
     try:
@@ -124,7 +125,7 @@ async def authenticate_user(
 @router.post("/logout")
 async def logout_user(
     session_token: str = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Logout user and invalidate session"""
     try:
@@ -171,7 +172,7 @@ async def get_security_events(
     event_type: Optional[str] = Query(None, description="Filter by event type"),
     time_range: str = Query("24h", description="Time range for events"),
     limit: int = Query(100, ge=1, le=1000, description="Number of events to return"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get security audit events"""
     try:
@@ -219,7 +220,7 @@ async def get_security_events(
 async def get_security_report(
     user_id: Optional[int] = Query(None, description="User ID for report"),
     time_range: str = Query("24h", description="Time range for report"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get security audit report"""
     try:
@@ -236,7 +237,7 @@ async def get_security_report(
 
 @router.get("/account/status")
 async def get_account_security_status(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get account security status"""
     try:
@@ -281,7 +282,7 @@ async def get_account_security_status(
 @router.post("/account/unlock")
 async def unlock_account(
     user_id: int = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Unlock user account (admin only)"""
     try:
@@ -316,7 +317,7 @@ async def unlock_account(
 
 @router.get("/threats/suspicious-activity")
 async def get_suspicious_activities(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get suspicious activities (admin only)"""
     try:

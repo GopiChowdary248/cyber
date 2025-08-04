@@ -107,10 +107,14 @@ except Exception as e:
 # Import and include DAST endpoints if available
 try:
     from app.api.v1.endpoints.dast import router as dast_router
-    app.include_router(dast_router, prefix="/api/dast", tags=["DAST"])
+    print(f"DAST router type: {type(dast_router)}")
+    print(f"DAST router routes: {dast_router.routes}")
+    app.include_router(dast_router, prefix="/dast", tags=["DAST"])
     logger.info("DAST API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load DAST API router: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
 
 # Import and include Cloud Security endpoints
 try:
@@ -119,14 +123,40 @@ try:
     logger.info("Cloud Security API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load Cloud Security API router: {e}")
+    # Temporarily disable Cloud Security router due to Session/AsyncSession conflict
+    pass
 
 # Import and include SAST endpoints
 try:
-    from app.api.v1.endpoints.simple_sast import router as sast_router
+    from app.api.v1.endpoints.sast import router as sast_router
     app.include_router(sast_router, prefix="/api/v1/sast", tags=["SAST"])
     logger.info("SAST API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load SAST API router: {e}")
+
+# Import and include Device Control endpoints
+try:
+    from app.api.v1.endpoints.device_control import router as device_control_router
+    app.include_router(device_control_router, prefix="/api/v1/device-control", tags=["Device Control"])
+    logger.info("Device Control API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Device Control API router: {e}")
+
+# Import and include IAM endpoints
+try:
+    from app.api.v1.endpoints.iam import router as iam_router
+    app.include_router(iam_router, prefix="/api/v1/iam", tags=["IAM"])
+    logger.info("IAM API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load IAM API router: {e}")
+
+# Import and include Antivirus/EDR endpoints
+try:
+    from app.api.v1.endpoints.endpoint_antivirus_edr import router as endpoint_antivirus_edr_router
+    app.include_router(endpoint_antivirus_edr_router, prefix="/api/v1/endpoint-antivirus-edr", tags=["Antivirus/EDR"])
+    logger.info("Antivirus/EDR API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Antivirus/EDR API router: {e}")
 
 @app.get("/")
 async def root():
@@ -182,11 +212,26 @@ async def protected_route(current_user = Depends(get_current_user)):
         }
     }
 
+@app.get("/test-dast")
+async def test_dast_direct():
+    """Test endpoint to verify direct DAST functionality"""
+    return {"message": "Direct DAST test endpoint working!", "status": "success"}
+
 if __name__ == "__main__":
+    # Production vs Development configuration
+    is_production = os.getenv("ENVIRONMENT", "development") == "production"
+    
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
-        log_level="info"
+        reload=not is_production,  # Disable reload in production
+        log_level="info",
+        access_log=True
     ) 
+    
+from fastapi.routing import APIRoute
+
+print("=== Loaded Routes ===")
+for route in app.routes:
+    print(f"{route.path} -> {route.name}")

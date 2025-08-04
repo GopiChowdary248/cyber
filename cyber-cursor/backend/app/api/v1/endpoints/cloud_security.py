@@ -69,7 +69,7 @@ async def get_cloud_account(
 async def create_cloud_asset(
     account_id: int,
     asset: CloudAssetCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new cloud asset"""
@@ -100,7 +100,7 @@ async def create_cloud_asset(
 async def get_cloud_assets(
     account_id: int,
     asset_type: Optional[str] = Query(None, description="Filter by asset type"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all assets for a cloud account"""
@@ -113,7 +113,7 @@ async def get_cloud_assets(
 async def create_misconfiguration(
     misconfig: MisconfigurationCreate,
     asset_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new misconfiguration record"""
@@ -146,27 +146,31 @@ async def create_misconfiguration(
 async def get_misconfigurations(
     severity: Optional[str] = Query(None, description="Filter by severity"),
     status: Optional[str] = Query(None, description="Filter by status"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all misconfigurations"""
-    query = db.query(Misconfiguration)
+    from sqlalchemy import select
+    query = select(Misconfiguration)
     if severity:
-        query = query.filter(Misconfiguration.severity == severity)
+        query = query.where(Misconfiguration.severity == severity)
     if status:
-        query = query.filter(Misconfiguration.status == status)
-    return query.all()
+        query = query.where(Misconfiguration.status == status)
+    result = await db.execute(query)
+    return result.scalars().all()
 
 @router.post("/compliance-reports", response_model=ComplianceReportResponse)
 async def create_compliance_report(
     account_id: int,
     report: ComplianceReportCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new compliance report"""
     # Verify account exists
-    account = db.query(CloudAccount).filter(CloudAccount.id == account_id).first()
+    from sqlalchemy import select
+    result = await db.execute(select(CloudAccount).where(CloudAccount.id == account_id))
+    account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(status_code=404, detail="Cloud account not found")
     
@@ -181,11 +185,11 @@ async def create_compliance_report(
             report_data=report.report_data
         )
         db.add(db_report)
-        db.commit()
-        db.refresh(db_report)
+        await db.commit()
+        await db.refresh(db_report)
         return db_report
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to create compliance report: {str(e)}")
 
 # ============================================================================
@@ -195,7 +199,7 @@ async def create_compliance_report(
 @router.post("/saas-applications", response_model=SaaSApplicationResponse)
 async def create_saas_application(
     app: SaaSApplicationCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new SaaS application record"""
@@ -211,33 +215,35 @@ async def create_saas_application(
             security_features=app.security_features
         )
         db.add(db_app)
-        db.commit()
-        db.refresh(db_app)
+        await db.commit()
+        await db.refresh(db_app)
         return db_app
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to create SaaS application: {str(e)}")
 
 @router.get("/saas-applications", response_model=List[SaaSApplicationResponse])
 async def get_saas_applications(
     status: Optional[str] = Query(None, description="Filter by status"),
     category: Optional[str] = Query(None, description="Filter by category"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all SaaS applications"""
-    query = db.query(SaaSApplication)
+    from sqlalchemy import select
+    query = select(SaaSApplication)
     if status:
-        query = query.filter(SaaSApplication.status == status)
+        query = query.where(SaaSApplication.status == status)
     if category:
-        query = query.filter(SaaSApplication.app_category == category)
-    return query.all()
+        query = query.where(SaaSApplication.app_category == category)
+    result = await db.execute(query)
+    return result.scalars().all()
 
 @router.post("/user-activities", response_model=UserActivityResponse)
 async def create_user_activity(
     app_id: int,
     activity: UserActivityCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new user activity record"""
@@ -268,7 +274,7 @@ async def create_user_activity(
 async def create_dlp_incident(
     app_id: int,
     incident: DLPIncidentCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new DLP incident"""
@@ -304,7 +310,7 @@ async def create_dlp_incident(
 async def create_cloud_threat(
     account_id: int,
     threat: CloudThreatCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new cloud threat"""
@@ -337,7 +343,7 @@ async def get_cloud_threats(
     account_id: Optional[int] = Query(None, description="Filter by account ID"),
     severity: Optional[str] = Query(None, description="Filter by severity"),
     status: Optional[str] = Query(None, description="Filter by status"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all cloud threats"""
@@ -354,7 +360,7 @@ async def get_cloud_threats(
 async def create_iam_risk(
     account_id: int,
     risk: IAMRiskCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new IAM risk"""
@@ -385,7 +391,7 @@ async def create_iam_risk(
 async def create_ddos_protection(
     account_id: int,
     protection: DDoSProtectionCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new DDoS protection record"""
@@ -417,7 +423,7 @@ async def create_ddos_protection(
 
 @router.get("/dashboard/overview", response_model=CloudSecurityOverview)
 async def get_cloud_security_overview(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get cloud security overview dashboard"""
@@ -464,7 +470,7 @@ async def get_cloud_security_overview(
 
 @router.get("/dashboard/metrics", response_model=CloudSecurityMetrics)
 async def get_cloud_security_metrics(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get detailed cloud security metrics"""
@@ -528,7 +534,7 @@ async def get_cloud_security_metrics(
 @router.post("/scan")
 async def initiate_cloud_scan(
     scan_request: CloudScanRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Initiate a cloud security scan"""
@@ -566,7 +572,7 @@ async def initiate_cloud_scan(
 @router.post("/remediate")
 async def remediate_misconfiguration(
     remediation_request: RemediationRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Remediate a misconfiguration"""
