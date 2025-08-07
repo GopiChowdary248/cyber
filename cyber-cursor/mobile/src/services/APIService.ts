@@ -40,18 +40,210 @@ export interface RefreshTokenRequest {
 }
 
 // SAST Types
-export interface SASTScan {
-  id: string;
-  project_name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  scan_type: string;
+export interface SASTProject {
+  id: number;
+  name: string;
+  key: string;
+  language: string;
+  repository_url?: string;
+  branch?: string;
+  quality_gate?: 'PASSED' | 'FAILED' | 'WARN';
+  maintainability_rating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  security_rating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  reliability_rating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  vulnerability_count?: number;
+  bug_count?: number;
+  code_smell_count?: number;
+  security_hotspot_count?: number;
+  lines_of_code?: number;
+  coverage?: number;
+  technical_debt?: number;
+  debt_ratio?: number;
   created_at: string;
+  last_analysis?: string;
+}
+
+export interface SASTScan {
+  id: number;
+  project_id: number;
+  project_name: string;
+  scan_type: string;
+  branch: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  progress?: number;
+  total_files?: number;
+  scanned_files?: number;
+  issues_found?: number;
+  vulnerabilities_found?: number;
+  bugs_found?: number;
+  code_smells_found?: number;
+  security_hotspots_found?: number;
+  lines_of_code?: number;
+  lines_of_comment?: number;
+  duplicated_lines?: number;
+  duplicated_blocks?: number;
+  uncovered_lines?: number;
+  uncovered_conditions?: number;
+  debt_ratio?: number;
+  started_by: number;
+  started_at: string;
   completed_at?: string;
-  vulnerabilities_count: number;
-  critical_count: number;
-  high_count: number;
-  medium_count: number;
-  low_count: number;
+  duration?: number;
+}
+
+export interface SASTIssue {
+  id: number;
+  project_id: number;
+  rule_id: string;
+  rule_name: string;
+  rule_category?: string;
+  message: string;
+  description?: string;
+  file_path: string;
+  line_number: number;
+  start_line?: number;
+  end_line?: number;
+  severity: 'BLOCKER' | 'CRITICAL' | 'MAJOR' | 'MINOR' | 'INFO';
+  type: 'BUG' | 'VULNERABILITY' | 'CODE_SMELL';
+  status?: 'OPEN' | 'CONFIRMED' | 'RESOLVED' | 'REOPENED' | 'CLOSED';
+  resolution?: 'FIXED' | 'WONTFIX' | 'FALSEPOSITIVE' | 'REMOVED';
+  assignee?: string;
+  author?: string;
+  effort?: number;
+  debt?: number;
+  cwe_id?: string;
+  cvss_score?: number;
+  owasp_category?: string;
+  tags?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SASTSecurityHotspot {
+  id: number;
+  scan_id?: number;
+  project_id: number;
+  rule_id: string;
+  rule_name: string;
+  message: string;
+  description?: string;
+  status: 'TO_REVIEW' | 'REVIEWED' | 'SAFE' | 'FIXED';
+  resolution?: 'SAFE' | 'FIXED' | 'ACKNOWLEDGED';
+  file_path: string;
+  line_number: number;
+  start_line?: number;
+  end_line?: number;
+  cwe_id?: string;
+  cvss_score?: number;
+  owasp_category?: string;
+  tags?: any;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_comment?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SASTQualityGate {
+  id: number;
+  project_id: number;
+  status: 'PASSED' | 'FAILED' | 'WARN';
+  max_blocker_issues?: number;
+  max_critical_issues?: number;
+  max_major_issues?: number;
+  max_debt_ratio?: number;
+  min_maintainability_rating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  min_security_rating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  min_reliability_rating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  last_evaluation?: string;
+  evaluation_results?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SASTCodeCoverage {
+  id: number;
+  project_id: number;
+  scan_id?: number;
+  file_path: string;
+  lines_to_cover: number;
+  uncovered_lines: number;
+  covered_lines: number;
+  line_coverage: number;
+  conditions_to_cover: number;
+  uncovered_conditions: number;
+  covered_conditions: number;
+  branch_coverage: number;
+  overall_coverage: number;
+  created_at: string;
+}
+
+export interface SASTDuplication {
+  id: number;
+  project_id: number;
+  scan_id?: number;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  duplicated_lines: number;
+  duplicated_code: string;
+  created_at: string;
+}
+
+export interface SASTProjectConfiguration {
+  id: number;
+  project_id: number;
+  scan_patterns?: string[];
+  excluded_files?: string[];
+  excluded_directories?: string[];
+  enabled_rules?: string[];
+  disabled_rules?: string[];
+  rule_severities?: any;
+  quality_gate_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SASTRule {
+  id: number;
+  rule_id: string;
+  name: string;
+  description?: string;
+  category: string;
+  subcategory?: string;
+  severity: 'BLOCKER' | 'CRITICAL' | 'MAJOR' | 'MINOR' | 'INFO';
+  type: 'BUG' | 'VULNERABILITY' | 'CODE_SMELL';
+  cwe_id?: string;
+  owasp_category?: string;
+  tags?: string[];
+  enabled: boolean;
+  effort?: number;
+  languages?: string[];
+  created_at: string;
+}
+
+export interface SASTOverview {
+  total_projects: number;
+  total_scans: number;
+  total_issues: number;
+  total_security_hotspots: number;
+  total_quality_gates: number;
+  critical_issues: number;
+  high_issues: number;
+  medium_issues: number;
+  low_issues: number;
+  blocker_issues: number;
+  info_issues: number;
+  security_score: number;
+  average_coverage: number;
+  average_technical_debt: number;
+  recent_scans: SASTScan[];
+  recent_issues: SASTIssue[];
+  quality_gate_status: {
+    passed: number;
+    failed: number;
+    warn: number;
+  };
 }
 
 export interface SASTVulnerability {
@@ -518,18 +710,50 @@ class APIService {
   }
 
   // SAST APIs
-  async getSASTScans(): Promise<SASTScan[]> {
-    return this.request<SASTScan[]>('/sast/scans');
+  async getSASTProjects(): Promise<SASTProject[]> {
+    return this.request<SASTProject[]>('/sast/projects');
   }
 
-  async getSASTVulnerabilities(scanId: string): Promise<SASTVulnerability[]> {
-    return this.request<SASTVulnerability[]>(`/sast/scans/${scanId}/vulnerabilities`);
+  async getSASTScans(projectId: number): Promise<SASTScan[]> {
+    return this.request<SASTScan[]>(`/sast/projects/${projectId}/scans`);
   }
 
-  async startSASTScan(projectData: { name: string; repository_url: string }): Promise<SASTScan> {
-    return this.request<SASTScan>('/sast/scans', {
+  async getSASTIssues(projectId: number): Promise<SASTIssue[]> {
+    return this.request<SASTIssue[]>(`/sast/projects/${projectId}/issues`);
+  }
+
+  async getSASTSecurityHotspots(projectId: number): Promise<SASTSecurityHotspot[]> {
+    return this.request<SASTSecurityHotspot[]>(`/sast/projects/${projectId}/security-hotspots`);
+  }
+
+  async getSASTQualityGates(projectId: number): Promise<SASTQualityGate[]> {
+    return this.request<SASTQualityGate[]>(`/sast/projects/${projectId}/quality-gates`);
+  }
+
+  async getSASTCodeCoverage(projectId: number): Promise<SASTCodeCoverage[]> {
+    return this.request<SASTCodeCoverage[]>(`/sast/projects/${projectId}/code-coverage`);
+  }
+
+  async getSASTDuplications(projectId: number): Promise<SASTDuplication[]> {
+    return this.request<SASTDuplication[]>(`/sast/projects/${projectId}/duplications`);
+  }
+
+  async getSASTProjectConfiguration(projectId: number): Promise<SASTProjectConfiguration> {
+    return this.request<SASTProjectConfiguration>(`/sast/projects/${projectId}/configuration`);
+  }
+
+  async getSASTRules(projectId: number): Promise<SASTRule[]> {
+    return this.request<SASTRule[]>(`/sast/projects/${projectId}/rules`);
+  }
+
+  async getSASTOverview(projectId: number): Promise<SASTOverview> {
+    return this.request<SASTOverview>(`/sast/projects/${projectId}/overview`);
+  }
+
+  async startSASTScan(projectId: number, scanData: { branch: string; scan_type: string }): Promise<SASTScan> {
+    return this.request<SASTScan>(`/sast/projects/${projectId}/scans`, {
       method: 'POST',
-      body: JSON.stringify(projectData),
+      body: JSON.stringify(scanData),
     });
   }
 

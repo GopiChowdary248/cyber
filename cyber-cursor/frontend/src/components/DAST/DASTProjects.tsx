@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Plus, 
   Search, 
   Edit, 
@@ -45,8 +45,8 @@ const DASTProjects: React.FC = () => {
     try {
       const token = localStorage.getItem('token') || '';
       const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
       };
 
       const response = await fetch(`${API_BASE_URL}/projects`, { headers });
@@ -100,8 +100,8 @@ const DASTProjects: React.FC = () => {
     try {
       const token = localStorage.getItem('token') || '';
       const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
       };
 
       const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
@@ -165,7 +165,7 @@ const DASTProjects: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+      {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -223,9 +223,9 @@ const DASTProjects: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.name}
+                  value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Enter project name"
+                  placeholder="Enter project name"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -236,9 +236,9 @@ const DASTProjects: React.FC = () => {
                   </label>
                   <input
                     type="url"
-                    value={formData.target_url}
+                  value={formData.target_url}
                     onChange={(e) => setFormData({ ...formData, target_url: e.target.value })}
-                    placeholder="https://example.com"
+                  placeholder="https://example.com"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -248,9 +248,9 @@ const DASTProjects: React.FC = () => {
                     Description
                   </label>
                   <textarea
-                    value={formData.description}
+                  value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Enter project description"
+                  placeholder="Enter project description"
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />

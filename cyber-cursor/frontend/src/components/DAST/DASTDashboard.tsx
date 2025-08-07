@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Search, 
   AlertTriangle, 
   CheckCircle, 
@@ -253,7 +253,7 @@ const DASTDashboard: React.FC = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Security Score</p>
                   <p className={`text-2xl font-semibold ${getSecurityScoreColor(summary.security_score)}`}>
-                    {summary.security_score}%
+                  {summary.security_score}%
                   </p>
                 </div>
               </div>
@@ -349,7 +349,7 @@ const DASTDashboard: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{scan.id}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(scan.status)}`}>
-                            {scan.status}
+                    {scan.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{scan.started_at}</td>

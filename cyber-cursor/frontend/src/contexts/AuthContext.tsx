@@ -53,13 +53,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check if user is already authenticated on app load
   useEffect(() => {
-    console.log('AuthContext - useEffect triggered');
     const token = localStorage.getItem('access_token');
-    console.log('AuthContext - token found:', !!token);
     if (token) {
+      console.log('AuthContext - token found, fetching user profile');
       fetchUserProfile();
     } else {
-      console.log('AuthContext - no token, setting loading to false');
+      console.log('AuthContext - no token found, user not authenticated');
+      setUser(null);
       setLoading(false);
     }
   }, []);
@@ -82,13 +82,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+      } else if (response.status === 401 || response.status === 403) {
+        // Token is invalid or expired, clear it
+        console.log('Token invalid or expired, clearing...');
+        localStorage.removeItem('access_token');
+        setUser(null);
+      } else if (response.status === 500) {
+        // Server error, clear token to prevent further issues
+        console.warn('Server error when fetching user profile, clearing token');
+        localStorage.removeItem('access_token');
+        setUser(null);
       } else {
-        // Token is invalid, clear it
+        // Other errors, clear token to be safe
+        console.warn('Unexpected error when fetching user profile, clearing token');
         localStorage.removeItem('access_token');
         setUser(null);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      // Network errors or other issues - clear token to prevent further issues
       localStorage.removeItem('access_token');
       setUser(null);
     } finally {
@@ -203,7 +215,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const updatedUser = await response.json();
       setUser(updatedUser);
-      toast.success('Profile updated successfully');
+      toast.success('Profile updated successfully!');
     } catch (error) {
       console.error('Profile update error:', error);
       toast.error(error instanceof Error ? error.message : 'Profile update failed');

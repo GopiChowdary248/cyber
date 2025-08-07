@@ -40,9 +40,10 @@ const SASTProjects: React.FC = () => {
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/sast/projects', {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/sast/projects`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
         },
       });
@@ -63,10 +64,11 @@ const SASTProjects: React.FC = () => {
 
   const createProject = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/sast/projects', {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/sast/projects`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(newProject),
@@ -88,10 +90,11 @@ const SASTProjects: React.FC = () => {
 
   const startScan = async (projectId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/sast/projects/${projectId}/scans`, {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/sast/projects/${projectId}/scans`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

@@ -1,0 +1,136 @@
+{
+  "test_summary": {
+    "timestamp": "2025-08-04T18:57:36.507131",
+    "total_tests": 18,
+    "passed": 6,
+    "failed": 24,
+    "success_rate": "33.33%"
+  },
+  "duplicate_analysis": {
+    "duplicate_patterns": {},
+    "total_endpoints": 10,
+    "unique_patterns": 10
+  },
+  "endpoints_tested": [
+    {
+      "endpoint": "/",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "description": "Root endpoint"
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "description": "Health check"
+    },
+    {
+      "endpoint": "/api/v1/health",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "description": "API health check"
+    },
+    {
+      "endpoint": "/protected",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "description": "Protected endpoint"
+    },
+    {
+      "endpoint": "/api/v1/sast/rules",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "description": "Get Detection Rules"
+    },
+    {
+      "endpoint": "/api/v1/sast/languages",
+      "method": "GET",
+      "status": 200,
+      "success": true,
+      "description": "Get Supported Languages"
+    }
+  ],
+  "errors": [
+    {
+      "endpoint": "/api/v1/sast/dashboard",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "SAST Dashboard"
+    },
+    {
+      "endpoint": "/api/v1/sast/overview",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "SAST Overview"
+    },
+    {
+      "endpoint": "/api/v1/sast/projects",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get SAST Projects"
+    },
+    {
+      "endpoint": "/api/v1/sast/projects",
+      "method": "POST",
+      "error": "Connection closed",
+      "description": "Create SAST Project"
+    },
+    {
+      "endpoint": "/api/v1/sast/scans",
+      "method": "POST",
+      "error": "Connection closed",
+      "description": "Start SAST Scan"
+    },
+    {
+      "endpoint": "/api/v1/sast/vulnerabilities",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get SAST Vulnerabilities"
+    },
+    {
+      "endpoint": "/api/v1/sast/vulnerabilities?severity=CRITICAL",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get Critical Vulnerabilities"
+    },
+    {
+      "endpoint": "/api/v1/sast/statistics",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get SAST Statistics"
+    },
+    {
+      "endpoint": "/api/v1/sast/projects/1",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get Specific Project"
+    },
+    {
+      "endpoint": "/api/v1/sast/projects/1/scans",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get Project Scan History"
+    },
+    {
+      "endpoint": "/api/v1/sast/projects/1/vulnerabilities",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get Project Vulnerabilities"
+    },
+    {
+      "endpoint": "/api/v1/sast/scans/1",
+      "method": "GET",
+      "error": "Connection closed",
+      "description": "Get Scan Details"
+    }
+  ],
+  "recommendations": [
+    "Fix failed endpoint tests",
+    "Improve overall test coverage"
+  ]
+}

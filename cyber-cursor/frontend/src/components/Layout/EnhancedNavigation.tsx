@@ -51,6 +51,12 @@ const navigationItems: NavigationItem[] = [
     icon: <ChartBarIcon className="w-5 h-5" />,
     href: '/dashboard'
   },
+  {
+    id: 'projects',
+    label: 'Projects',
+    icon: <DocumentTextIcon className="w-5 h-5" />,
+    href: '/projects'
+  },
               {
               id: 'application-security',
               label: 'Application Security',
@@ -59,6 +65,7 @@ const navigationItems: NavigationItem[] = [
               children: [
                 { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/application-security' },
                 { id: 'sast', label: 'SAST', icon: <CodeBracketIcon className="w-4 h-4" />, href: '/sast' },
+                { id: 'sast-results', label: 'SAST Results', icon: <DocumentTextIcon className="w-4 h-4" />, href: '/sast/results' },
                 { id: 'dast', label: 'DAST', icon: <ShieldExclamationIcon className="w-4 h-4" />, href: '/dast' },
                 { id: 'rasp', label: 'RASP', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/application-security/rasp' },
                 { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/application-security/monitoring' }

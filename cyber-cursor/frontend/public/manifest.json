@@ -1,0 +1,20 @@
+{
+  "short_name": "CyberShield",
+  "name": "CyberShield Security Platform",
+  "description": "Comprehensive Cybersecurity Platform with SAST, DAST, RASP, and Cloud Security",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "version": "1.0.1"
+} 

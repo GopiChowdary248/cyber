@@ -408,3 +408,231 @@ async def validate_password_strength(
     except Exception as e:
         logger.error("Failed to validate password strength", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to validate password strength") 
+
+@router.get("/summary")
+async def get_security_summary(
+    current_user: User = Depends(get_current_user)
+):
+    """Get security summary dashboard data"""
+    try:
+        # Mock security summary data
+        summary = {
+            "threats_blocked": 1247,
+            "vulnerabilities": 23,
+            "incidents_resolved": 142,
+            "security_score": 87,
+            "active_threats": 3,
+            "critical_alerts": 1,
+            "system_status": "healthy",
+            "last_scan": datetime.utcnow().isoformat(),
+            "security_trends": {
+                "threats_trend": "decreasing",
+                "vulnerabilities_trend": "stable",
+                "incidents_trend": "decreasing"
+            },
+            "quick_stats": {
+                "sast_scans": 45,
+                "dast_scans": 32,
+                "rasp_events": 156,
+                "cloud_misconfigs": 12
+            }
+        }
+        
+        return {
+            "success": True,
+            "data": summary
+        }
+    except Exception as e:
+        logger.error("Failed to get security summary", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get security summary")
+
+@router.get("/sast/results")
+async def get_sast_results(
+    current_user: User = Depends(get_current_user)
+):
+    """Get SAST scan results"""
+    try:
+        # Mock SAST results
+        sast_results = {
+            "total_scans": 45,
+            "last_scan": datetime.utcnow().isoformat(),
+            "vulnerabilities_found": 23,
+            "critical_issues": 3,
+            "high_issues": 8,
+            "medium_issues": 7,
+            "low_issues": 5,
+            "scan_status": "completed",
+            "recent_findings": [
+                {
+                    "id": "SAST-001",
+                    "severity": "critical",
+                    "type": "SQL Injection",
+                    "file": "app/api/v1/endpoints/auth.py",
+                    "line": 45,
+                    "description": "Potential SQL injection vulnerability",
+                    "status": "open"
+                },
+                {
+                    "id": "SAST-002",
+                    "severity": "high",
+                    "type": "XSS",
+                    "file": "frontend/src/components/Login.tsx",
+                    "line": 23,
+                    "description": "Cross-site scripting vulnerability",
+                    "status": "open"
+                }
+            ],
+            "scan_history": [
+                {
+                    "scan_id": "SAST-2024-001",
+                    "timestamp": (datetime.utcnow() - timedelta(days=1)).isoformat(),
+                    "vulnerabilities": 25,
+                    "status": "completed"
+                },
+                {
+                    "scan_id": "SAST-2024-002",
+                    "timestamp": (datetime.utcnow() - timedelta(days=3)).isoformat(),
+                    "vulnerabilities": 28,
+                    "status": "completed"
+                }
+            ]
+        }
+        
+        return {
+            "success": True,
+            "data": sast_results
+        }
+    except Exception as e:
+        logger.error("Failed to get SAST results", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get SAST results")
+
+@router.get("/dast/results")
+async def get_dast_results(
+    current_user: User = Depends(get_current_user)
+):
+    """Get DAST scan results"""
+    try:
+        # Mock DAST results
+        dast_results = {
+            "total_scans": 32,
+            "last_scan": datetime.utcnow().isoformat(),
+            "vulnerabilities_found": 15,
+            "critical_issues": 2,
+            "high_issues": 5,
+            "medium_issues": 6,
+            "low_issues": 2,
+            "scan_status": "completed",
+            "target_urls": [
+                "https://app.example.com",
+                "https://api.example.com",
+                "https://admin.example.com"
+            ],
+            "recent_findings": [
+                {
+                    "id": "DAST-001",
+                    "severity": "critical",
+                    "type": "Authentication Bypass",
+                    "url": "https://app.example.com/login",
+                    "description": "Authentication can be bypassed",
+                    "status": "open"
+                },
+                {
+                    "id": "DAST-002",
+                    "severity": "high",
+                    "type": "CSRF",
+                    "url": "https://app.example.com/profile",
+                    "description": "Cross-site request forgery vulnerability",
+                    "status": "open"
+                }
+            ],
+            "scan_history": [
+                {
+                    "scan_id": "DAST-2024-001",
+                    "timestamp": (datetime.utcnow() - timedelta(days=2)).isoformat(),
+                    "vulnerabilities": 18,
+                    "status": "completed"
+                },
+                {
+                    "scan_id": "DAST-2024-002",
+                    "timestamp": (datetime.utcnow() - timedelta(days=5)).isoformat(),
+                    "vulnerabilities": 22,
+                    "status": "completed"
+                }
+            ]
+        }
+        
+        return {
+            "success": True,
+            "data": dast_results
+        }
+    except Exception as e:
+        logger.error("Failed to get DAST results", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get DAST results")
+
+@router.get("/rasp/logs")
+async def get_rasp_logs(
+    current_user: User = Depends(get_current_user)
+):
+    """Get RASP (Runtime Application Self-Protection) logs"""
+    try:
+        # Mock RASP logs
+        rasp_logs = {
+            "total_events": 156,
+            "last_event": datetime.utcnow().isoformat(),
+            "events_today": 23,
+            "blocked_attacks": 12,
+            "suspicious_activities": 8,
+            "recent_events": [
+                {
+                    "id": "RASP-001",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "event_type": "SQL_INJECTION_ATTEMPT",
+                    "severity": "high",
+                    "source_ip": "192.168.1.100",
+                    "endpoint": "/api/v1/users",
+                    "action": "blocked",
+                    "details": "SQL injection attempt detected and blocked"
+                },
+                {
+                    "id": "RASP-002",
+                    "timestamp": (datetime.utcnow() - timedelta(minutes=5)).isoformat(),
+                    "event_type": "XSS_ATTEMPT",
+                    "severity": "medium",
+                    "source_ip": "192.168.1.101",
+                    "endpoint": "/api/v1/comments",
+                    "action": "blocked",
+                    "details": "XSS attempt detected and blocked"
+                },
+                {
+                    "id": "RASP-003",
+                    "timestamp": (datetime.utcnow() - timedelta(minutes=10)).isoformat(),
+                    "event_type": "SUSPICIOUS_ACTIVITY",
+                    "severity": "low",
+                    "source_ip": "192.168.1.102",
+                    "endpoint": "/api/v1/auth/login",
+                    "action": "monitored",
+                    "details": "Multiple failed login attempts detected"
+                }
+            ],
+            "event_types": {
+                "SQL_INJECTION_ATTEMPT": 5,
+                "XSS_ATTEMPT": 3,
+                "PATH_TRAVERSAL": 2,
+                "SUSPICIOUS_ACTIVITY": 8,
+                "AUTHENTICATION_FAILURE": 4,
+                "RATE_LIMIT_EXCEEDED": 1
+            },
+            "top_source_ips": [
+                {"ip": "192.168.1.100", "events": 8},
+                {"ip": "192.168.1.101", "events": 5},
+                {"ip": "192.168.1.102", "events": 3}
+            ]
+        }
+        
+        return {
+            "success": True,
+            "data": rasp_logs
+        }
+    except Exception as e:
+        logger.error("Failed to get RASP logs", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to get RASP logs") 

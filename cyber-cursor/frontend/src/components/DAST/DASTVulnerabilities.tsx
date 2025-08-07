@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Search, 
   Filter, 
   Eye, 
@@ -46,8 +46,8 @@ const DASTVulnerabilities: React.FC = () => {
     try {
       const token = localStorage.getItem('token') || '';
       const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
       };
 
       const response = await fetch(`${API_BASE_URL}/vulnerabilities`, { headers });
@@ -152,7 +152,7 @@ const DASTVulnerabilities: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+      {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -217,7 +217,7 @@ const DASTVulnerabilities: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search vulnerabilities..."
+            placeholder="Search vulnerabilities..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -245,7 +245,7 @@ const DASTVulnerabilities: React.FC = () => {
           </select>
         </div>
 
-        {/* Vulnerabilities List */}
+      {/* Vulnerabilities List */}
         {filteredVulnerabilities.length === 0 ? (
           <div className="text-center py-12">
             <AlertTriangle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -326,7 +326,7 @@ const DASTVulnerabilities: React.FC = () => {
           </div>
         )}
 
-        {/* Vulnerability Details Modal */}
+      {/* Vulnerability Details Modal */}
         {selectedVuln && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
