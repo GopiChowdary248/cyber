@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Search, 
   Play, 
   Square, 
@@ -41,8 +41,8 @@ const DASTScans: React.FC = () => {
     try {
       const token = localStorage.getItem('token') || '';
       const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
       };
 
       const response = await fetch(`${API_BASE_URL}/scans`, { headers });
@@ -88,22 +88,22 @@ const DASTScans: React.FC = () => {
   };
 
   const handleStopScan = async (scanId: string) => {
-    try {
-      const token = localStorage.getItem('token') || '';
+            try {
+              const token = localStorage.getItem('token') || '';
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
 
-      const response = await fetch(`${API_BASE_URL}/scans/${scanId}/stop`, {
-        method: 'POST',
+              const response = await fetch(`${API_BASE_URL}/scans/${scanId}/stop`, {
+                method: 'POST',
         headers,
-      });
+              });
 
-      if (response.ok) {
-        fetchScans();
-      }
-    } catch (error) {
+              if (response.ok) {
+                fetchScans();
+              }
+            } catch (error) {
       console.error('Error stopping scan:', error);
     }
   };
@@ -169,7 +169,7 @@ const DASTScans: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+      {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -286,7 +286,7 @@ const DASTScans: React.FC = () => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {scan.status === 'running' && (
+                {scan.status === 'running' && (
                             <button
                               onClick={() => handleStopScan(scan.id)}
                               className="text-red-600 hover:text-red-900"

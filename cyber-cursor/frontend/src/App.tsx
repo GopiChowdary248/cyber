@@ -17,12 +17,16 @@ import IAMSecurity from './pages/IAMSecurity/IAMSecurity';
 import DataSecurity from './pages/DataSecurity/DataSecurity';
 import SIEMSOAR from './pages/SIEMSOAR/SIEMSOAR';
 import SAST from './pages/SAST/SAST';
+import SASTIssues from './pages/SAST/SASTIssues';
+import SASTScanResults from './pages/SAST/SASTScanResults';
+import Projects from './pages/Projects/Projects';
 import Login from './pages/Login/Login';
 import Register from './pages/Auth/Register';
 import Incidents from './pages/Incidents/Incidents';
 import Settings from './pages/Settings/Settings';
 import UserDashboard from './pages/User/UserDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import SASTProjectDetails from './pages/SAST/SASTProjectDetails';
 
 // Import contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -216,6 +220,19 @@ const AppContent: React.FC = () => {
             <Route 
               path="/application-security" 
               element={
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ApplicationSecurity />
+                </motion.div>
+              } 
+            />
+            <Route 
+              path="/projects" 
+              element={
                 <ProtectedRoute>
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
@@ -223,7 +240,7 @@ const AppContent: React.FC = () => {
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <ApplicationSecurity />
+                    <Projects />
                   </motion.div>
                 </ProtectedRoute>
               } 
@@ -319,8 +336,8 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/sast" 
+                        <Route
+              path="/sast"
               element={
                 <ProtectedRoute>
                   <motion.div
@@ -330,6 +347,81 @@ const AppContent: React.FC = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <SAST />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sast/projects"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SAST />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sast/projects/:projectId"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SASTProjectDetails />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sast/issues"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SASTIssues />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sast/results"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SASTScanResults />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/sast/issues" 
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SASTIssues />
                   </motion.div>
                 </ProtectedRoute>
               } 

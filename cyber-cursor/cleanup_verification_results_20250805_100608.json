@@ -1,0 +1,228 @@
+{
+  "timestamp": "2025-08-05T10:06:08.365974",
+  "total_duration": 0.14151930809020996,
+  "tests_run": 7,
+  "tests_passed": 3,
+  "tests_failed": 4,
+  "exceptions": 0,
+  "detailed_results": [
+    {
+      "test_type": "backend_health",
+      "success": true,
+      "status": "healthy",
+      "timestamp": "2025-08-05T04:36:08.312777"
+    },
+    {
+      "test_type": "database_connection",
+      "success": false,
+      "error": "HTTP 404"
+    },
+    {
+      "test_type": "dast_endpoints",
+      "success": false,
+      "endpoints_tested": 4,
+      "endpoints_successful": 3,
+      "results": [
+        {
+          "endpoint": "/dast/scans",
+          "status": 403,
+          "success": true
+        },
+        {
+          "endpoint": "/dast/vulnerabilities",
+          "status": 403,
+          "success": true
+        },
+        {
+          "endpoint": "/dast/payloads",
+          "status": 403,
+          "success": true
+        },
+        {
+          "endpoint": "/dast/reports",
+          "status": 404,
+          "success": false
+        }
+      ]
+    },
+    {
+      "test_type": "sast_endpoints",
+      "success": false,
+      "endpoints_tested": 4,
+      "endpoints_successful": 0,
+      "results": [
+        {
+          "endpoint": "/sast/projects",
+          "status": 404,
+          "success": false
+        },
+        {
+          "endpoint": "/sast/scans",
+          "status": 404,
+          "success": false
+        },
+        {
+          "endpoint": "/sast/issues",
+          "status": 404,
+          "success": false
+        },
+        {
+          "endpoint": "/sast/security-hotspots",
+          "status": 404,
+          "success": false
+        }
+      ]
+    },
+    {
+      "test_type": "authentication_endpoints",
+      "success": false,
+      "endpoints_tested": 3,
+      "endpoints_successful": 0,
+      "results": [
+        {
+          "endpoint": "/auth/login",
+          "status": 404,
+          "success": false
+        },
+        {
+          "endpoint": "/auth/register",
+          "status": 404,
+          "success": false
+        },
+        {
+          "endpoint": "/auth/refresh",
+          "status": 404,
+          "success": false
+        }
+      ]
+    },
+    {
+      "test_type": "file_structure",
+      "success": true,
+      "removed_files_count": 14,
+      "required_files_count": 6,
+      "removed_files_successful": 14,
+      "required_files_successful": 6,
+      "details": {
+        "removed_files": [
+          {
+            "file": "mobile/src/screens/DASTScreen.tsx",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "mobile/src/screens/SASTScreen.tsx",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "mobile/src/screens/SASTCompleteScreen.tsx",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/dast_scanner.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/dast_service.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/dast_payloads.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/sast_service.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/sast_scanner.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/sast_reports.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/sast_database.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/cloud_security_service.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/ai_service.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/api/v1/endpoints/enhanced_cloud_security.py",
+            "status": "removed",
+            "success": true
+          },
+          {
+            "file": "backend/app/api/v1/endpoints/endpoint_security.py",
+            "status": "removed",
+            "success": true
+          }
+        ],
+        "required_files": [
+          {
+            "file": "mobile/src/screens/DASTEnhancedScreen.tsx",
+            "status": "exists",
+            "success": true
+          },
+          {
+            "file": "mobile/src/screens/SASTEnhancedScreen.tsx",
+            "status": "exists",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/dast_core.py",
+            "status": "exists",
+            "success": true
+          },
+          {
+            "file": "backend/app/services/dast_fuzzer.py",
+            "status": "exists",
+            "success": true
+          },
+          {
+            "file": "backend/app/models/dast.py",
+            "status": "exists",
+            "success": true
+          },
+          {
+            "file": "backend/app/api/v1/endpoints/dast.py",
+            "status": "exists",
+            "success": true
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "test_type": "navigation_configuration",
+      "success": true,
+      "checks": {
+        "DASTEnhancedScreen import": true,
+        "SASTEnhancedScreen import": true,
+        "No DASTScreen import": true,
+        "No SASTScreen import": true,
+        "No SASTCompleteScreen import": true
+      },
+      "checks_passed": 5,
+      "total_checks": 5
+    }
+  ]
+}

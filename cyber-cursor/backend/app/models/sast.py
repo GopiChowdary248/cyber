@@ -1,362 +1,735 @@
 #!/usr/bin/env python3
 """
 Database models for SAST (Static Application Security Testing)
+Enhanced with SonarQube-like comprehensive functionality
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, UUID
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Enum, JSON, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from typing import Optional, List
-from enum import Enum
-import uuid
+import enum
 
 from app.core.database import Base
 
-class ScanStatus(str, Enum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+class IssueSeverity(str, enum.Enum):
+    BLOCKER = "BLOCKER"
+    CRITICAL = "CRITICAL"
+    MAJOR = "MAJOR"
+    MINOR = "MINOR"
+    INFO = "INFO"
 
-class VulnerabilitySeverity(str, Enum):
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    INFO = "info"
+class IssueType(str, enum.Enum):
+    BUG = "BUG"
+    VULNERABILITY = "VULNERABILITY"
+    CODE_SMELL = "CODE_SMELL"
+    SECURITY_HOTSPOT = "SECURITY_HOTSPOT"
 
-class VulnerabilityStatus(str, Enum):
-    OPEN = "open"
-    FIXED = "fixed"
-    IGNORED = "ignored"
-    FALSE_POSITIVE = "false_positive"
+class IssueStatus(str, enum.Enum):
+    OPEN = "OPEN"
+    CONFIRMED = "CONFIRMED"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+    REOPENED = "REOPENED"
 
-class AutoFixStatus(str, Enum):
-    AVAILABLE = "available"
-    APPLIED = "applied"
-    NOT_AVAILABLE = "not_available"
-    FAILED = "failed"
+class IssueResolution(str, enum.Enum):
+    FIXED = "FIXED"
+    WONTFIX = "WONTFIX"
+    FALSE_POSITIVE = "FALSE_POSITIVE"
+    ACCEPTED = "ACCEPTED"
+
+class QualityGateStatus(str, enum.Enum):
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    WARNING = "WARNING"
+
+class Rating(str, enum.Enum):
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+    E = "E"
+
+class ScanStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+class SecurityHotspotStatus(str, enum.Enum):
+    TO_REVIEW = "TO_REVIEW"
+    REVIEWED = "REVIEWED"
+    FIXED = "FIXED"
+
+class SecurityHotspotResolution(str, enum.Enum):
+    FIXED = "FIXED"
+    SAFE = "SAFE"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+
+# ============================================================================
+# Core SAST Models
+# ============================================================================
 
 class SASTProject(Base):
     __tablename__ = "sast_projects"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    repository_url = Column(Text, nullable=True)
-    language = Column(String(50), nullable=True)
+    key = Column(String(255), unique=True, index=True, nullable=False)
+    language = Column(String(50), nullable=False)
+    repository_url = Column(String(500), nullable=True)
+    branch = Column(String(100), default="main")
+    
+    # Quality metrics
+    quality_gate = Column(Enum(QualityGateStatus), default=QualityGateStatus.PASSED)
+    maintainability_rating = Column(Enum(Rating), default=Rating.A)
+    security_rating = Column(Enum(Rating), default=Rating.A)
+    reliability_rating = Column(Enum(Rating), default=Rating.A)
+    
+    # Counts
+    vulnerability_count = Column(Integer, default=0)
+    bug_count = Column(Integer, default=0)
+    code_smell_count = Column(Integer, default=0)
+    security_hotspot_count = Column(Integer, default=0)
+    
+    # Code metrics
+    lines_of_code = Column(Integer, default=0)
+    lines_of_comment = Column(Integer, default=0)
+    duplicated_lines = Column(Integer, default=0)
+    duplicated_blocks = Column(Integer, default=0)
+    
+    # Coverage metrics
+    coverage = Column(Float, default=0.0)
+    uncovered_lines = Column(Integer, default=0)
+    uncovered_conditions = Column(Integer, default=0)
+    
+    # Technical debt
+    technical_debt = Column(Integer, default=0)  # minutes
+    debt_ratio = Column(Float, default=0.0)  # percentage
+    
+    # Metadata
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    last_analysis = Column(DateTime, nullable=True)
+    
+    # Relationships
+    issues = relationship("SASTIssue", back_populates="project")
+    scans = relationship("SASTScan", back_populates="project")
+    quality_gates = relationship("SASTQualityGate", back_populates="project")
+    security_hotspots = relationship("SASTSecurityHotspot", back_populates="project")
+    code_coverages = relationship("SASTCodeCoverage", back_populates="project")
+    duplications = relationship("SASTDuplication", back_populates="project")
+    
+    @classmethod
+    async def get_by_key(cls, db: AsyncSession, key: str) -> Optional["SASTProject"]:
+        """Get project by key"""
+        result = await db.execute(select(cls).where(cls.key == key))
+        return result.scalar_one_or_none()
+    
+    @classmethod
+    async def get_by_id(cls, db: AsyncSession, project_id: int) -> Optional["SASTProject"]:
+        """Get project by ID"""
+        result = await db.execute(select(cls).where(cls.id == project_id))
+        return result.scalar_one_or_none()
+
+class SASTIssue(Base):
+    __tablename__ = "sast_issues"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=True)
+    
+    # Issue details
+    rule_id = Column(String(255), nullable=False)
+    rule_name = Column(String(255), nullable=False)
+    rule_category = Column(String(100), nullable=True)
+    message = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
     
-    # Project configuration
-    scan_config = Column(JSON, nullable=True)  # Scan configuration settings
-    rules_config = Column(JSON, nullable=True)  # Custom rules configuration
+    # Location
+    file_path = Column(String(500), nullable=False)
+    line_number = Column(Integer, nullable=False)
+    start_line = Column(Integer, nullable=True)
+    end_line = Column(Integer, nullable=True)
+    start_column = Column(Integer, nullable=True)
+    end_column = Column(Integer, nullable=True)
     
-    # Statistics
-    total_scans = Column(Integer, default=0)
-    avg_vulnerabilities = Column(Float, default=0.0)
-    security_score = Column(Float, nullable=True)  # 0-100 security score
+    # Classification
+    severity = Column(Enum(IssueSeverity), nullable=False)
+    type = Column(Enum(IssueType), nullable=False)
+    status = Column(Enum(IssueStatus), default=IssueStatus.OPEN)
+    resolution = Column(Enum(IssueResolution), default=IssueResolution.FALSE_POSITIVE)
     
-    # Status
-    is_active = Column(Boolean, default=True)
+    # Assignment
+    assignee = Column(String(100), nullable=True)
+    author = Column(String(100), nullable=True)
+    
+    # Metrics
+    effort = Column(Integer, default=0)  # minutes to fix
+    debt = Column(Integer, default=0)    # technical debt in minutes
+    
+    # Security metadata
+    cwe_id = Column(String(20), nullable=True)
+    cvss_score = Column(Float, nullable=True)
+    owasp_category = Column(String(100), nullable=True)
+    tags = Column(JSON, nullable=True)  # JSON array of tags
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    last_scan = Column(DateTime, nullable=True)
     
     # Relationships
-    scans = relationship("SASTScan", back_populates="project")
-    vulnerabilities = relationship("SASTVulnerability", back_populates="project")
-    
-    # Created by
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    user = relationship("User")
+    project = relationship("SASTProject", back_populates="issues")
+    scan = relationship("SASTScan", back_populates="issues")
     
     @classmethod
-    async def get_by_id(cls, db: AsyncSession, project_id: str) -> Optional["SASTProject"]:
-        """Get SAST project by ID"""
-        result = await db.execute(select(cls).where(cls.id == project_id))
-        return result.scalar_one_or_none()
-    
-    @classmethod
-    async def get_all(cls, db: AsyncSession, skip: int = 0, limit: int = 100) -> List["SASTProject"]:
-        """Get all SAST projects with pagination"""
-        result = await db.execute(select(cls).offset(skip).limit(limit))
+    async def get_by_project(cls, db: AsyncSession, project_id: int, skip: int = 0, limit: int = 100) -> List["SASTIssue"]:
+        """Get issues for a project"""
+        result = await db.execute(
+            select(cls)
+            .where(cls.project_id == project_id)
+            .offset(skip)
+            .limit(limit)
+        )
         return result.scalars().all()
     
     @classmethod
-    async def get_by_language(cls, db: AsyncSession, language: str) -> List["SASTProject"]:
-        """Get projects by programming language"""
-        result = await db.execute(select(cls).where(cls.language == language))
+    async def get_by_severity(cls, db: AsyncSession, severity: IssueSeverity) -> List["SASTIssue"]:
+        """Get issues by severity"""
+        result = await db.execute(select(cls).where(cls.severity == severity))
         return result.scalars().all()
-    
-    def __repr__(self):
-        return f"<SASTProject(id={self.id}, name='{self.name}', language='{self.language}')>"
 
 class SASTScan(Base):
     __tablename__ = "sast_scans"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("sast_projects.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
     
     # Scan details
-    scan_type = Column(String(50), nullable=False)  # full, incremental, custom
-    status = Column(String(20), default=ScanStatus.QUEUED)
+    scan_type = Column(String(50), nullable=False)  # full, incremental, etc.
+    branch = Column(String(100), nullable=False)
+    status = Column(Enum(ScanStatus), default=ScanStatus.PENDING)
     
-    # Scan configuration
-    scan_config = Column(JSON, nullable=True)  # Scan configuration
-    rules_enabled = Column(JSON, nullable=True)  # List of enabled rule IDs
+    # Progress
+    progress = Column(Float, default=0.0)  # 0-100
+    total_files = Column(Integer, default=0)
+    scanned_files = Column(Integer, default=0)
     
-    # Scan results
+    # Results
+    issues_found = Column(Integer, default=0)
     vulnerabilities_found = Column(Integer, default=0)
-    files_scanned = Column(Integer, default=0)
+    bugs_found = Column(Integer, default=0)
+    code_smells_found = Column(Integer, default=0)
+    security_hotspots_found = Column(Integer, default=0)
+    
+    # Code metrics
     lines_of_code = Column(Integer, default=0)
-    scan_duration = Column(Float, nullable=True)  # Duration in seconds
+    lines_of_comment = Column(Integer, default=0)
+    duplicated_lines = Column(Integer, default=0)
+    duplicated_blocks = Column(Integer, default=0)
     
-    # Scan metadata
-    scan_logs = Column(JSON, nullable=True)  # Detailed scan logs
-    scan_summary = Column(JSON, nullable=True)  # Scan summary statistics
+    # Coverage metrics
+    coverage = Column(Float, default=0.0)
+    uncovered_lines = Column(Integer, default=0)
+    uncovered_conditions = Column(Integer, default=0)
     
-    # Timestamps
+    # Technical debt
+    technical_debt = Column(Integer, default=0)  # minutes
+    debt_ratio = Column(Float, default=0.0)  # percentage
+    
+    # Timing
+    started_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     started_at = Column(DateTime, default=func.now())
     completed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    duration = Column(Integer, nullable=True)  # seconds
+    
+    # Error handling
+    error_message = Column(Text, nullable=True)
     
     # Relationships
     project = relationship("SASTProject", back_populates="scans")
-    vulnerabilities = relationship("SASTVulnerability", back_populates="scan")
-    
-    # Initiated by
-    initiated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    user = relationship("User")
+    issues = relationship("SASTIssue", back_populates="scan")
     
     @classmethod
-    async def get_by_id(cls, db: AsyncSession, scan_id: str) -> Optional["SASTScan"]:
-        """Get SAST scan by ID"""
-        result = await db.execute(select(cls).where(cls.id == scan_id))
-        return result.scalar_one_or_none()
-    
-    @classmethod
-    async def get_by_project(cls, db: AsyncSession, project_id: str, skip: int = 0, limit: int = 100) -> List["SASTScan"]:
-        """Get scans by project ID"""
+    async def get_recent_scans(cls, db: AsyncSession, project_id: int, limit: int = 10) -> List["SASTScan"]:
+        """Get recent scans for a project"""
         result = await db.execute(
-            select(cls).where(cls.project_id == project_id).offset(skip).limit(limit)
+            select(cls)
+            .where(cls.project_id == project_id)
+            .order_by(cls.started_at.desc())
+            .limit(limit)
         )
         return result.scalars().all()
-    
-    @classmethod
-    async def get_by_status(cls, db: AsyncSession, status: str) -> List["SASTScan"]:
-        """Get scans by status"""
-        result = await db.execute(select(cls).where(cls.status == status))
-        return result.scalars().all()
-    
-    def __repr__(self):
-        return f"<SASTScan(id={self.id}, project_id={self.project_id}, status='{self.status}')>"
 
-class SASTVulnerability(Base):
-    __tablename__ = "sast_vulnerabilities"
+# ============================================================================
+# Security Hotspots
+# ============================================================================
+
+class SASTSecurityHotspot(Base):
+    __tablename__ = "sast_security_hotspots"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    scan_id = Column(UUID(as_uuid=True), ForeignKey("sast_scans.id"), nullable=False)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("sast_projects.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=True)
     
-    # Vulnerability details
-    title = Column(String(255), nullable=False)
+    # Hotspot details
+    rule_id = Column(String(255), nullable=False)
+    rule_name = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
-    severity = Column(String(20), nullable=False)
-    status = Column(String(20), default=VulnerabilityStatus.OPEN)
     
-    # Code location
-    file_path = Column(Text, nullable=False)
+    # Location
+    file_path = Column(String(500), nullable=False)
     line_number = Column(Integer, nullable=False)
-    column_number = Column(Integer, nullable=True)
-    function_name = Column(String(255), nullable=True)
+    start_line = Column(Integer, nullable=True)
+    end_line = Column(Integer, nullable=True)
     
-    # Vulnerability classification
+    # Classification
+    status = Column(Enum(SecurityHotspotStatus), default=SecurityHotspotStatus.TO_REVIEW)
+    resolution = Column(Enum(SecurityHotspotResolution), nullable=True)
+    
+    # Security metadata
     cwe_id = Column(String(20), nullable=True)
+    cvss_score = Column(Float, nullable=True)
     owasp_category = Column(String(100), nullable=True)
-    language = Column(String(50), nullable=True)
+    tags = Column(JSON, nullable=True)  # JSON array of tags
     
-    # Code snippets
-    vulnerable_code = Column(Text, nullable=True)
-    fixed_code = Column(Text, nullable=True)
-    context_before = Column(Text, nullable=True)
-    context_after = Column(Text, nullable=True)
-    
-    # Auto-fix information
-    auto_fix_available = Column(Boolean, default=False)
-    auto_fix_status = Column(String(20), default=AutoFixStatus.NOT_AVAILABLE)
-    auto_fix_suggestion = Column(Text, nullable=True)
-    
-    # Additional metadata
-    tags = Column(JSON, nullable=True)  # Array of tags
-    vuln_metadata = Column(JSON, nullable=True)  # Additional vulnerability metadata
+    # Review information
+    reviewed_by = Column(String(100), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_comment = Column(Text, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    fixed_at = Column(DateTime, nullable=True)
     
     # Relationships
-    scan = relationship("SASTScan", back_populates="vulnerabilities")
-    project = relationship("SASTProject", back_populates="vulnerabilities")
-    rule = relationship("SASTRule", back_populates="vulnerabilities")
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("sast_rules.id"), nullable=True)
+    project = relationship("SASTProject", back_populates="security_hotspots")
+    scan = relationship("SASTScan")
+
+# ============================================================================
+# Code Coverage
+# ============================================================================
+
+class SASTCodeCoverage(Base):
+    __tablename__ = "sast_code_coverage"
     
-    @classmethod
-    async def get_by_id(cls, db: AsyncSession, vulnerability_id: str) -> Optional["SASTVulnerability"]:
-        """Get vulnerability by ID"""
-        result = await db.execute(select(cls).where(cls.id == vulnerability_id))
-        return result.scalar_one_or_none()
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=True)
     
-    @classmethod
-    async def get_by_scan(cls, db: AsyncSession, scan_id: str) -> List["SASTVulnerability"]:
-        """Get vulnerabilities by scan ID"""
-        result = await db.execute(select(cls).where(cls.scan_id == scan_id))
-        return result.scalars().all()
+    # File information
+    file_path = Column(String(500), nullable=False)
     
-    @classmethod
-    async def get_by_severity(cls, db: AsyncSession, severity: str) -> List["SASTVulnerability"]:
-        """Get vulnerabilities by severity"""
-        result = await db.execute(select(cls).where(cls.severity == severity))
-        return result.scalars().all()
+    # Coverage metrics
+    lines_to_cover = Column(Integer, default=0)
+    uncovered_lines = Column(Integer, default=0)
+    covered_lines = Column(Integer, default=0)
+    line_coverage = Column(Float, default=0.0)
     
-    @classmethod
-    async def get_by_project(cls, db: AsyncSession, project_id: str, skip: int = 0, limit: int = 100) -> List["SASTVulnerability"]:
-        """Get vulnerabilities by project ID"""
-        result = await db.execute(
-            select(cls).where(cls.project_id == project_id).offset(skip).limit(limit)
-        )
-        return result.scalars().all()
+    conditions_to_cover = Column(Integer, default=0)
+    uncovered_conditions = Column(Integer, default=0)
+    covered_conditions = Column(Integer, default=0)
+    branch_coverage = Column(Float, default=0.0)
     
-    def __repr__(self):
-        return f"<SASTVulnerability(id={self.id}, title='{self.title}', severity='{self.severity}')>"
+    # Overall coverage
+    overall_coverage = Column(Float, default=0.0)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    project = relationship("SASTProject", back_populates="code_coverages")
+    scan = relationship("SASTScan")
+
+# ============================================================================
+# Code Duplications
+# ============================================================================
+
+class SASTDuplication(Base):
+    __tablename__ = "sast_duplications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=False)
+    file_path = Column(String, nullable=False)
+    duplicated_lines = Column(Integer, nullable=False)
+    duplicated_blocks = Column(Integer, nullable=False)
+    duplication_density = Column(Float, nullable=False)
+    language = Column(String, nullable=False)
+    last_modified = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    project = relationship("SASTProject", back_populates="duplications")
+    scan = relationship("SASTScan")
+
+class SASTDuplicationBlock(Base):
+    __tablename__ = "sast_duplication_blocks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    duplication_id = Column(Integer, ForeignKey("sast_duplications.id"), nullable=False)
+    file_path = Column(String, nullable=False)
+    start_line = Column(Integer, nullable=False)
+    end_line = Column(Integer, nullable=False)
+    code_snippet = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Security Reports Models
+# ============================================================================
+
+class SASTSecurityReport(Base):
+    __tablename__ = "sast_security_reports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=False)
+    overall_security_rating = Column(Enum(Rating), nullable=False)
+    security_score = Column(Integer, nullable=False)
+    vulnerabilities_count = Column(Integer, nullable=False)
+    critical_vulnerabilities = Column(Integer, nullable=False)
+    major_vulnerabilities = Column(Integer, nullable=False)
+    minor_vulnerabilities = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SASTOWASPMapping(Base):
+    __tablename__ = "sast_owasp_mappings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    security_report_id = Column(Integer, ForeignKey("sast_security_reports.id"), nullable=False)
+    category = Column(String, nullable=False)  # e.g., "A01:2021 - Broken Access Control"
+    count = Column(Integer, nullable=False)
+    severity = Column(Enum(IssueSeverity), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SASTCWEMapping(Base):
+    __tablename__ = "sast_cwe_mappings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    security_report_id = Column(Integer, ForeignKey("sast_security_reports.id"), nullable=False)
+    cwe_id = Column(String, nullable=False)  # e.g., "CWE-89"
+    name = Column(String, nullable=False)
+    count = Column(Integer, nullable=False)
+    severity = Column(Enum(IssueSeverity), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Reliability Models
+# ============================================================================
+
+class SASTReliabilityReport(Base):
+    __tablename__ = "sast_reliability_reports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=False)
+    reliability_rating = Column(Enum(Rating), nullable=False)
+    bug_count = Column(Integer, nullable=False)
+    bug_density = Column(Float, nullable=False)
+    new_bugs = Column(Integer, nullable=False)
+    resolved_bugs = Column(Integer, nullable=False)
+    blocker_bugs = Column(Integer, nullable=False)
+    critical_bugs = Column(Integer, nullable=False)
+    major_bugs = Column(Integer, nullable=False)
+    minor_bugs = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SASTBugCategory(Base):
+    __tablename__ = "sast_bug_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    reliability_report_id = Column(Integer, ForeignKey("sast_reliability_reports.id"), nullable=False)
+    category = Column(String, nullable=False)  # e.g., "Null Pointer Exception"
+    count = Column(Integer, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Maintainability Models
+# ============================================================================
+
+class SASTMaintainabilityReport(Base):
+    __tablename__ = "sast_maintainability_reports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=False)
+    maintainability_rating = Column(Enum(Rating), nullable=False)
+    code_smell_count = Column(Integer, nullable=False)
+    code_smell_density = Column(Float, nullable=False)
+    complexity = Column(Float, nullable=False)
+    cognitive_complexity = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SASTCodeSmellCategory(Base):
+    __tablename__ = "sast_code_smell_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    maintainability_report_id = Column(Integer, ForeignKey("sast_maintainability_reports.id"), nullable=False)
+    category = Column(String, nullable=False)  # e.g., "Code Smells", "Unused Code"
+    count = Column(Integer, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Activity Models
+# ============================================================================
+
+class SASTActivity(Base):
+    __tablename__ = "sast_activities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    activity_type = Column(String, nullable=False)  # "COMMIT", "ISSUE", "HOTSPOT"
+    author = Column(String, nullable=False)
+    message = Column(Text, nullable=True)
+    timestamp = Column(DateTime, nullable=False)
+    activity_metadata = Column(JSON, nullable=True)  # Store additional data like files changed, lines added, etc.
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SASTContributor(Base):
+    __tablename__ = "sast_contributors"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    username = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    commits_count = Column(Integer, default=0)
+    issues_count = Column(Integer, default=0)
+    hotspots_count = Column(Integer, default=0)
+    last_activity = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# ============================================================================
+# Administration Models
+# ============================================================================
+
+class SASTProjectSettings(Base):
+    __tablename__ = "sast_project_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_schedule = Column(String, nullable=True)  # Cron expression
+    auto_scan = Column(Boolean, default=True)
+    quality_profile = Column(String, nullable=True)
+    quality_gate = Column(String, nullable=True)
+    exclusions = Column(JSON, nullable=True)  # Array of exclusion patterns
+    notifications_email = Column(Boolean, default=True)
+    notifications_slack = Column(Boolean, default=False)
+    notifications_webhook = Column(String, nullable=True)
+    integration_github = Column(Boolean, default=False)
+    integration_gitlab = Column(Boolean, default=False)
+    integration_bitbucket = Column(Boolean, default=False)
+    integration_jenkins = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SASTProjectPermission(Base):
+    __tablename__ = "sast_project_permissions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    group_name = Column(String, nullable=True)  # For group permissions
+    role = Column(String, nullable=False)  # "Admin", "User", "Viewer"
+    permissions = Column(JSON, nullable=True)  # Array of specific permissions
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# ============================================================================
+# Metrics and Trends Models
+# ============================================================================
+
+class SASTProjectMetrics(Base):
+    __tablename__ = "sast_project_metrics"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=False)
+    lines_of_code = Column(Integer, nullable=False)
+    files_count = Column(Integer, nullable=False)
+    functions_count = Column(Integer, nullable=False)
+    classes_count = Column(Integer, nullable=False)
+    complexity = Column(Float, nullable=False)
+    maintainability_rating = Column(Enum(Rating), nullable=False)
+    security_rating = Column(Enum(Rating), nullable=False)
+    reliability_rating = Column(Enum(Rating), nullable=False)
+    coverage = Column(Float, nullable=False)
+    duplication_density = Column(Float, nullable=False)
+    total_issues = Column(Integer, nullable=False)
+    bugs_count = Column(Integer, nullable=False)
+    vulnerabilities_count = Column(Integer, nullable=False)
+    code_smells_count = Column(Integer, nullable=False)
+    security_hotspots_count = Column(Integer, nullable=False)
+    total_debt = Column(Integer, nullable=False)  # in minutes
+    debt_ratio = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SASTProjectTrend(Base):
+    __tablename__ = "sast_project_trends"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    total_issues = Column(Integer, nullable=False)
+    bugs_count = Column(Integer, nullable=False)
+    vulnerabilities_count = Column(Integer, nullable=False)
+    code_smells_count = Column(Integer, nullable=False)
+    coverage = Column(Float, nullable=False)
+    duplication_density = Column(Float, nullable=False)
+    complexity = Column(Float, nullable=False)
+    maintainability_rating = Column(Enum(Rating), nullable=False)
+    security_rating = Column(Enum(Rating), nullable=False)
+    reliability_rating = Column(Enum(Rating), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Rules Management
+# ============================================================================
 
 class SASTRule(Base):
     __tablename__ = "sast_rules"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, index=True)
+    rule_id = Column(String(255), unique=True, index=True, nullable=False)
     name = Column(String(255), nullable=False)
-    title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     
-    # Rule configuration
-    language = Column(String(50), nullable=False)
-    regex_pattern = Column(Text, nullable=True)
-    ast_pattern = Column(JSON, nullable=True)  # AST-based pattern matching
-    
     # Classification
-    severity = Column(String(20), nullable=False)
+    category = Column(String(100), nullable=False)
+    subcategory = Column(String(100), nullable=True)
+    severity = Column(Enum(IssueSeverity), nullable=False)
+    type = Column(Enum(IssueType), nullable=False)
+    
+    # Security metadata
     cwe_id = Column(String(20), nullable=True)
     owasp_category = Column(String(100), nullable=True)
+    tags = Column(JSON, nullable=True)  # JSON array of tags
     
-    # Auto-fix configuration
-    auto_fix_available = Column(Boolean, default=False)
-    auto_fix_template = Column(Text, nullable=True)  # Auto-fix code template
-    recommendation = Column(Text, nullable=True)
+    # Configuration
+    enabled = Column(Boolean, default=True)
+    effort = Column(Integer, default=0)  # default effort in minutes
     
-    # Rule metadata
-    tags = Column(JSON, nullable=True)  # Array of tags
-    rule_metadata = Column(JSON, nullable=True)  # Additional rule metadata
-    
-    # Status
-    is_active = Column(Boolean, default=True)
-    is_custom = Column(Boolean, default=False)  # Custom vs built-in rule
+    # Language support
+    languages = Column(JSON, nullable=True)  # JSON array of supported languages
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
-    # Relationships
-    vulnerabilities = relationship("SASTVulnerability", back_populates="rule")
-    
-    # Created by (for custom rules)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    user = relationship("User")
-    
     @classmethod
-    async def get_by_id(cls, db: AsyncSession, rule_id: str) -> Optional["SASTRule"]:
-        """Get rule by ID"""
-        result = await db.execute(select(cls).where(cls.id == rule_id))
-        return result.scalar_one_or_none()
-    
-    @classmethod
-    async def get_by_language(cls, db: AsyncSession, language: str) -> List["SASTRule"]:
-        """Get rules by programming language"""
-        result = await db.execute(select(cls).where(cls.language == language, cls.is_active == True))
+    async def get_by_category(cls, db: AsyncSession, category: str) -> List["SASTRule"]:
+        """Get rules by category"""
+        result = await db.execute(select(cls).where(cls.category == category))
         return result.scalars().all()
     
     @classmethod
-    async def get_by_severity(cls, db: AsyncSession, severity: str) -> List["SASTRule"]:
-        """Get rules by severity"""
-        result = await db.execute(select(cls).where(cls.severity == severity, cls.is_active == True))
+    async def get_enabled_rules(cls, db: AsyncSession) -> List["SASTRule"]:
+        """Get all enabled rules"""
+        result = await db.execute(select(cls).where(cls.enabled == True))
         return result.scalars().all()
-    
-    @classmethod
-    async def get_active_rules(cls, db: AsyncSession) -> List["SASTRule"]:
-        """Get all active rules"""
-        result = await db.execute(select(cls).where(cls.is_active == True))
-        return result.scalars().all()
-    
-    def __repr__(self):
-        return f"<SASTRule(id={self.id}, name='{self.name}', language='{self.language}')>"
 
-class SASTReport(Base):
-    __tablename__ = "sast_reports"
+# ============================================================================
+# Quality Gates
+# ============================================================================
+
+class SASTQualityGate(Base):
+    __tablename__ = "sast_quality_gates"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    scan_id = Column(UUID(as_uuid=True), ForeignKey("sast_scans.id"), nullable=False)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("sast_projects.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
     
-    # Report details
-    report_type = Column(String(50), nullable=False)  # summary, detailed, executive
-    format = Column(String(20), nullable=False)  # json, pdf, html, csv
+    # Gate conditions
+    max_blocker_issues = Column(Integer, default=0)
+    max_critical_issues = Column(Integer, default=5)
+    max_major_issues = Column(Integer, default=20)
+    max_minor_issues = Column(Integer, default=100)
+    max_info_issues = Column(Integer, default=500)
     
-    # Report content
-    report_data = Column(JSON, nullable=True)  # Report data in JSON format
-    report_file_path = Column(Text, nullable=True)  # Path to generated report file
+    # Coverage conditions
+    min_coverage = Column(Float, default=80.0)
+    min_branch_coverage = Column(Float, default=80.0)
     
-    # Report metadata
-    generated_at = Column(DateTime, default=func.now())
-    expires_at = Column(DateTime, nullable=True)  # Report expiration date
+    # Technical debt conditions
+    max_debt_ratio = Column(Float, default=5.0)  # percentage
+    max_technical_debt = Column(Integer, default=1440)  # minutes (1 day)
+    
+    # Duplication conditions
+    max_duplicated_lines = Column(Integer, default=1000)
+    max_duplicated_blocks = Column(Integer, default=100)
+    
+    # Rating conditions
+    min_maintainability_rating = Column(Enum(Rating), default=Rating.C)
+    min_security_rating = Column(Enum(Rating), default=Rating.C)
+    min_reliability_rating = Column(Enum(Rating), default=Rating.C)
     
     # Status
-    is_public = Column(Boolean, default=False)  # Public vs private report
-    download_count = Column(Integer, default=0)  # Number of downloads
+    status = Column(Enum(QualityGateStatus), default=QualityGateStatus.PASSED)
+    last_evaluation = Column(DateTime, nullable=True)
+    
+    # Evaluation results
+    evaluation_results = Column(JSON, nullable=True)  # JSON with condition results
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relationships
-    scan = relationship("SASTScan")
-    project = relationship("SASTProject")
-    
-    # Generated by
-    generated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    user = relationship("User")
+    project = relationship("SASTProject", back_populates="quality_gates")
     
     @classmethod
-    async def get_by_id(cls, db: AsyncSession, report_id: str) -> Optional["SASTReport"]:
-        """Get report by ID"""
-        result = await db.execute(select(cls).where(cls.id == report_id))
-        return result.scalar_one_or_none()
-    
-    @classmethod
-    async def get_by_scan(cls, db: AsyncSession, scan_id: str) -> List["SASTReport"]:
-        """Get reports by scan ID"""
-        result = await db.execute(select(cls).where(cls.scan_id == scan_id))
-        return result.scalars().all()
-    
-    @classmethod
-    async def get_by_project(cls, db: AsyncSession, project_id: str) -> List["SASTReport"]:
-        """Get reports by project ID"""
+    async def get_by_project(cls, db: AsyncSession, project_id: int) -> Optional["SASTQualityGate"]:
+        """Get quality gate for a project"""
         result = await db.execute(select(cls).where(cls.project_id == project_id))
-        return result.scalars().all()
+        return result.scalar_one_or_none()
+
+# ============================================================================
+# Project Configuration
+# ============================================================================
+
+class SASTProjectConfiguration(Base):
+    __tablename__ = "sast_project_configurations"
     
-    def __repr__(self):
-        return f"<SASTReport(id={self.id}, scan_id={self.scan_id}, type='{self.report_type}')>" 
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    
+    # Scan configuration
+    scan_patterns = Column(JSON, nullable=True)  # JSON array of include/exclude patterns
+    excluded_files = Column(JSON, nullable=True)  # JSON array of excluded files
+    excluded_directories = Column(JSON, nullable=True)  # JSON array of excluded directories
+    
+    # Rule configuration
+    enabled_rules = Column(JSON, nullable=True)  # JSON array of enabled rule IDs
+    disabled_rules = Column(JSON, nullable=True)  # JSON array of disabled rule IDs
+    rule_severities = Column(JSON, nullable=True)  # JSON object with rule_id -> severity mapping
+    
+    # Quality gate configuration
+    quality_gate_id = Column(Integer, ForeignKey("sast_quality_gates.id"), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    project = relationship("SASTProject")
+    quality_gate = relationship("SASTQualityGate")
+    
+    @classmethod
+    async def get_by_project(cls, db: AsyncSession, project_id: int) -> Optional["SASTProjectConfiguration"]:
+        """Get configuration for a project"""
+        result = await db.execute(select(cls).where(cls.project_id == project_id))
+        return result.scalar_one_or_none() 

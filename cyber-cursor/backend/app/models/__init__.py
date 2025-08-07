@@ -12,7 +12,7 @@ from .data_security import (
 )
 from .device_control import Device, DevicePolicy, DeviceEvent, DeviceType, DeviceStatus, PolicyAction, EventType
 from .network_security import NetworkDevice, FirewallLog, IDSAlert, VPNSession, NACLog
-from .sast import SASTProject, SASTScan, SASTVulnerability
+from .sast import SASTProject, SASTScan, SASTIssue
 from .dast import DASTProject, DASTScan, DASTVulnerability, DASTPayload, DASTReport, DASTSession
 from .rasp import RASPAgent, RASPAttack, RASPRule, RASPVulnerability, RASPVirtualPatch, RASPTelemetry, RASPAlert, RASPIntegration
 from .cloud_security import CloudAccount, CloudAsset, Misconfiguration, ComplianceReport, SaaSApplication, UserActivity, DLPIncident, CloudThreat, IAMRisk, DDoSProtection
@@ -32,7 +32,7 @@ __all__ = [
     "DatabaseVulnerability", "DataMasking", "DataTokenization", "SecurityCompliance", "SecurityReport",
     "Device", "DevicePolicy", "DeviceEvent", "DeviceType", "DeviceStatus", "PolicyAction", "EventType",
     "NetworkDevice", "FirewallLog", "IDSAlert", "VPNSession", "NACLog",
-    "SASTProject", "SASTScan", "SASTVulnerability",
+    "SASTProject", "SASTScan", "SASTIssue",
     "DASTProject", "DASTScan", "DASTVulnerability", "DASTPayload", "DASTReport", "DASTSession",
     "RASPAgent", "RASPAttack", "RASPRule", "RASPVulnerability", "RASPVirtualPatch", "RASPTelemetry", "RASPAlert", "RASPIntegration",
     "CloudAccount", "CloudAsset", "Misconfiguration", "ComplianceReport", "SaaSApplication", "UserActivity", "DLPIncident", "CloudThreat", "IAMRisk", "DDoSProtection",

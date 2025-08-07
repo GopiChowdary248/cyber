@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  DocumentTextIcon, 
-  ShieldCheckIcon, 
-  BellIcon, 
   ChartBarIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  CogIcon,
-  CodeBracketIcon,
+  DocumentMagnifyingGlassIcon,
   BugAntIcon,
   WrenchScrewdriverIcon,
-  DocumentMagnifyingGlassIcon,
-  ArrowPathIcon,
-  ClipboardDocumentIcon
+  ClipboardDocumentIcon,
+  CogIcon,
+  DocumentTextIcon,
+  ShieldCheckIcon,
+  BellIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import { Target } from 'lucide-react';
+import SASTProjects from './SASTProjects';
+import SASTDashboard from '../../components/SAST/SASTDashboard';
+import QualityImprovementDashboard from '../../components/SAST/QualityImprovementDashboard';
 
 interface SASTData {
   overview: {
@@ -51,7 +52,7 @@ interface SASTData {
 const SAST: React.FC = () => {
   const [data, setData] = useState<SASTData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('projects');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -134,11 +135,11 @@ const SAST: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircleIcon className="w-5 h-5" />;
+        return <ShieldCheckIcon className="w-5 h-5" />;
       case 'running':
         return <ArrowPathIcon className="w-5 h-5 animate-spin" />;
       case 'failed':
-        return <XCircleIcon className="w-5 h-5" />;
+        return <ExclamationTriangleIcon className="w-5 h-5" />;
       case 'queued':
         return <BellIcon className="w-5 h-5" />;
       default:
@@ -147,7 +148,9 @@ const SAST: React.FC = () => {
   };
 
   const tabs = [
+    { id: 'projects', label: 'Projects', icon: <DocumentTextIcon className="w-4 h-4" /> },
     { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
+    { id: 'quality-improvement', label: 'Quality Improvement', icon: <Target className="w-4 h-4" /> },
     { id: 'vulnerabilities', label: 'Vulnerabilities', icon: <ExclamationTriangleIcon className="w-4 h-4" /> },
     { id: 'scans', label: 'Scan History', icon: <DocumentMagnifyingGlassIcon className="w-4 h-4" /> },
     { id: 'rules', label: 'Detection Rules', icon: <BugAntIcon className="w-4 h-4" /> },
@@ -185,7 +188,7 @@ const SAST: React.FC = () => {
           <p className="text-gray-600">Detect vulnerabilities in source code using static analysis</p>
         </div>
         <div className="flex items-center space-x-2">
-          <CodeBracketIcon className="w-8 h-8 text-blue-600" />
+          <ShieldCheckIcon className="w-8 h-8 text-blue-600" />
         </div>
       </div>
 
@@ -217,140 +220,11 @@ const SAST: React.FC = () => {
         transition={{ duration: 0.3 }}
         className="space-y-6"
       >
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Scans</p>
-                    <p className="text-2xl font-bold text-gray-900">{data.overview.totalScans.toLocaleString()}</p>
-                  </div>
-                  <DocumentMagnifyingGlassIcon className="w-8 h-8 text-blue-600" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Active Scans</p>
-                    <p className="text-2xl font-bold text-blue-600">{data.overview.activeScans}</p>
-                  </div>
-                  <ArrowPathIcon className="w-8 h-8 text-blue-600 animate-spin" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Vulnerabilities Found</p>
-                    <p className="text-2xl font-bold text-red-600">{data.overview.vulnerabilitiesFound}</p>
-                  </div>
-                  <ExclamationTriangleIcon className="w-8 h-8 text-red-600" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Security Score</p>
-                    <p className="text-2xl font-bold text-gray-900">{data.overview.securityScore}%</p>
-                  </div>
-                  <ChartBarIcon className="w-8 h-8 text-green-600" />
-                </div>
-              </div>
-            </div>
+        {activeTab === 'projects' && <SASTProjects />}
 
-            {/* Vulnerability Distribution */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Vulnerability Severity</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                      <span className="text-sm">Critical</span>
-                    </div>
-                    <span className="text-sm font-medium">{data.vulnerabilities.critical}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                      <span className="text-sm">High</span>
-                    </div>
-                    <span className="text-sm font-medium">{data.vulnerabilities.high}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm">Medium</span>
-                    </div>
-                    <span className="text-sm font-medium">{data.vulnerabilities.medium}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm">Low</span>
-                    </div>
-                    <span className="text-sm font-medium">{data.vulnerabilities.low}</span>
-                  </div>
-                </div>
-              </div>
+        {activeTab === 'overview' && <SASTDashboard />}
 
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Language Distribution</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Python</span>
-                    <span className="text-sm font-medium">{data.languages.python}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">JavaScript</span>
-                    <span className="text-sm font-medium">{data.languages.javascript}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Java</span>
-                    <span className="text-sm font-medium">{data.languages.java}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">C#</span>
-                    <span className="text-sm font-medium">{data.languages.csharp}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">PHP</span>
-                    <span className="text-sm font-medium">{data.languages.php}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Scans */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Scans</h3>
-              <div className="space-y-3">
-                {data.recentScans.map((scan) => (
-                  <div key={scan.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(scan.status)}`}>
-                        {getStatusIcon(scan.status)}
-                        <span className="capitalize">{scan.status}</span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{scan.projectName}</p>
-                        <p className="text-sm text-gray-600">{scan.timestamp}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{scan.vulnerabilities} vulnerabilities</p>
-                      <p className="text-sm text-gray-600">{scan.duration}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'quality-improvement' && <QualityImprovementDashboard />}
 
         {activeTab === 'vulnerabilities' && (
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">

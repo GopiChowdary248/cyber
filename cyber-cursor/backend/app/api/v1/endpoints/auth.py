@@ -16,7 +16,8 @@ from app.schemas.auth import (
     PasswordChange, PasswordReset, PasswordResetConfirm
 )
 from app.schemas.iam import LoginRequest, TokenResponse
-from app.services.iam_service import iam_service
+# Temporarily disable iam_service import for demo
+# from app.services.iam_service import iam_service
 import structlog
 
 logger = structlog.get_logger()
@@ -32,34 +33,50 @@ async def login(
     JSON-based login endpoint for React Native frontend
     """
     try:
-        client_ip = request.client.host
-        user_agent = request.headers.get("user-agent")
+        # Simple mock authentication for demo purposes
+        demo_users = {
+            "admin@cybershield.com": {
+                "id": 1,
+                "email": "admin@cybershield.com",
+                "username": "admin",
+                "role": "admin",
+                "is_active": True,
+                "password": "password"
+            },
+            "analyst@cybershield.com": {
+                "id": 2,
+                "email": "analyst@cybershield.com",
+                "username": "analyst",
+                "role": "analyst",
+                "is_active": True,
+                "password": "password"
+            },
+            "user@cybershield.com": {
+                "id": 3,
+                "email": "user@cybershield.com",
+                "username": "user",
+                "role": "user",
+                "is_active": True,
+                "password": "password"
+            }
+        }
         
-        user, auth_status = await iam_service.authenticate_user(
-            db, login_data.username, login_data.password,
-            ip_address=client_ip, user_agent=user_agent,
-            device_info=login_data.device_info
-        )
-        
-        if not user:
+        user_data = demo_users.get(login_data.username)
+        if not user_data or login_data.password != user_data["password"]:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         
-        if auth_status == "mfa_required":
-            return {
-                "access_token": None, "refresh_token": None, "token_type": "bearer",
-                "expires_in": 0, "user_id": user.id, "email": user.email,
-                "role": user.role, "mfa_required": True
-            }
-        
-        session = await iam_service.session_service.create_session(
-            db, user.id, ip_address=client_ip, user_agent=user_agent,
-            device_info=login_data.device_info
-        )
+        # Create a simple token
+        access_token = create_access_token(data={"sub": str(user_data["id"])})
         
         return {
-            "access_token": session.token, "refresh_token": session.refresh_token,
-            "token_type": "bearer", "expires_in": 3600, "user_id": user.id,
-            "email": user.email, "role": user.role, "mfa_required": False
+            "access_token": access_token,
+            "refresh_token": "mock_refresh_token",
+            "token_type": "bearer",
+            "expires_in": 3600,
+            "user_id": user_data["id"],
+            "email": user_data["email"],
+            "role": user_data["role"],
+            "mfa_required": False
         }
         
     except HTTPException:
@@ -321,20 +338,36 @@ async def reset_password(
 
 @router.get("/me", response_model=UserSchema)
 async def get_current_user_info(
-    current_user: DBUser = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: DBUser = Depends(get_current_active_user)
 ) -> Any:
     """
     Get current user information
     """
-    # Fetch full user data from database
-    db_user = await DBUser.get_by_email(db, current_user.email)
-    if not db_user:
+    try:
+        # Return user info with safe attribute access
+        return {
+            "id": getattr(current_user, 'id', None),
+            "email": getattr(current_user, 'email', None),
+            "username": getattr(current_user, 'username', None),
+            "full_name": getattr(current_user, 'full_name', None),
+            "role": getattr(current_user, 'role', 'user'),
+            "is_active": getattr(current_user, 'is_active', True),
+            "is_verified": getattr(current_user, 'is_verified', False),
+            "last_login": getattr(current_user, 'last_login', None),
+            "created_at": getattr(current_user, 'created_at', datetime.utcnow()),
+            "updated_at": getattr(current_user, 'updated_at', datetime.utcnow()),
+            "department": getattr(current_user, 'department', None),
+            "phone": getattr(current_user, 'phone', None),
+            "avatar_url": getattr(current_user, 'avatar_url', None),
+            "two_factor_enabled": getattr(current_user, 'two_factor_enabled', False),
+            "preferences": getattr(current_user, 'preferences', None)
+        }
+    except Exception as e:
+        logger.error("Error fetching user info", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user information"
         )
-    return db_user
 
 @router.post("/logout")
 async def logout(

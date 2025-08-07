@@ -6,8 +6,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Import screens
 import DashboardScreen from '../screens/DashboardScreen';
-import SASTScreen from '../screens/SASTScreen';
-import DASTScreen from '../screens/DASTScreen';
+import SASTEnhancedScreen from '../screens/SASTEnhancedScreen';
+import DASTEnhancedScreen from '../screens/DASTEnhancedScreen';
 import RASPScreen from '../screens/RASPScreen';
 import CloudSecurityScreen from '../screens/CloudSecurityScreen';
 import NetworkSecurityScreen from '../screens/NetworkSecurityScreen';
@@ -113,14 +113,14 @@ const MainTabs = () => {
       />
       <Tab.Screen 
         name="SAST" 
-        component={SASTScreen}
+        component={SASTEnhancedScreen}
         options={{
           tabBarLabel: 'SAST',
         }}
       />
       <Tab.Screen 
         name="DAST" 
-        component={DASTScreen}
+        component={DASTEnhancedScreen}
         options={{
           tabBarLabel: 'DAST',
         }}

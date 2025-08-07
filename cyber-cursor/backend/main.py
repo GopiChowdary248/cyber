@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title="CyberShield",
-    description="Comprehensive Cybersecurity Platform with SOAR, Cloud Security, and AI-Powered Phishing Detection",
+    description="Comprehensive Cybersecurity Platform with SAST, DAST, RASP, and Cloud Security",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -80,7 +80,7 @@ app.add_middleware(
 # Security
 security = HTTPBearer()
 
-# Import only essential endpoints to avoid import errors
+# Import and include essential endpoints
 try:
     from app.api.v1.endpoints.auth import router as auth_router
     from app.api.v1.endpoints.users import router as users_router
@@ -90,9 +90,19 @@ try:
     app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
     
     logger.info("Essential API routers loaded successfully")
-    logger.info(f"Auth router routes: {[route.path for route in auth_router.routes]}")
 except Exception as e:
-    logger.error(f"Failed to load some API routers: {e}")
+    logger.error(f"Failed to load essential API routers: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
+# Import and include SAST endpoints
+try:
+    from app.api.v1.endpoints.sast import router as sast_router
+    app.include_router(sast_router, prefix="/api/v1/sast", tags=["SAST"])
+    logger.info("SAST API router loaded successfully")
+    logger.info(f"SAST router routes: {[route.path for route in sast_router.routes]}")
+except Exception as e:
+    logger.error(f"Failed to load SAST API router: {e}")
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
@@ -104,17 +114,13 @@ try:
 except Exception as e:
     logger.error(f"Failed to load RASP API router: {e}")
 
-# Import and include DAST endpoints if available
+# Import and include DAST endpoints
 try:
     from app.api.v1.endpoints.dast import router as dast_router
-    print(f"DAST router type: {type(dast_router)}")
-    print(f"DAST router routes: {dast_router.routes}")
     app.include_router(dast_router, prefix="/dast", tags=["DAST"])
     logger.info("DAST API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load DAST API router: {e}")
-    import traceback
-    logger.error(f"Traceback: {traceback.format_exc()}")
 
 # Import and include Cloud Security endpoints
 try:
@@ -123,41 +129,48 @@ try:
     logger.info("Cloud Security API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load Cloud Security API router: {e}")
-    # Temporarily disable Cloud Security router due to Session/AsyncSession conflict
-    pass
 
-# Import and include SAST endpoints
+# Import and include Security endpoints
 try:
-    from app.api.v1.endpoints.sast import router as sast_router
-    app.include_router(sast_router, prefix="/api/v1/sast", tags=["SAST"])
-    logger.info("SAST API router loaded successfully")
+    from app.api.v1.endpoints.security import router as security_router
+    app.include_router(security_router, prefix="/api/v1/security", tags=["Security"])
+    logger.info("Security API router loaded successfully")
 except Exception as e:
-    logger.error(f"Failed to load SAST API router: {e}")
+    logger.error(f"Failed to load Security API router: {e}")
 
-# Import and include Device Control endpoints
+# Import and include Projects endpoints
 try:
-    from app.api.v1.endpoints.device_control import router as device_control_router
-    app.include_router(device_control_router, prefix="/api/v1/device-control", tags=["Device Control"])
-    logger.info("Device Control API router loaded successfully")
+    from app.api.v1.endpoints.projects import router as projects_router
+    app.include_router(projects_router, prefix="/api/v1/projects", tags=["Projects"])
+    logger.info("Projects API router loaded successfully")
 except Exception as e:
-    logger.error(f"Failed to load Device Control API router: {e}")
+    logger.error(f"Failed to load Projects API router: {e}")
 
-# Import and include IAM endpoints
+# Import and include Reports endpoints
 try:
-    from app.api.v1.endpoints.iam import router as iam_router
-    app.include_router(iam_router, prefix="/api/v1/iam", tags=["IAM"])
-    logger.info("IAM API router loaded successfully")
+    from app.api.v1.endpoints.reports import router as reports_router
+    app.include_router(reports_router, prefix="/api/v1/reports", tags=["Reports"])
+    logger.info("Reports API router loaded successfully")
 except Exception as e:
-    logger.error(f"Failed to load IAM API router: {e}")
+    logger.error(f"Failed to load Reports API router: {e}")
 
-# Import and include Antivirus/EDR endpoints
+# Import and include CI/CD endpoints
 try:
-    from app.api.v1.endpoints.endpoint_antivirus_edr import router as endpoint_antivirus_edr_router
-    app.include_router(endpoint_antivirus_edr_router, prefix="/api/v1/endpoint-antivirus-edr", tags=["Antivirus/EDR"])
-    logger.info("Antivirus/EDR API router loaded successfully")
+    from app.api.v1.endpoints.cicd import router as cicd_router
+    app.include_router(cicd_router, prefix="/api/v1/cicd", tags=["CI/CD"])
+    logger.info("CI/CD API router loaded successfully")
 except Exception as e:
-    logger.error(f"Failed to load Antivirus/EDR API router: {e}")
+    logger.error(f"Failed to load CI/CD API router: {e}")
 
+# Import and include Quality Goals endpoints
+try:
+    from app.api.v1.endpoints.quality_goals import router as quality_goals_router
+    app.include_router(quality_goals_router, prefix="/api/v1/quality-goals", tags=["Quality Goals"])
+    logger.info("Quality Goals API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Quality Goals API router: {e}")
+
+# Root endpoints
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -173,13 +186,17 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "message": "CyberShield API with core components is running",
+        "message": "CyberShield API is running",
         "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
         "database": "postgresql",
         "services": {
             "auth": "running",
             "users": "running",
+            "sast": "running",
+            "dast": "running",
+            "rasp": "running",
+            "cloud_security": "running",
             "database": "connected"
         }
     }
@@ -189,13 +206,17 @@ async def api_health_check():
     """API health check endpoint"""
     return {
         "status": "healthy",
-        "message": "CyberShield API with core components is running",
+        "message": "CyberShield API is running",
         "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
         "database": "postgresql",
         "services": {
             "auth": "running",
             "users": "running",
+            "sast": "running",
+            "dast": "running",
+            "rasp": "running",
+            "cloud_security": "running",
             "database": "connected"
         }
     }
@@ -212,11 +233,6 @@ async def protected_route(current_user = Depends(get_current_user)):
         }
     }
 
-@app.get("/test-dast")
-async def test_dast_direct():
-    """Test endpoint to verify direct DAST functionality"""
-    return {"message": "Direct DAST test endpoint working!", "status": "success"}
-
 if __name__ == "__main__":
     # Production vs Development configuration
     is_production = os.getenv("ENVIRONMENT", "development") == "production"
@@ -228,10 +244,4 @@ if __name__ == "__main__":
         reload=not is_production,  # Disable reload in production
         log_level="info",
         access_log=True
-    ) 
-    
-from fastapi.routing import APIRoute
-
-print("=== Loaded Routes ===")
-for route in app.routes:
-    print(f"{route.path} -> {route.name}")
+    )

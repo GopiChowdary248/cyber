@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Shield, 
   Code, 
   Search, 
@@ -226,11 +226,11 @@ const MainDashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Security Modules Grid */}
+      {/* Security Modules Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {modules.map((module) => (
+        {modules.map((module) => (
             <div
-              key={module.id}
+            key={module.id}
               onClick={() => handleModulePress(module)}
               className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 cursor-pointer border border-gray-200"
             >
@@ -257,7 +257,7 @@ const MainDashboard: React.FC = () => {
                   {module.description}
                 </p>
 
-                {module.alerts && module.alerts > 0 && (
+                    {module.alerts && module.alerts > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-500">
                       Active Alerts
