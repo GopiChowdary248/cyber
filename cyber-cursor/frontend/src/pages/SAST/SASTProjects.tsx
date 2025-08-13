@@ -13,10 +13,14 @@ import {
   XCircleIcon,
   ArrowPathIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  TargetIcon,
+  ChartBarIcon,
+  CogIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import QualityImprovementDashboard from '../../components/SAST/QualityImprovementDashboard';
 
 interface SASTProject {
   id: number;
@@ -69,6 +73,7 @@ const SASTProjects: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SASTProject | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'projects' | 'quality' | 'coverage' | 'technical-debt'>('projects');
   const [createFormData, setCreateFormData] = useState<CreateProjectData>({
     name: '',
     key: '',
@@ -98,7 +103,7 @@ const SASTProjects: React.FC = () => {
 
       const response = await fetch(`${API_URL}/api/v1/sast/projects?${params}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -210,7 +215,7 @@ const SASTProjects: React.FC = () => {
       const response = await fetch(`${API_URL}/api/v1/sast/projects`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(createFormData)
@@ -240,7 +245,7 @@ const SASTProjects: React.FC = () => {
       const response = await fetch(`${API_URL}/api/v1/sast/projects/${selectedProject.id}/duplicate`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(duplicateFormData)
@@ -272,7 +277,7 @@ const SASTProjects: React.FC = () => {
       const response = await fetch(`${API_URL}/api/v1/sast/projects/${projectId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -295,7 +300,7 @@ const SASTProjects: React.FC = () => {
       const response = await fetch(`${API_URL}/api/v1/sast/scans`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

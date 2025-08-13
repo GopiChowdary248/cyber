@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_admin
 from app.models.user import User
 from app.models.incident import Incident
-from app.models.cloud_security import CloudMisconfiguration, CloudScan
+from app.models.cloud_security import Misconfiguration
 from app.models.phishing import EmailAnalysis
 from app.schemas.admin import (
     AdminDashboardResponse, SystemHealthResponse, UserManagementResponse,
@@ -33,8 +33,8 @@ async def get_admin_dashboard(
     failed_logins = await User.count_failed_logins(db, hours=24)
     
     # Get infrastructure metrics
-    cloud_misconfigs = await CloudMisconfiguration.count_misconfigurations(db)
-    cloud_scans = await CloudScan.count_scans(db)
+    cloud_misconfigs = await Misconfiguration.count_misconfigurations(db)
+    cloud_scans = {"total": 0, "recent": 0}  # Placeholder until CloudScan is implemented
     
     return {
         "system_overview": {

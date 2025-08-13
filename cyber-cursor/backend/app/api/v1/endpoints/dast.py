@@ -44,7 +44,7 @@ async def debug_dast_endpoint():
     return {
         "message": "DAST debug endpoint working!",
         "router_info": "DAST router is mounted correctly",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now().isoformat()
     }
 
 async def simulate_dast_scan(scan_id: str, db: AsyncSession):
@@ -53,7 +53,7 @@ async def simulate_dast_scan(scan_id: str, db: AsyncSession):
         # Update scan status to running
         scan = await DASTScan.get_by_id(db, scan_id)
         if scan:
-            scan.status = ScanStatus.RUNNING
+            scan.status = ScanStatus.IN_PROGRESS
             await db.commit()
             
             # Simulate scan processing time
@@ -155,7 +155,7 @@ async def get_dast_overview(
         
         # Get active scans
         active_scans_result = await db.execute(
-            select(func.count(DASTScan.id)).where(DASTScan.status == ScanStatus.RUNNING)
+            select(func.count(DASTScan.id)).where(DASTScan.status == ScanStatus.IN_PROGRESS)
         )
         active_scans = active_scans_result.scalar()
         

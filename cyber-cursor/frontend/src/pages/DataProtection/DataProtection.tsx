@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import EnhancedCard from '../../components/UI/EnhancedCard';
 import EnhancedButton from '../../components/UI/EnhancedButton';
 import EnhancedBadge from '../../components/UI/EnhancedBadge';
 import EnhancedTabs from '../../components/UI/EnhancedTabs';
-import { 
-  Shield, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  Database, 
-  FileText, 
-  Users, 
+import {
+  Shield,
+  Lock,
+  Eye,
+  EyeOff,
+  Database,
+  FileText,
+  Users,
   Settings,
   AlertTriangle,
   CheckCircle,
@@ -193,108 +194,96 @@ const DataProtection: React.FC = () => {
         <div className="space-y-6">
           {summary && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <EnhancedCard>
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Total Datasets</h3>
-                    <Database className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="text-2xl font-bold mt-2">{summary.total_datasets}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {summary.sensitive_data} sensitive datasets
-                  </p>
+              <div className="p-6 border rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Total Datasets</h3>
+                  <Database className="h-4 w-4 text-muted-foreground" />
                 </div>
-              </EnhancedCard>
+                <div className="text-2xl font-bold mt-2">{summary.total_datasets}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {summary.sensitive_data} sensitive datasets
+                </p>
+              </div>
 
-              <EnhancedCard>
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Privacy Requests</h3>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="text-2xl font-bold mt-2">{summary.privacy_requests}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {summary.active_breaches} active breaches
-                  </p>
+              <div className="p-6 border rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Privacy Requests</h3>
+                  <Users className="h-4 w-4 text-muted-foreground" />
                 </div>
-              </EnhancedCard>
+                <div className="text-2xl font-bold mt-2">{summary.privacy_requests}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {summary.active_breaches} active breaches
+                </p>
+              </div>
 
-              <EnhancedCard>
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Compliance Score</h3>
-                    <Shield className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="text-2xl font-bold mt-2">{summary.compliance_score}%</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {summary.encryption_coverage}% encryption coverage
-                  </p>
+              <div className="p-6 border rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Compliance Score</h3>
+                  <Shield className="h-4 w-4 text-muted-foreground" />
                 </div>
-              </EnhancedCard>
+                <div className="text-2xl font-bold mt-2">{summary.compliance_score}%</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {summary.encryption_coverage}% encryption coverage
+                </p>
+              </div>
 
-              <EnhancedCard>
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Last Audit</h3>
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="text-2xl font-bold mt-2">
-                    {new Date(summary.last_audit).toLocaleDateString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Audit completed
-                  </p>
+              <div className="p-6 border rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Last Audit</h3>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
                 </div>
-              </EnhancedCard>
+                <div className="text-2xl font-bold mt-2">
+                  {new Date(summary.last_audit).toLocaleDateString()}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Audit completed
+                </p>
+              </div>
             </div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <EnhancedCard>
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Data Classifications</h3>
-                <div className="space-y-3">
-                  {classifications.slice(0, 5).map((classification) => (
-                    <div key={classification.id} className="flex items-center justify-between p-3 border rounded">
-                      <div>
-                        <div className="font-medium">{classification.name}</div>
-                        <p className="text-sm text-muted-foreground">{classification.description}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <EnhancedBadge variant={getSeverityColor(classification.sensitivity_level)}>
-                          {classification.sensitivity_level}
-                        </EnhancedBadge>
-                        {classification.encryption_required && (
-                          <Lock className="h-4 w-4 text-green-500" />
-                        )}
-                      </div>
+            <div className="p-6 border rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold mb-4">Data Classifications</h3>
+              <div className="space-y-3">
+                {classifications.slice(0, 5).map((classification) => (
+                  <div key={classification.id} className="flex items-center justify-between p-3 border rounded">
+                    <div>
+                      <div className="font-medium">{classification.name}</div>
+                      <p className="text-sm text-muted-foreground">{classification.description}</p>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <EnhancedBadge variant={getSeverityColor(classification.sensitivity_level)}>
+                        {classification.sensitivity_level}
+                      </EnhancedBadge>
+                      {classification.encryption_required && (
+                        <Lock className="h-4 w-4 text-green-500" />
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </EnhancedCard>
+            </div>
 
-            <EnhancedCard>
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Recent Data Inventory</h3>
-                <div className="space-y-3">
-                  {inventory.slice(0, 5).map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded">
-                      <div>
-                        <div className="font-medium">{item.name}</div>
-                        <p className="text-sm text-muted-foreground">{item.location}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <EnhancedBadge variant="default">{item.classification}</EnhancedBadge>
-                        <EnhancedBadge variant={getStatusColor(item.status)}>
-                          {item.status}
-                        </EnhancedBadge>
-                      </div>
+            <div className="p-6 border rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold mb-4">Recent Data Inventory</h3>
+              <div className="space-y-3">
+                {inventory.slice(0, 5).map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-3 border rounded">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <p className="text-sm text-muted-foreground">{item.location}</p>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <EnhancedBadge variant="default">{item.classification}</EnhancedBadge>
+                      <EnhancedBadge variant={getStatusColor(item.status)}>
+                        {item.status}
+                      </EnhancedBadge>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </EnhancedCard>
+            </div>
           </div>
         </div>
       )

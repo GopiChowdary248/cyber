@@ -11,47 +11,27 @@ import {
   RefreshCw,
   BarChart3
 } from 'lucide-react';
+import { dastService, DASTScan as DASTScanType } from '../../services/dastService';
 
-interface DASTScan {
-  id: string;
-  project_id: string;
-  project_name: string;
-  status: string;
-  scan_type: string;
-  started_at: string;
-  completed_at?: string;
-  total_vulnerabilities: number;
-  high_severity: number;
-  medium_severity: number;
-  low_severity: number;
-  progress?: number;
-  duration?: string;
-}
+interface DASTScansProps {}
 
-const API_BASE_URL = '/api/v1/dast';
-
-const DASTScans: React.FC = () => {
-  const [scans, setScans] = useState<DASTScan[]>([]);
+const DASTScans: React.FC<DASTScansProps> = () => {
+  const [scans, setScans] = useState<DASTScanType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const fetchScans = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-      };
-
-      const response = await fetch(`${API_BASE_URL}/scans`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        setScans(data.scans || []);
-      }
+      setLoading(true);
+      setError(null);
+      const response = await dastService.getDASTScans();
+      setScans(response.scans || []);
     } catch (error) {
       console.error('Error fetching scans:', error);
+      setError('Failed to load scans. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -66,45 +46,23 @@ const DASTScans: React.FC = () => {
     fetchScans().finally(() => setRefreshing(false));
   };
 
-  const handleStartScan = async (scanId: string) => {
+  const handleStartScan = async (scanId: number) => {
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      const response = await fetch(`${API_BASE_URL}/scans/${scanId}/start`, {
-        method: 'POST',
-        headers,
-      });
-
-      if (response.ok) {
-        fetchScans();
-      }
+      await dastService.startDASTScan(scanId);
+      fetchScans();
     } catch (error) {
       console.error('Error starting scan:', error);
+      setError('Failed to start scan. Please try again.');
     }
   };
 
-  const handleStopScan = async (scanId: string) => {
-            try {
-              const token = localStorage.getItem('token') || '';
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-              const response = await fetch(`${API_BASE_URL}/scans/${scanId}/stop`, {
-                method: 'POST',
-        headers,
-              });
-
-              if (response.ok) {
-                fetchScans();
-              }
-            } catch (error) {
+  const handleStopScan = async (scanId: number) => {
+    try {
+      await dastService.stopDASTScan(scanId);
+      fetchScans();
+    } catch (error) {
       console.error('Error stopping scan:', error);
+      setError('Failed to stop scan. Please try again.');
     }
   };
 
@@ -140,19 +98,44 @@ const DASTScans: React.FC = () => {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
+      case 'critical':
+        return 'text-red-800 bg-red-100';
       case 'high':
-        return 'text-red-600';
+        return 'text-red-600 bg-red-100';
       case 'medium':
-        return 'text-yellow-600';
+        return 'text-yellow-600 bg-yellow-100';
       case 'low':
-        return 'text-blue-600';
+        return 'text-blue-600 bg-blue-100';
+      case 'info':
+        return 'text-gray-600 bg-gray-100';
       default:
-        return 'text-gray-600';
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
+  // Helper function to count vulnerabilities by severity
+  const getVulnerabilityCounts = (scan: DASTScanType) => {
+    const counts = {
+      high: 0,
+      medium: 0,
+      low: 0,
+      critical: 0,
+      info: 0
+    };
+    
+    if (scan.vulnerabilities) {
+      scan.vulnerabilities.forEach(vuln => {
+        if (vuln.severity in counts) {
+          counts[vuln.severity as keyof typeof counts]++;
+        }
+      });
+    }
+    
+    return counts;
+  };
+
   const filteredScans = scans.filter(scan => {
-    const matchesSearch = scan.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = scan.project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          scan.scan_type.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || scan.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -262,7 +245,7 @@ const DASTScans: React.FC = () => {
                   {filteredScans.map((scan) => (
                     <tr key={scan.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{scan.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{scan.project_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{scan.project.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{scan.scan_type}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(scan.status)}`}>
@@ -273,9 +256,17 @@ const DASTScans: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{scan.started_at}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex space-x-2 text-xs">
-                          <span className={getSeverityColor('high')}>{scan.high_severity} High</span>
-                          <span className={getSeverityColor('medium')}>{scan.medium_severity} Medium</span>
-                          <span className={getSeverityColor('low')}>{scan.low_severity} Low</span>
+                          {(() => {
+                            const counts = getVulnerabilityCounts(scan);
+                            return (
+                              <>
+                                <span className={getSeverityColor('critical')}>{counts.critical} Critical</span>
+                                <span className={getSeverityColor('high')}>{counts.high} High</span>
+                                <span className={getSeverityColor('medium')}>{counts.medium} Medium</span>
+                                <span className={getSeverityColor('low')}>{counts.low} Low</span>
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -320,7 +311,7 @@ const DASTScans: React.FC = () => {
               {scans.filter(scan => scan.status === 'running').map((scan) => (
                 <div key={scan.id} className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-900">{scan.project_name}</span>
+                    <span className="text-sm font-medium text-gray-900">{scan.project.name}</span>
                     <span className="text-sm text-gray-500">{scan.progress || 0}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">

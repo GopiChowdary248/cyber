@@ -10,8 +10,8 @@ from enum import Enum
 
 from app.models.user import User
 from app.models.incident import Incident
-from app.models.phishing import PhishingReport
-from app.models.cloud_security import CloudSecurityScan
+from app.models.phishing import EmailAnalysis
+from app.models.cloud_security import CloudAccount
 
 logger = structlog.get_logger()
 

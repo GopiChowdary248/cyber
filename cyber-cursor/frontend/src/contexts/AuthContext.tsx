@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -20,6 +20,7 @@ interface AuthContextType {
   logout: () => void;
   register: (userData: RegisterData) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  getAuthToken: () => string | null;
 }
 
 interface RegisterData {
@@ -51,20 +52,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-  // Check if user is already authenticated on app load
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      console.log('AuthContext - token found, fetching user profile');
-      fetchUserProfile();
-    } else {
-      console.log('AuthContext - no token found, user not authenticated');
-      setUser(null);
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) {
@@ -106,23 +94,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_URL]);
+
+  // Check if user is already authenticated on app load
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      console.log('AuthContext - token found, fetching user profile');
+      fetchUserProfile();
+    } else {
+      console.log('AuthContext - no token found, user not authenticated');
+      setUser(null);
+      setLoading(false);
+    }
+  }, [fetchUserProfile]);
 
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
       
-      // Use OAuth login endpoint which has demo users configured
-      const formData = new URLSearchParams();
-      formData.append('username', email);
-      formData.append('password', password);
-
-      const response = await fetch(`${API_URL}/api/v1/auth/login/oauth`, {
+      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
-        body: formData,
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
@@ -139,7 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser({
         id: data.user_id,
         email: data.email,
-        username: data.email.split('@')[0], // Fallback username
+        username: data.username || data.email.split('@')[0], // Use username from response if available
         role: data.role,
         is_active: true,
         created_at: new Date().toISOString(),
@@ -173,7 +169,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(errorData.detail || 'Registration failed');
       }
 
-      const data = await response.json();
+      // Registration successful
       toast.success('Registration successful! Please log in.');
       navigate('/login');
     } catch (error) {
@@ -231,6 +227,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     register,
     updateProfile,
+    getAuthToken: () => localStorage.getItem('access_token'),
   };
 
   return (

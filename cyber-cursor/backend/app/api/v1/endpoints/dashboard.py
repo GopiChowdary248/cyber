@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.incident import Incident
-from app.models.cloud_security import CloudMisconfiguration, CloudScan
+from app.models.cloud_security import Misconfiguration
 from app.models.phishing import EmailAnalysis
 from app.services.monitoring import update_incident_metrics, update_cloud_metrics, record_phishing_detection
+from app.schemas.auth import User
 
 router = APIRouter()
 
@@ -27,8 +28,8 @@ async def get_dashboard_overview(
     incident_stats = await Incident.get_stats(db)
     
     # Cloud security statistics
-    cloud_misconfigs = await CloudMisconfiguration.count_misconfigurations(db)
-    cloud_scans = await CloudScan.count_scans(db)
+    cloud_misconfigs = await Misconfiguration.count_misconfigurations(db)
+    cloud_scans = {"total": 0, "recent": 0}  # Placeholder until CloudScan is implemented
     
     # Phishing statistics
     phishing_analyses = await EmailAnalysis.count_analyses(db)
@@ -37,7 +38,7 @@ async def get_dashboard_overview(
     
     # Recent activity
     recent_incidents = await Incident.get_recent(db, limit=5)
-    recent_misconfigs = await CloudMisconfiguration.get_recent(db, limit=5)
+    recent_misconfigs = await Misconfiguration.get_recent(db, limit=5)
     recent_phishing = await EmailAnalysis.get_recent(db, limit=5)
     
     # Update metrics for monitoring
@@ -112,7 +113,7 @@ async def get_cloud_security_chart(
     start_date = end_date - timedelta(days=days)
     
     # Get misconfigurations by provider and severity
-    misconfigs_by_provider = await CloudMisconfiguration.get_by_provider(db, start_date, end_date)
+    misconfigs_by_provider = await Misconfiguration.get_by_provider(db, start_date, end_date)
     
     return {
         "providers": misconfigs_by_provider,
@@ -152,7 +153,7 @@ async def get_recent_alerts(
     critical_incidents = await Incident.get_by_severity(db, ["critical", "high"], limit=limit//2)
     
     # Get recent high/critical misconfigurations
-    critical_misconfigs = await CloudMisconfiguration.get_by_severity(db, ["critical", "high"], limit=limit//2)
+    critical_misconfigs = await Misconfiguration.get_by_severity(db, ["critical", "high"], limit=limit//2)
     
     # Get recent high/critical phishing emails
     critical_phishing = await EmailAnalysis.get_by_threat_level(db, ["critical", "high"], limit=limit//2)

@@ -99,7 +99,7 @@ class SASTService:
             scan = SASTScan(
                 project_id=scan_data.project_id,
                 scan_type=scan_data.scan_type,
-                status=ScanStatus.RUNNING,
+                status=ScanStatus.IN_PROGRESS,
                 scan_config=scan_data.scan_config,
                 rules_enabled=scan_data.rules_enabled,
                 started_at=datetime.utcnow(),

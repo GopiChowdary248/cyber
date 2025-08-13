@@ -11,8 +11,8 @@ logger = structlog.get_logger()
 
 class AIService:
     def __init__(self):
-        if settings.OPENAI_API_KEY:
-            openai.api_key = settings.OPENAI_API_KEY
+        if settings.ai.OPENAI_API_KEY:
+            openai.api_key = settings.ai.OPENAI_API_KEY
         else:
             logger.warning("OpenAI API key not configured")
     
@@ -72,13 +72,13 @@ class AIService:
             }}
             """
             
-            if not settings.OPENAI_API_KEY:
+            if not settings.ai.OPENAI_API_KEY:
                 # Fallback to rule-based analysis
                 return self._rule_based_email_analysis(subject, body_text, sender)
             
             # Call OpenAI API
             response = await openai.ChatCompletion.acreate(
-                model=settings.OPENAI_MODEL,
+                model=settings.ai.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a cybersecurity expert specializing in email threat analysis."},
                     {"role": "user", "content": prompt}
@@ -220,11 +220,11 @@ class AIService:
             }}
             """
             
-            if not settings.OPENAI_API_KEY:
+            if not settings.ai.OPENAI_API_KEY:
                 return self._rule_based_incident_classification(title, description)
             
             response = await openai.ChatCompletion.acreate(
-                model=settings.OPENAI_MODEL,
+                model=settings.ai.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a cybersecurity incident response expert."},
                     {"role": "user", "content": prompt}
@@ -328,11 +328,11 @@ class AIService:
             }}
             """
             
-            if not settings.OPENAI_API_KEY:
+            if not settings.ai.OPENAI_API_KEY:
                 return self._get_default_playbook(incident_type, severity)
             
             response = await openai.ChatCompletion.acreate(
-                model=settings.OPENAI_MODEL,
+                model=settings.ai.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a cybersecurity incident response expert."},
                     {"role": "user", "content": prompt}
@@ -446,11 +446,11 @@ class AIService:
             }}
             """
             
-            if not settings.OPENAI_API_KEY:
+            if not settings.ai.OPENAI_API_KEY:
                 return self._get_default_auto_response(email_type, threat_level)
             
             response = await openai.ChatCompletion.acreate(
-                model=settings.OPENAI_MODEL,
+                model=settings.ai.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a cybersecurity email response expert."},
                     {"role": "user", "content": prompt}

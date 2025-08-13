@@ -3,18 +3,17 @@ import EnhancedCard from '../UI/EnhancedCard';
 import EnhancedButton from '../UI/EnhancedButton';
 import EnhancedBadge from '../UI/EnhancedBadge';
 import EnhancedTabs from '../UI/EnhancedTabs';
-import { 
-  BugAntIcon, 
-  ExclamationTriangleIcon, 
-  InformationCircleIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  DocumentTextIcon,
-  ChartBarIcon,
+import {
   EyeIcon,
-  ArrowDownTrayIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
   FunnelIcon,
-  MagnifyingGlassIcon
+  DocumentTextIcon,
+  CodeBracketIcon,
+  BugAntIcon,
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
 interface Vulnerability {
@@ -188,23 +187,13 @@ const ScanResultsDashboard: React.FC<ScanResultsDashboardProps> = ({ scanId, pro
     setLoading(false);
   }, [scanId]);
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'red';
-      case 'high': return 'orange';
-      case 'medium': return 'yellow';
-      case 'low': return 'green';
-      default: return 'gray';
-    }
-  };
-
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical': return <ExclamationTriangleIcon className="w-5 h-5" />;
       case 'high': return <BugAntIcon className="w-5 h-5" />;
-      case 'medium': return <InformationCircleIcon className="w-5 h-5" />;
+      case 'medium': return <ShieldCheckIcon className="w-5 h-5" />;
       case 'low': return <CheckCircleIcon className="w-5 h-5" />;
-      default: return <InformationCircleIcon className="w-5 h-5" />;
+      default: return <ShieldCheckIcon className="w-5 h-5" />;
     }
   };
 
@@ -326,7 +315,7 @@ const ScanResultsDashboard: React.FC<ScanResultsDashboardProps> = ({ scanId, pro
             <div className="flex flex-col md:flex-row gap-4 mb-4">
               <div className="flex-1">
                 <div className="relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <DocumentTextIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search vulnerabilities..."
@@ -468,7 +457,7 @@ const ScanResultsDashboard: React.FC<ScanResultsDashboardProps> = ({ scanId, pro
                 onClick={() => exportReport('csv')}
                 className="flex items-center justify-center"
               >
-                <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
+                <DocumentTextIcon className="w-5 h-5 mr-2" />
                 Export CSV
               </EnhancedButton>
             </div>

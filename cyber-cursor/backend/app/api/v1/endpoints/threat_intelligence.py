@@ -5,11 +5,10 @@ from pydantic import BaseModel
 import logging
 
 from app.services.threat_intelligence_service import (
-    threat_intelligence_service,
-    ThreatType, ThreatSeverity, ConfidenceLevel, IndicatorType, 
-    HuntingStatus, HuntingType, ThreatLevel, IoCType
+    threat_intelligence_service
 )
 from app.database import get_db
+from sqlalchemy.orm import Session
 from app.schemas.threat_intelligence import (
     ThreatFeedCreate, ThreatFeedResponse, ThreatFeedUpdate, ThreatFeedListResponse,
     IoCCreate, IoCResponse, IoCUpdate, IoCListResponse,
@@ -18,7 +17,11 @@ from app.schemas.threat_intelligence import (
     IoCSearchRequest, IoCSearchResponse, ThreatIntelligenceStats, ThreatIntelligenceHealth,
     ThreatFeedUpdateRequest, IoCExportRequest, IoCExportResponse
 )
-from app.models.threat_intelligence import ThreatFeed, IoC, ThreatAlert, IntegrationConfig, FeedLog
+from app.models.threat_intelligence import (
+    ThreatFeed, IoC, ThreatAlert, IntegrationConfig, FeedLog,
+    ThreatType, ThreatSeverity, ConfidenceLevel, IndicatorType, 
+    HuntingStatus, HuntingType, ThreatLevel, IoCType
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -8,6 +8,7 @@ import {
   ChartBarIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
+import { cloudSecurityService } from '../../services/cloudSecurityService';
 
 interface CSPMDashboardProps {
   provider: string;
@@ -28,6 +29,7 @@ const CSPMDashboard: React.FC<CSPMDashboardProps> = ({ provider }) => {
   const [providerData, setProviderData] = useState<CSPMProvider | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProviderData();
@@ -35,14 +37,13 @@ const CSPMDashboard: React.FC<CSPMDashboardProps> = ({ provider }) => {
 
   const fetchProviderData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch(`/api/v1/cloud-security/cspm/providers/${provider}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProviderData(data);
-      }
+      const data = await cloudSecurityService.getCSPMProviderData(provider);
+      setProviderData(data);
     } catch (error) {
       console.error('Error fetching CSPM provider data:', error);
+      setError('Failed to load CSPM provider data. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -51,16 +52,12 @@ const CSPMDashboard: React.FC<CSPMDashboardProps> = ({ provider }) => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const response = await fetch(`/api/v1/cloud-security/cspm/providers/${provider}/sync`, {
-        method: 'POST',
-      });
-      if (response.ok) {
-        // Wait a bit then refresh data
-        setTimeout(() => {
-          fetchProviderData();
-          setSyncing(false);
-        }, 3000);
-      }
+      await cloudSecurityService.syncCSPMProvider(provider);
+      // Wait a bit then refresh data
+      setTimeout(() => {
+        fetchProviderData();
+        setSyncing(false);
+      }, 3000);
     } catch (error) {
       console.error('Error syncing provider:', error);
       setSyncing(false);

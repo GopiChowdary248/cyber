@@ -38,6 +38,55 @@ class FeedStatus(enum.Enum):
     ERROR = "error"
     UPDATING = "updating"
 
+class ThreatType(enum.Enum):
+    MALWARE = "malware"
+    PHISHING = "phishing"
+    RANSOMWARE = "ransomware"
+    APT = "apt"
+    DATA_EXFILTRATION = "data_exfiltration"
+    DDoS = "ddos"
+    INSIDER_THREAT = "insider_threat"
+    SUPPLY_CHAIN = "supply_chain"
+    ZERO_DAY = "zero_day"
+    OTHER = "other"
+
+class ThreatSeverity(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+class ConfidenceLevel(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    VERY_HIGH = "very_high"
+
+class IndicatorType(enum.Enum):
+    IP_ADDRESS = "ip_address"
+    DOMAIN = "domain"
+    URL = "url"
+    HASH = "hash"
+    EMAIL = "email"
+    CVE = "cve"
+    REGISTRY = "registry"
+    FILE = "file"
+    BEHAVIOR = "behavior"
+    NETWORK = "network"
+
+class HuntingStatus(enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+class HuntingType(enum.Enum):
+    THREAT_HUNTING = "threat_hunting"
+    INCIDENT_RESPONSE = "incident_response"
+    COMPLIANCE = "compliance"
+    RESEARCH = "research"
+
 class ThreatFeed(Base):
     __tablename__ = "threat_feeds"
     

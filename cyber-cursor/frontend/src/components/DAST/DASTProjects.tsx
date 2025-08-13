@@ -11,51 +11,34 @@ import {
   Clock,
   RefreshCw
 } from 'lucide-react';
+import { dastService, DASTProject as DASTProjectType, DASTProjectCreate } from '../../services/dastService';
 
-interface DASTProject {
-  id: string;
-  name: string;
-  target_url: string;
-  description: string;
-  status: string;
-  created_at: string;
-  last_scan?: string;
-  total_vulnerabilities: number;
-  high_severity: number;
-  medium_severity: number;
-  low_severity: number;
-  security_score: number;
-}
+interface DASTProjectsProps {}
 
-const API_BASE_URL = '/api/v1/dast';
-
-const DASTProjects: React.FC = () => {
-  const [projects, setProjects] = useState<DASTProject[]>([]);
+const DASTProjects: React.FC<DASTProjectsProps> = () => {
+  const [projects, setProjects] = useState<DASTProjectType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DASTProjectCreate>({
     name: '',
     target_url: '',
     description: '',
+    target_scope: [],
+    is_active: true
   });
 
   const fetchProjects = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-      };
-
-      const response = await fetch(`${API_BASE_URL}/projects`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data.projects || []);
-      }
+      setLoading(true);
+      setError(null);
+      const response = await dastService.getDASTProjects();
+      setProjects(response.projects || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      setError('Failed to load projects. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -72,48 +55,31 @@ const DASTProjects: React.FC = () => {
 
   const handleCreateProject = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      const response = await fetch(`${API_BASE_URL}/projects`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(formData),
+      await dastService.createDASTProject(formData);
+      setShowCreateForm(false);
+      setFormData({ 
+        name: '', 
+        target_url: '', 
+        description: '', 
+        target_scope: [],
+        is_active: true
       });
-
-      if (response.ok) {
-        setShowCreateForm(false);
-        setFormData({ name: '', target_url: '', description: '' });
-        fetchProjects();
-      }
+      fetchProjects();
     } catch (error) {
       console.error('Error creating project:', error);
+      setError('Failed to create project. Please try again.');
     }
   };
 
-  const handleDeleteProject = async (projectId: string) => {
+  const handleDeleteProject = async (projectId: number) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
 
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-      };
-
-      const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
-        method: 'DELETE',
-        headers,
-      });
-
-      if (response.ok) {
-        fetchProjects();
-      }
+      await dastService.deleteDASTProject(projectId);
+      fetchProjects();
     } catch (error) {
       console.error('Error deleting project:', error);
+      setError('Failed to delete project. Please try again.');
     }
   };
 
@@ -300,9 +266,9 @@ const DASTProjects: React.FC = () => {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 truncate">{project.name}</h3>
-                    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                      {getStatusIcon(project.status)}
-                      <span className="ml-1 capitalize">{project.status}</span>
+                    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.is_active ? 'active' : 'inactive')}`}>
+                      {getStatusIcon(project.is_active ? 'active' : 'inactive')}
+                      <span className="ml-1 capitalize">{project.is_active ? 'Active' : 'Inactive'}</span>
                     </div>
                   </div>
 
@@ -312,9 +278,9 @@ const DASTProjects: React.FC = () => {
 
                   <div className="space-y-3 mb-6">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Security Score</span>
-                      <span className={`font-semibold ${getSecurityScoreColor(project.security_score)}`}>
-                        {project.security_score}%
+                      <span className="text-gray-600">Risk Score</span>
+                      <span className={`font-semibold ${getSecurityScoreColor(project.risk_score)}`}>
+                        {project.risk_score}
                       </span>
                     </div>
                     
@@ -323,10 +289,9 @@ const DASTProjects: React.FC = () => {
                       <span className="font-semibold text-gray-900">{project.total_vulnerabilities}</span>
                     </div>
 
-                    <div className="flex space-x-4 text-xs">
-                      <span className="text-red-600 font-medium">{project.high_severity} High</span>
-                      <span className="text-yellow-600 font-medium">{project.medium_severity} Medium</span>
-                      <span className="text-blue-600 font-medium">{project.low_severity} Low</span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Total Scans</span>
+                      <span className="font-semibold text-gray-900">{project.total_scans}</span>
                     </div>
                   </div>
 

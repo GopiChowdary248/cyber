@@ -1,11 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import EnhancedCard from '../../components/UI/EnhancedCard';
 import EnhancedButton from '../../components/UI/EnhancedButton';
 import EnhancedBadge from '../../components/UI/EnhancedBadge';
 import EnhancedTabs from '../../components/UI/EnhancedTabs';
+import { motion } from 'framer-motion';
 import {
-  Shield, Bug, Eye, Activity, AlertTriangle, CheckCircle, XCircle,
-  Download, Play, Clock, FileText, Globe, Server, Zap, BarChart3
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  FileText,
+  GitBranch,
+  Zap,
+  Target,
+  Users,
+  Settings,
+  Bug,
+  Play,
+  Globe,
+  Download,
+  BarChart3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -57,7 +71,6 @@ interface RASPLog {
 
 const ApplicationSecurity: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
 
   // Mock data - defined as constants to avoid any state issues

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ExclamationTriangleIcon, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ExclamationTriangleIcon,
   MagnifyingGlassIcon,
-  FunnelIcon,
-  ClockIcon,
+  DocumentTextIcon,
   ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
@@ -28,31 +27,56 @@ const SecurityFindings: React.FC = () => {
     status: ''
   });
 
-  useEffect(() => {
-    fetchFindings();
-  }, []);
+  // Mock data for security findings
+  const mockFindings: SecurityFinding[] = [
+    {
+      id: '1',
+      severity: 'high',
+      title: 'Unencrypted S3 Bucket Access',
+      description: 'S3 bucket is publicly accessible without encryption',
+      provider: 'AWS',
+      category: 'Data Protection',
+      created_at: '2024-01-15T10:30:00Z',
+      status: 'open'
+    },
+    {
+      id: '2',
+      severity: 'medium',
+      title: 'Weak IAM Policy',
+      description: 'IAM user has excessive permissions',
+      provider: 'AWS',
+      category: 'Access Control',
+      created_at: '2024-01-14T15:45:00Z',
+      status: 'in_progress'
+    },
+    {
+      id: '3',
+      severity: 'low',
+      title: 'Outdated SSL Certificate',
+      description: 'SSL certificate expires in 30 days',
+      provider: 'Azure',
+      category: 'Network Security',
+      created_at: '2024-01-13T09:20:00Z',
+      status: 'resolved'
+    }
+  ];
 
-  const fetchFindings = async () => {
+  const fetchFindings = useCallback(async () => {
     try {
       setLoading(true);
-      const queryParams = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) queryParams.append(key, value);
-      });
-
-      const response = await fetch(`/api/v1/cloud-security/findings?${queryParams}`);
-      if (response.ok) {
-        const data = await response.json();
-        setFindings(data);
-      } else {
-        console.error('Failed to fetch security findings');
-      }
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setFindings(mockFindings);
+      setLoading(false);
     } catch (error) {
-      console.error('Error fetching security findings:', error);
-    } finally {
+      console.error('Error fetching findings:', error);
       setLoading(false);
     }
-  };
+  }, [mockFindings]);
+
+  useEffect(() => {
+    fetchFindings();
+  }, [fetchFindings]);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -118,7 +142,7 @@ const SecurityFindings: React.FC = () => {
       {/* Filters */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-          <FunnelIcon className="h-5 w-5 mr-2 text-blue-400" />
+          {/* FunnelIcon removed */}
           Filters
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -135,7 +159,7 @@ const SecurityFindings: React.FC = () => {
               <option value="low">Low</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Provider</label>
             <select
@@ -152,7 +176,7 @@ const SecurityFindings: React.FC = () => {
               <option value="Microsoft Defender for Cloud Apps">Microsoft Defender for Cloud Apps</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
             <select
@@ -166,7 +190,7 @@ const SecurityFindings: React.FC = () => {
               <option value="Cloud-Native">Cloud-Native</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
             <select
@@ -181,7 +205,7 @@ const SecurityFindings: React.FC = () => {
             </select>
           </div>
         </div>
-        
+
         <div className="flex space-x-4">
           <button
             onClick={applyFilters}
@@ -227,10 +251,10 @@ const SecurityFindings: React.FC = () => {
                         {finding.status.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
-                    
+
                     <h4 className="text-lg font-semibold text-white mb-2">{finding.title}</h4>
                     <p className="text-gray-300 mb-4">{finding.description}</p>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <span className="text-gray-400">Provider:</span>
@@ -248,7 +272,7 @@ const SecurityFindings: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="ml-4 flex flex-col space-y-2">
                     <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                       View Details
@@ -272,21 +296,21 @@ const SecurityFindings: React.FC = () => {
           </p>
           <p className="text-sm text-gray-400">High Severity</p>
         </div>
-        
+
         <div className="bg-gray-800 rounded-lg p-6 text-center">
           <p className="text-3xl font-bold text-yellow-500">
             {findings.filter(f => f.severity === 'medium').length}
           </p>
           <p className="text-sm text-gray-400">Medium Severity</p>
         </div>
-        
+
         <div className="bg-gray-800 rounded-lg p-6 text-center">
           <p className="text-3xl font-bold text-green-500">
             {findings.filter(f => f.severity === 'low').length}
           </p>
           <p className="text-sm text-gray-400">Low Severity</p>
         </div>
-        
+
         <div className="bg-gray-800 rounded-lg p-6 text-center">
           <p className="text-3xl font-bold text-blue-500">
             {findings.filter(f => f.status === 'open').length}

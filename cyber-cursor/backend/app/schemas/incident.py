@@ -122,6 +122,9 @@ class ResponsePlaybookInDB(ResponsePlaybookBase):
 class ResponsePlaybook(ResponsePlaybookInDB):
     pass
 
+class ResponsePlaybookResponse(ResponsePlaybook):
+    pass
+
 class PlaybookStep(BaseModel):
     step_number: int
     title: str
@@ -160,6 +163,12 @@ class IncidentStats(BaseModel):
 class IncidentBulkUpdate(BaseModel):
     incident_ids: List[int]
     updates: IncidentUpdate
+
+class IncidentList(BaseModel):
+    incidents: List[Incident]
+    total: int
+    skip: int
+    limit: int
 
 # Import User for forward references
 from app.schemas.auth import User

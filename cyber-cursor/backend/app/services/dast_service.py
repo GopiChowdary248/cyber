@@ -404,7 +404,7 @@ class DASTService:
         
         # Get active scans
         active_scans_result = await self.db.execute(
-            select(func.count(DASTScan.id)).where(DASTScan.status == ScanStatus.RUNNING)
+            select(func.count(DASTScan.id)).where(DASTScan.status == ScanStatus.IN_PROGRESS)
         )
         active_scans = active_scans_result.scalar() or 0
         

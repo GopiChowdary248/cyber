@@ -3,17 +3,31 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData, text
 import structlog
+import os
 
 from app.core.config import settings
 
 logger = structlog.get_logger()
 
-# Create async engine
+# Get database URL from environment or use default
+DATABASE_URL = os.getenv("DATABASE_URL", settings.database.DATABASE_URL)
+
+# Create async engine with proper database configuration
 engine = create_async_engine(
-    settings.database.DATABASE_URL,
+    DATABASE_URL,
     echo=settings.api.DEBUG,
     pool_pre_ping=True,
     pool_recycle=300,
+    pool_size=settings.database.DB_POOL_SIZE,
+    max_overflow=settings.database.DB_MAX_OVERFLOW,
+    pool_timeout=settings.database.DB_POOL_TIMEOUT,
+    # Database specific optimizations
+    connect_args={
+        "server_settings": {
+            "application_name": "cybershield",
+            "timezone": "UTC",
+        }
+    } if "postgresql" in DATABASE_URL else {}
 )
 
 # Create async session factory
@@ -21,6 +35,7 @@ AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
+    autoflush=False,
 )
 
 # Create base class for models
@@ -79,4 +94,15 @@ def check_db_connection():
         return result
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
-        return False 
+        return False
+
+# Helper function to ensure proper async database operations
+async def execute_query(session: AsyncSession, query, **kwargs):
+    """Execute a query with proper error handling"""
+    try:
+        result = await session.execute(query, **kwargs)
+        return result
+    except Exception as e:
+        logger.error(f"Database query execution failed: {e}")
+        await session.rollback()
+        raise 

@@ -1,24 +1,18 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  CloudIcon, 
-  ShieldCheckIcon, 
-  ExclamationTriangleIcon,
+import {
   CheckCircleIcon,
+  ExclamationTriangleIcon,
   XCircleIcon,
-  ChartBarIcon,
+  InformationCircleIcon,
   CogIcon,
-  ArrowPathIcon,
+  ShieldCheckIcon,
   EyeIcon,
-  LockClosedIcon,
-  ServerIcon,
-  UserGroupIcon,
-  GlobeAltIcon,
+  ChartBarIcon,
   BellIcon,
-  ClockIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  InformationCircleIcon
+  GlobeAltIcon,
+  ServerIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -106,7 +100,7 @@ const ComponentTestSuite: React.FC = () => {
                 variant="default"
                 title="Default Card"
                 subtitle="Standard variant"
-                icon={<CloudIcon className="w-6 h-6 text-blue-500" />}
+                icon={<ShieldCheckIcon className="w-6 h-6 text-blue-500" />}
               >
                 <p className="text-gray-300">This is a default card with standard styling.</p>
               </EnhancedCard>
@@ -133,7 +127,7 @@ const ComponentTestSuite: React.FC = () => {
                 variant="gradient"
                 title="Gradient Card"
                 subtitle="Colorful background"
-                icon={<ArrowTrendingUpIcon className="w-6 h-6 text-orange-500" />}
+                icon={<ChevronRightIcon className="w-6 h-6 text-orange-500" />}
               >
                 <p className="text-gray-300">This card has a gradient background.</p>
               </EnhancedCard>
@@ -236,7 +230,7 @@ const ComponentTestSuite: React.FC = () => {
               <EnhancedButton variant="outline" icon={<InformationCircleIcon className="w-4 h-4" />}>
                 Outline
               </EnhancedButton>
-                              <EnhancedButton variant="primary" icon={<ArrowPathIcon className="w-4 h-4" />} iconPosition="right">
+                              <EnhancedButton variant="primary" icon={<ChevronRightIcon className="w-4 h-4" />} iconPosition="right">
                 Right Icon
               </EnhancedButton>
             </div>
@@ -293,7 +287,7 @@ const ComponentTestSuite: React.FC = () => {
               <EnhancedButton
                 variant="primary"
                 fullWidth
-                icon={<CloudIcon className="w-4 h-4" />}
+                icon={<ShieldCheckIcon className="w-4 h-4" />}
               >
                 Full Width Primary Button
               </EnhancedButton>
@@ -432,7 +426,7 @@ const ComponentTestSuite: React.FC = () => {
                     {
                       id: 'underline2',
                       label: 'Analytics',
-                      icon: <ArrowTrendingUpIcon className="w-4 h-4" />,
+                      icon: <ChevronRightIcon className="w-4 h-4" />,
                       content: <div className="p-4 bg-gray-800 rounded-lg">Analytics content</div>
                     }
                   ]}
@@ -563,7 +557,7 @@ const ComponentTestSuite: React.FC = () => {
     {
       id: 'charts',
       label: 'Data Visualization',
-                icon: <ArrowTrendingUpIcon className="w-4 h-4" />,
+                icon: <ChevronRightIcon className="w-4 h-4" />,
       content: (
         <div className="space-y-8">
           <div>

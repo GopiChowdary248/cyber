@@ -16,7 +16,6 @@ import {
 import { Target } from 'lucide-react';
 import SASTProjects from './SASTProjects';
 import SASTDashboard from '../../components/SAST/SASTDashboard';
-import QualityImprovementDashboard from '../../components/SAST/QualityImprovementDashboard';
 
 interface SASTData {
   overview: {
@@ -150,7 +149,6 @@ const SAST: React.FC = () => {
   const tabs = [
     { id: 'projects', label: 'Projects', icon: <DocumentTextIcon className="w-4 h-4" /> },
     { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
-    { id: 'quality-improvement', label: 'Quality Improvement', icon: <Target className="w-4 h-4" /> },
     { id: 'vulnerabilities', label: 'Vulnerabilities', icon: <ExclamationTriangleIcon className="w-4 h-4" /> },
     { id: 'scans', label: 'Scan History', icon: <DocumentMagnifyingGlassIcon className="w-4 h-4" /> },
     { id: 'rules', label: 'Detection Rules', icon: <BugAntIcon className="w-4 h-4" /> },
@@ -223,8 +221,6 @@ const SAST: React.FC = () => {
         {activeTab === 'projects' && <SASTProjects />}
 
         {activeTab === 'overview' && <SASTDashboard />}
-
-        {activeTab === 'quality-improvement' && <QualityImprovementDashboard />}
 
         {activeTab === 'vulnerabilities' && (
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">

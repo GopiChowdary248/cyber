@@ -8,6 +8,7 @@ import {
   ClockIcon,
   ChartBarIcon
 } from '@heroicons/react/24/outline';
+import { cloudSecurityService, CloudSecurityConfig } from '../../services/cloudSecurityService';
 
 interface CloudNativeDashboardProps {
   provider: string;
@@ -26,6 +27,7 @@ interface CloudNativeProvider {
 const CloudNativeDashboard: React.FC<CloudNativeDashboardProps> = ({ provider }) => {
   const [providerData, setProviderData] = useState<CloudNativeProvider | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProviderData();
@@ -33,17 +35,44 @@ const CloudNativeDashboard: React.FC<CloudNativeDashboardProps> = ({ provider })
 
   const fetchProviderData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch(`/api/v1/cloud-security/cloud-native/providers/${provider}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProviderData(data);
+      // Use the cloud security service to get provider data
+      const configs = await cloudSecurityService.getCloudSecurityConfigs();
+      const providerConfig = configs.find(config => 
+        config.provider.toLowerCase() === provider.toLowerCase()
+      );
+
+      if (providerConfig) {
+        // Get real-time data for the provider
+        const dashboard = await cloudSecurityService.getCloudSecurityDashboard();
+        const findings = await cloudSecurityService.getCloudSecurityFindings(0, 10, {
+          provider: providerConfig.provider as any
+        });
+
+        // Transform data to match the interface
+        setProviderData({
+          name: providerConfig.account_name,
+          status: providerConfig.is_active ? 'active' : 'inactive',
+          last_sync: providerConfig.last_sync,
+          protected_resources: dashboard.total_accounts,
+          active_threats: findings.findings.filter(f => f.status === 'open').length,
+          security_alerts: findings.total,
+          compliance_status: dashboard.compliance_score > 80 ? 'compliant' : 'non-compliant'
+        });
+      } else {
+        setError('Provider configuration not found');
       }
     } catch (error) {
       console.error('Error fetching Cloud Native provider data:', error);
+      setError('Failed to load provider data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = () => {
+    fetchProviderData();
   };
 
   const getStatusColor = (status: string) => {

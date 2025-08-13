@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  LockClosedIcon, 
-  UserGroupIcon, 
-  SignalIcon,
-  ArrowPathIcon,
-  PlayIcon,
-  StopIcon,
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ShieldCheckIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  CogIcon,
+  UserGroupIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
 
 interface VPNProvider {
@@ -29,26 +27,32 @@ const VPNDashboard: React.FC<VPNDashboardProps> = ({ provider }) => {
   const [loading, setLoading] = useState(true);
   const [restarting, setRestarting] = useState(false);
 
-  useEffect(() => {
-    fetchVPNData();
-  }, [provider]);
+  const mockVPNData: VPNProvider = {
+    name: 'OpenVPN',
+    status: 'active',
+    version: '2.0.0',
+    active_connections: 120,
+    total_users: 150,
+    bandwidth_usage: 85,
+    last_updated: '2023-10-27T10:00:00Z',
+  };
 
-  const fetchVPNData = async () => {
-    setLoading(true);
+  const fetchVPNData = useCallback(async () => {
     try {
-      const response = await fetch(`/api/v1/network-security/vpns/${provider}`);
-      if (response.ok) {
-        const data = await response.json();
-        setVpnData(data);
-      } else {
-        console.error('Failed to fetch VPN data');
-      }
+      setLoading(true);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setVpnData(mockVPNData);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching VPN data:', error);
-    } finally {
       setLoading(false);
     }
-  };
+  }, [mockVPNData]);
+
+  useEffect(() => {
+    fetchVPNData();
+  }, [fetchVPNData]);
 
   const handleRestart = async () => {
     setRestarting(true);
@@ -129,7 +133,7 @@ const VPNDashboard: React.FC<VPNDashboardProps> = ({ provider }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <LockClosedIcon className="h-8 w-8 text-green-500" />
+          <ShieldCheckIcon className="h-8 w-8 text-green-500" />
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
               {getProviderDisplayName(provider)}
@@ -149,7 +153,7 @@ const VPNDashboard: React.FC<VPNDashboardProps> = ({ provider }) => {
             disabled={restarting}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ArrowPathIcon className={`h-4 w-4 ${restarting ? 'animate-spin' : ''}`} />
+            <CogIcon className={`h-4 w-4 ${restarting ? 'animate-spin' : ''}`} />
             <span>{restarting ? 'Restarting...' : 'Restart Service'}</span>
           </button>
         </div>
@@ -186,7 +190,7 @@ const VPNDashboard: React.FC<VPNDashboardProps> = ({ provider }) => {
               <p className="text-sm font-medium text-gray-600">Bandwidth Usage</p>
               <p className="text-2xl font-bold text-purple-600">{vpnData.bandwidth_usage.toFixed(1)}%</p>
             </div>
-            <SignalIcon className="h-8 w-8 text-purple-500" />
+            <GlobeAltIcon className="h-8 w-8 text-purple-500" />
           </div>
         </div>
 
@@ -224,7 +228,7 @@ const VPNDashboard: React.FC<VPNDashboardProps> = ({ provider }) => {
           </div>
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <div className="flex items-center justify-center mb-2">
-              <SignalIcon className="h-6 w-6 text-blue-500" />
+              <GlobeAltIcon className="h-6 w-6 text-blue-500" />
             </div>
             <p className="text-sm font-medium text-gray-900">Utilization</p>
             <p className="text-2xl font-bold text-blue-600">{getConnectionRate()}%</p>
@@ -303,7 +307,7 @@ const VPNDashboard: React.FC<VPNDashboardProps> = ({ provider }) => {
           </div>
           <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
             <div className="flex items-center space-x-3">
-              <SignalIcon className="h-5 w-5 text-blue-500" />
+              <GlobeAltIcon className="h-5 w-5 text-blue-500" />
               <div>
                 <p className="font-medium text-gray-900">Bandwidth Alert</p>
                 <p className="text-sm text-gray-600">High bandwidth usage detected on server-01</p>

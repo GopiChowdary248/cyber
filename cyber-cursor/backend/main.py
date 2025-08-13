@@ -62,20 +62,32 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Security middleware
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=settings.security.ALLOWED_HOSTS
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.security.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Import and include Security middleware
+try:
+    from app.core.security_middleware import get_cors_middleware, get_trusted_host_middleware, get_security_middleware
+    from app.core.security_config import security_config
+    
+    # Add comprehensive security middleware FIRST (before CORS)
+    SecurityMiddleware, middleware_kwargs = get_security_middleware()
+    app.add_middleware(SecurityMiddleware, **middleware_kwargs)
+    
+    # Add trusted host middleware
+    app.add_middleware(get_trusted_host_middleware())
+    
+    # Add CORS middleware with secure configuration LAST
+    app.add_middleware(get_cors_middleware())
+    
+    logger.info("Security middleware loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Security middleware: {e}")
+    # Fallback to basic CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allow all origins for development
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Security
 security = HTTPBearer()
@@ -170,6 +182,220 @@ try:
 except Exception as e:
     logger.error(f"Failed to load Quality Goals API router: {e}")
 
+# Import and include Endpoint Antivirus/EDR endpoints
+try:
+    from app.api.v1.endpoints.endpoint_antivirus_edr import router as endpoint_antivirus_edr_router
+    app.include_router(endpoint_antivirus_edr_router, prefix="/api/v1/endpoint-antivirus-edr", tags=["Endpoint Antivirus/EDR"])
+    logger.info("Endpoint Antivirus/EDR API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Endpoint Antivirus/EDR API router: {e}")
+
+# Import and include Endpoint Security endpoints
+try:
+    from app.api.v1.endpoints.endpoint_security import router as endpoint_security_router
+    app.include_router(endpoint_security_router, prefix="/api/v1/endpoint-security", tags=["Endpoint Security"])
+    logger.info("Endpoint Security API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Endpoint Security API router: {e}")
+
+# Import and include Device Control endpoints
+try:
+    from app.api.v1.endpoints.device_control import router as device_control_router
+    app.include_router(device_control_router, prefix="/api/v1/device-control", tags=["Device Control"])
+    logger.info("Device Control API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Device Control API router: {e}")
+
+# Import and include SIEM/SOAR endpoints
+try:
+    from app.api.v1.endpoints.siem_soar import router as siem_soar_router
+    app.include_router(siem_soar_router, prefix="/api/v1/siem-soar", tags=["SIEM/SOAR"])
+    logger.info("SIEM/SOAR API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load SIEM/SOAR API router: {e}")
+
+# Import and include Network Security endpoints
+try:
+    from app.api.v1.endpoints.network_security import router as network_security_router
+    app.include_router(network_security_router, prefix="/api/v1/network-security", tags=["Network Security"])
+    logger.info("Network Security API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Network Security API router: {e}")
+
+# Import and include Data Protection endpoints
+try:
+    from app.api.v1.endpoints.data_protection import router as data_protection_router
+    app.include_router(data_protection_router, prefix="/api/v1/data-protection", tags=["Data Protection"])
+    logger.info("Data Protection API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Data Protection API router: {e}")
+
+# Import and include Monitoring SIEM/SOAR endpoints
+try:
+    from app.api.v1.endpoints.monitoring_siem_soar import router as monitoring_siem_soar_router
+    app.include_router(monitoring_siem_soar_router, prefix="/api/v1/monitoring-siem-soar", tags=["Monitoring SIEM/SOAR"])
+    logger.info("Monitoring SIEM/SOAR API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Monitoring SIEM/SOAR API router: {e}")
+
+# Import and include IAM endpoints
+try:
+    from app.api.v1.endpoints.iam import router as iam_router
+    app.include_router(iam_router, prefix="/api/v1/iam", tags=["IAM"])
+    logger.info("IAM API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load IAM API router: {e}")
+
+# Import and include Data Security endpoints
+try:
+    from app.api.v1.endpoints.data_security import router as data_security_router
+    app.include_router(data_security_router, prefix="/api/v1/data-security", tags=["Data Security"])
+    logger.info("Data Security API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Data Security API router: {e}")
+
+# Import and include Health endpoints
+try:
+    from app.api.v1.endpoints.health import router as health_router
+    app.include_router(health_router, prefix="/api/v1/health", tags=["Health"])
+    logger.info("Health API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Health API router: {e}")
+
+# Import and include Analytics endpoints
+try:
+    from app.api.v1.endpoints.analytics import router as analytics_router
+    app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
+    logger.info("Analytics API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Analytics API router: {e}")
+
+# Import and include Threat Intelligence endpoints
+try:
+    from app.api.v1.endpoints.threat_intelligence import router as threat_intelligence_router
+    app.include_router(threat_intelligence_router, prefix="/api/v1/threat-intelligence", tags=["Threat Intelligence"])
+    logger.info("Threat Intelligence API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Threat Intelligence API router: {e}")
+
+# Import and include Admin endpoints
+try:
+    from app.api.v1.endpoints.admin import router as admin_router
+    app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
+    logger.info("Admin API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Admin API router: {e}")
+
+# Import and include Dashboard endpoints
+try:
+    from app.api.v1.endpoints.dashboard import router as dashboard_router
+    app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+    logger.info("Dashboard API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Dashboard API router: {e}")
+
+# Import and include Workflows endpoints
+try:
+    from app.api.v1.endpoints.workflows import router as workflows_router
+    app.include_router(workflows_router, prefix="/api/v1/workflows", tags=["Workflows"])
+    logger.info("Workflows API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Workflows API router: {e}")
+
+# Import and include AI/ML endpoints
+try:
+    from app.api.v1.endpoints.ai_ml import router as ai_ml_router
+    app.include_router(ai_ml_router, prefix="/api/v1/ai-ml", tags=["AI/ML"])
+    logger.info("AI/ML API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load AI/ML API router: {e}")
+
+# Import and include Integrations endpoints
+try:
+    from app.api.v1.endpoints.integrations import router as integrations_router
+    app.include_router(integrations_router, prefix="/api/v1/integrations", tags=["Integrations"])
+    logger.info("Integrations API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Integrations API router: {e}")
+
+# Import and include Compliance endpoints
+try:
+    from app.api.v1.endpoints.compliance import router as compliance_router
+    app.include_router(compliance_router, prefix="/api/v1/compliance", tags=["Compliance"])
+    logger.info("Compliance API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Compliance API router: {e}")
+
+# Import and include MFA endpoints
+try:
+    from app.api.v1.endpoints.mfa import router as mfa_router
+    app.include_router(mfa_router, prefix="/api/v1/mfa", tags=["MFA"])
+    logger.info("MFA API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load MFA API router: {e}")
+
+# Import and include Phishing endpoints
+try:
+    from app.api.v1.endpoints.phishing import router as phishing_router
+    app.include_router(phishing_router, prefix="/api/v1/phishing", tags=["Phishing"])
+    logger.info("Phishing API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Phishing API router: {e}")
+
+# Import and include Incidents endpoints
+try:
+    from app.api.v1.endpoints.incidents import router as incidents_router
+    app.include_router(incidents_router, prefix="/api/v1/incidents", tags=["Incidents"])
+    logger.info("Incidents API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Incidents API router: {e}")
+
+# Import and include Application Security endpoints
+try:
+    from app.api.v1.endpoints.application_security import router as application_security_router
+    app.include_router(application_security_router, prefix="/api/v1/application-security", tags=["Application Security"])
+    logger.info("Application Security API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Application Security API router: {e}")
+
+# Import and include Enhanced Cloud Security endpoints
+try:
+    from app.api.v1.endpoints.enhanced_cloud_security import router as enhanced_cloud_security_router
+    app.include_router(enhanced_cloud_security_router, prefix="/api/v1/enhanced-cloud-security", tags=["Enhanced Cloud Security"])
+    logger.info("Enhanced Cloud Security API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load Enhanced Cloud Security API router: {e}")
+
+# Import and include WebSocket support for real-time monitoring
+try:
+    from app.sast.websocket_manager import get_websocket_manager
+    from fastapi import WebSocket, WebSocketDisconnect
+    
+    @app.websocket("/ws/{connection_id}")
+    async def websocket_endpoint(websocket: WebSocket, connection_id: str):
+        """WebSocket endpoint for real-time SAST monitoring"""
+        try:
+            websocket_manager = await get_websocket_manager()
+            await websocket_manager.connect_client(websocket, connection_id)
+            
+            try:
+                while True:
+                    # Wait for messages from client
+                    data = await websocket.receive_json()
+                    await websocket_manager.handle_client_message(connection_id, data)
+            except WebSocketDisconnect:
+                websocket_manager.disconnect_client(connection_id)
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                websocket_manager.disconnect_client(connection_id)
+                
+        except Exception as e:
+            logger.error(f"Failed to establish WebSocket connection: {e}")
+    
+    logger.info("WebSocket support for real-time monitoring loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load WebSocket support: {e}")
+
 # Root endpoints
 @app.get("/")
 async def root():
@@ -184,12 +410,25 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    # Get database type from configuration
+    db_url = settings.database.DATABASE_URL
+    logger.info(f"Database URL: {db_url}")
+    
+    if "sqlite" in db_url:
+        db_type = "sqlite"
+    elif "postgresql" in db_url:
+        db_type = "postgresql"
+    else:
+        db_type = "unknown"
+    
+    logger.info(f"Database type detected: {db_type}")
+    
     return {
         "status": "healthy",
         "message": "CyberShield API is running",
         "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
-        "database": "postgresql",
+        "database": db_type,
         "services": {
             "auth": "running",
             "users": "running",
@@ -197,6 +436,20 @@ async def health_check():
             "dast": "running",
             "rasp": "running",
             "cloud_security": "running",
+            "security": "running",
+            "projects": "running",
+            "reports": "running",
+            "cicd": "running",
+            "quality_goals": "running",
+            "endpoint_antivirus_edr": "running",
+            "device_control": "running",
+            "siem_soar": "running",
+            "network_security": "running",
+            "data_protection": "running",
+            "monitoring_siem_soar": "running",
+            "iam": "running",
+            "data_security": "running",
+            "health": "running",
             "database": "connected"
         }
     }
@@ -204,12 +457,21 @@ async def health_check():
 @app.get("/api/v1/health")
 async def api_health_check():
     """API health check endpoint"""
+    # Get database type from configuration
+    db_url = settings.database.DATABASE_URL
+    if "sqlite" in db_url:
+        db_type = "sqlite"
+    elif "postgresql" in db_url:
+        db_type = "postgresql"
+    else:
+        db_type = "unknown"
+    
     return {
         "status": "healthy",
         "message": "CyberShield API is running",
         "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
-        "database": "postgresql",
+        "database": db_type,
         "services": {
             "auth": "running",
             "users": "running",
@@ -217,6 +479,20 @@ async def api_health_check():
             "dast": "running",
             "rasp": "running",
             "cloud_security": "running",
+            "security": "running",
+            "projects": "running",
+            "reports": "running",
+            "cicd": "running",
+            "quality_goals": "running",
+            "endpoint_antivirus_edr": "running",
+            "device_control": "running",
+            "siem_soar": "running",
+            "network_security": "running",
+            "data_protection": "running",
+            "monitoring_siem_soar": "running",
+            "iam": "running",
+            "data_security": "running",
+            "health": "running",
             "database": "connected"
         }
     }

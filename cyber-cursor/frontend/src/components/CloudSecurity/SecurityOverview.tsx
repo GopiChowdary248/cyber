@@ -9,6 +9,7 @@ import {
   ClockIcon,
   ArrowTrendingUpIcon
 } from '@heroicons/react/24/outline';
+import { cloudSecurityService } from '../../services/cloudSecurityService';
 
 interface SecurityOverviewProps {}
 
@@ -26,6 +27,7 @@ interface CloudSecurityMetrics {
 const SecurityOverview: React.FC<SecurityOverviewProps> = () => {
   const [metrics, setMetrics] = useState<CloudSecurityMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMetrics();
@@ -33,14 +35,13 @@ const SecurityOverview: React.FC<SecurityOverviewProps> = () => {
 
   const fetchMetrics = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch('/api/v1/cloud-security/metrics');
-      if (response.ok) {
-        const data = await response.json();
-        setMetrics(data);
-      }
+      const data = await cloudSecurityService.getCloudSecurityMetrics();
+      setMetrics(data);
     } catch (error) {
       console.error('Error fetching security metrics:', error);
+      setError('Failed to load security metrics. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -56,6 +57,22 @@ const SecurityOverview: React.FC<SecurityOverviewProps> = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <ExclamationTriangleIcon className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Metrics</h3>
+        <p className="text-gray-600">{error}</p>
+        <button 
+          onClick={fetchMetrics}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }

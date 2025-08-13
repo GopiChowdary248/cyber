@@ -6,13 +6,14 @@ from datetime import datetime
 from app.services.workflow_service import workflow_service
 from app.models.user import User
 from app.core.database import get_db
+from app.core.security import get_current_user
 
 logger = structlog.get_logger()
 router = APIRouter()
 
 @router.get("/definitions")
 async def get_workflow_definitions(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get all available workflow definitions"""
     try:
@@ -30,7 +31,7 @@ async def get_workflow_definitions(
 async def start_workflow(
     workflow_id: str = Body(..., embed=True),
     context: Dict[str, Any] = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Start a new workflow instance"""
     try:
@@ -55,7 +56,7 @@ async def start_workflow(
 @router.get("/status/{workflow_id}")
 async def get_workflow_status(
     workflow_id: str = Path(..., description="Workflow instance ID"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get workflow status"""
     try:
@@ -76,7 +77,7 @@ async def get_workflow_status(
 
 @router.get("/user")
 async def get_user_workflows(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get workflows for the current user"""
     try:
@@ -96,7 +97,7 @@ async def approve_workflow_step(
     workflow_id: str = Body(..., embed=True),
     step_id: str = Body(..., embed=True),
     approved: bool = Body(True, embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Approve or reject a workflow step"""
     try:
@@ -117,7 +118,7 @@ async def approve_workflow_step(
 async def start_incident_response_workflow(
     incident_id: int = Body(..., embed=True),
     severity: str = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Start incident response workflow"""
     try:
@@ -145,7 +146,7 @@ async def start_access_request_workflow(
     access_level: str = Body(..., embed=True),
     systems: List[str] = Body(..., embed=True),
     reason: str = Body(..., embed=True),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Start access request workflow"""
     try:
@@ -172,7 +173,7 @@ async def start_access_request_workflow(
 
 @router.get("/pending-approvals")
 async def get_pending_approvals(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get pending approvals for the current user"""
     try:
@@ -204,7 +205,7 @@ async def get_pending_approvals(
 @router.get("/history")
 async def get_workflow_history(
     workflow_id: str = Query(..., description="Workflow instance ID"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get workflow history"""
     try:
@@ -229,7 +230,7 @@ async def get_workflow_history(
 @router.get("/metrics")
 async def get_workflow_metrics(
     time_range: str = Query("30d", description="Time range for metrics"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get workflow metrics"""
     try:

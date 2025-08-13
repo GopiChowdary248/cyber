@@ -1,0 +1,107 @@
+# CyberShield Unified Backend Requirements
+# Comprehensive Cybersecurity Platform Dependencies
+
+# Core FastAPI and ASGI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+structlog==23.2.0
+
+# Database - PostgreSQL with SQLAlchemy
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.12.1
+
+# Redis for caching and background tasks
+redis[hiredis]==5.0.1
+celery==5.3.4
+
+# Security and Authentication
+cryptography==41.0.7
+bcrypt==4.1.2
+PyJWT==2.8.0
+python-dotenv==1.0.0
+
+# Data validation and serialization
+pydantic==2.5.0
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# HTTP client and utilities
+httpx==0.25.2
+aiofiles==23.2.1
+python-magic==0.4.27
+
+# Background tasks and scheduling
+APScheduler==3.10.4
+rq==1.15.1
+
+# Monitoring and logging
+prometheus-client==0.19.0
+sentry-sdk[fastapi]==1.38.0
+
+# Testing and development
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+
+# Security scanning and analysis tools
+bandit==1.7.5
+safety==2.3.5
+
+# Additional utilities
+python-dateutil==2.8.2
+pytz==2023.3
+jinja2==3.1.2
+markdown==3.5.1
+openpyxl==3.1.2
+xlsxwriter==3.1.9
+
+# Cloud and infrastructure
+boto3==1.34.0
+azure-identity==1.15.0
+azure-security-center==1.0.0
+google-cloud-security==1.0.0
+
+# Network and system monitoring
+psutil==5.9.6
+netifaces==0.11.0
+
+# Machine Learning and AI
+numpy==1.25.2
+pandas==2.1.3
+scikit-learn==1.3.2
+tensorflow==2.15.0
+
+# Web scraping and analysis
+beautifulsoup4==4.12.2
+requests==2.31.0
+selenium==4.15.2
+
+# File processing and analysis
+PyPDF2==3.0.1
+python-docx==1.1.0
+xlrd==2.0.1
+
+# API documentation and testing
+drf-spectacular==0.26.5
+pytest-django==4.7.0
+
+# Performance and optimization
+orjson==3.9.10
+ujson==5.8.0
+msgpack==1.0.7
+
+# Environment and configuration
+python-decouple==3.8
+dynaconf==3.2.4
+
+# Development and debugging
+ipython==8.17.2
+ipdb==0.13.13

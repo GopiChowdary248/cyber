@@ -105,7 +105,7 @@ const SASTQualityGates: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('access_token') || '';
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -214,7 +214,7 @@ const SASTQualityGates: React.FC = () => {
     if (!selectedGate) return;
 
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('access_token') || '';
       const response = await fetch(`${API_BASE_URL}/quality-gates/${selectedGate.id}`, {
         method: 'PUT',
         headers: {
@@ -241,7 +241,7 @@ const SASTQualityGates: React.FC = () => {
 
   const handleEvaluateGate = async (gate: QualityGate) => {
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('access_token') || '';
       const response = await fetch(`${API_BASE_URL}/quality-gates/${gate.id}/evaluate`, {
         method: 'POST',
         headers: {

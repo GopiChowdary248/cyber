@@ -1,0 +1,26 @@
+# CyberShield Database Backup Cron Jobs
+# Add these to your crontab using: crontab -e
+
+# Daily full backup at 2:00 AM
+0 2 * * * /var/lib/postgresql/scripts/automated-backup.sh >> /var/lib/postgresql/backups/cron.log 2>&1
+
+# Hourly WAL archiving check at 15 minutes past each hour
+15 * * * * /usr/bin/pg_switch_wal -h localhost -U cybershield_user -d cybershield >> /var/lib/postgresql/backups/wal.log 2>&1
+
+# Weekly maintenance on Sunday at 3:00 AM
+0 3 * * 0 /usr/bin/psql -h localhost -U cybershield_user -d cybershield -c "SELECT production_maintenance();" >> /var/lib/postgresql/backups/maintenance.log 2>&1
+
+# Monthly performance tuning on the 1st of each month at 4:00 AM
+0 4 1 * * /usr/bin/psql -h localhost -U cybershield_user -d cybershield -c "SELECT tune_production_performance();" >> /var/lib/postgresql/backups/performance.log 2>&1
+
+# Daily disk space check at 6:00 AM
+0 6 * * * /usr/bin/df -h /var/lib/postgresql/backups /var/lib/postgresql/archive >> /var/lib/postgresql/backups/disk_usage.log 2>&1
+
+# Daily alert check at 8:00 AM
+0 8 * * * /usr/bin/psql -h localhost -U cybershield_user -d cybershield -c "SELECT * FROM check_production_alerts();" >> /var/lib/postgresql/backups/alerts.log 2>&1
+
+# Cleanup old log files weekly on Sunday at 5:00 AM
+0 5 * * 0 find /var/lib/postgresql/backups -name "*.log" -mtime +30 -delete
+
+# Test backup restoration monthly on the 15th at 2:00 AM (optional)
+# 0 2 15 * * /var/lib/postgresql/scripts/test-restore.sh >> /var/lib/postgresql/backups/restore_test.log 2>&1

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class Token(BaseModel):
@@ -95,12 +95,34 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     is_active: bool
     is_verified: bool
+    is_superuser: bool = False
     last_login: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     two_factor_enabled: bool = False
+    permissions: List[str] = []
+    
+    class Config:
+        from_attributes = True
+
+class MFASetupResponse(BaseModel):
+    secret: str
+    qr_code: str
+    backup_codes: List[str]
+    setup_complete: bool = False
+
+class MFAResponse(BaseModel):
+    success: bool
+    message: str
+    requires_backup_code: bool = False
+
+class BackupCodesResponse(BaseModel):
+    backup_codes: List[str]
+    generated_at: datetime
+    two_factor_enabled: bool = False
     avatar_url: Optional[str] = None
     preferences: Optional[dict] = None
+    permissions: List[str] = []
     
     class Config:
         from_attributes = True 

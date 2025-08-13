@@ -65,7 +65,6 @@ const navigationItems: NavigationItem[] = [
               children: [
                 { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/application-security' },
                 { id: 'sast', label: 'SAST', icon: <CodeBracketIcon className="w-4 h-4" />, href: '/sast' },
-                { id: 'sast-results', label: 'SAST Results', icon: <DocumentTextIcon className="w-4 h-4" />, href: '/sast/results' },
                 { id: 'dast', label: 'DAST', icon: <ShieldExclamationIcon className="w-4 h-4" />, href: '/dast' },
                 { id: 'rasp', label: 'RASP', icon: <ShieldCheckIcon className="w-4 h-4" />, href: '/application-security/rasp' },
                 { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/application-security/monitoring' }
@@ -164,6 +163,18 @@ const navigationItems: NavigationItem[] = [
     icon: <BellIcon className="w-5 h-5" />,
     href: '/incidents',
     badge: 3
+  },
+  {
+    id: 'integration',
+    label: 'Integration',
+    icon: <ServerIcon className="w-5 h-5" />,
+    href: '/integration',
+    children: [
+      { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" />, href: '/integration' },
+              { id: 'dashboard', label: 'Status Dashboard', icon: <ChartBarIcon className="w-4 h-4" />, href: '/integration/dashboard' },
+      { id: 'test-runner', label: 'Test Runner', icon: <PlayIcon className="w-4 h-4" />, href: '/integration/test-runner' },
+      { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" />, href: '/integration/monitoring' }
+    ]
   },
   {
     id: 'settings',

@@ -1,0 +1,55 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: cybershield-postgres
+    environment:
+      POSTGRES_DB: cybershield
+      POSTGRES_USER: cybershield_user
+      POSTGRES_PASSWORD: cybershield_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - cybershield-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cybershield_user -d cybershield"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # Redis for caching and background tasks
+  redis:
+    image: redis:7-alpine
+    container_name: cybershield-redis
+    command: redis-server --appendonly yes --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - cybershield-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  cybershield-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

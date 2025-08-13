@@ -6,6 +6,7 @@ import {
   ClockIcon,
   FunnelIcon
 } from '@heroicons/react/24/outline';
+import { cloudSecurityService } from '../../services/cloudSecurityService';
 
 interface SecurityFindingsProps {}
 
@@ -27,6 +28,7 @@ interface SecurityFinding {
 const SecurityFindings: React.FC<SecurityFindingsProps> = () => {
   const [findings, setFindings] = useState<SecurityFinding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<string>('');
   const [filterProvider, setFilterProvider] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -37,14 +39,13 @@ const SecurityFindings: React.FC<SecurityFindingsProps> = () => {
 
   const fetchFindings = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch('/api/v1/cloud-security/findings');
-      if (response.ok) {
-        const data = await response.json();
-        setFindings(data);
-      }
+      const data = await cloudSecurityService.getSecurityFindings();
+      setFindings(data);
     } catch (error) {
       console.error('Error fetching security findings:', error);
+      setError('Failed to load security findings. Please try again later.');
     } finally {
       setLoading(false);
     }

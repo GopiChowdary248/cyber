@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  DevicePhoneMobileIcon, 
-  ShieldCheckIcon, 
-  BellIcon, 
-  UserCircleIcon, 
-  ComputerDesktopIcon,
-  ChartBarIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  CogIcon
-} from '@heroicons/react/24/outline';
+import {
+  Shield,
+  Lock,
+  Monitor,
+  Laptop,
+  Smartphone,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  Eye,
+  EyeOff,
+  Users,
+  Settings,
+  Zap
+} from 'lucide-react';
 
 interface EndpointSecurityData {
   overview: {
@@ -116,23 +125,23 @@ const EndpointSecurity: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircleIcon className="w-5 h-5" />;
+        return <CheckCircle className="w-5 h-5" />;
       case 'warning':
-        return <ExclamationTriangleIcon className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
       case 'critical':
-        return <XCircleIcon className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
       default:
-        return <ChartBarIcon className="w-5 h-5" />;
+        return <TrendingUp className="w-5 h-5" />;
     }
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
-    { id: 'antivirus', label: 'Antivirus', icon: <ShieldCheckIcon className="w-4 h-4" /> },
-    { id: 'edr', label: 'EDR', icon: <ComputerDesktopIcon className="w-4 h-4" /> },
-    { id: 'dlp', label: 'DLP', icon: <ShieldCheckIcon className="w-4 h-4" /> },
-    { id: 'patching', label: 'Patching', icon: <CogIcon className="w-4 h-4" /> },
-    { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" /> }
+    { id: 'overview', label: 'Overview', icon: <TrendingUp className="w-4 h-4" /> },
+    { id: 'antivirus', label: 'Antivirus', icon: <Shield className="w-4 h-4" /> },
+    { id: 'edr', label: 'EDR', icon: <Lock className="w-4 h-4" /> },
+    { id: 'dlp', label: 'DLP', icon: <Shield className="w-4 h-4" /> },
+    { id: 'patching', label: 'Patching', icon: <Settings className="w-4 h-4" /> },
+    { id: 'monitoring', label: 'Monitoring', icon: <Monitor className="w-4 h-4" /> }
   ];
 
   if (loading) {
@@ -147,7 +156,7 @@ const EndpointSecurity: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900">Error Loading Data</h3>
           <p className="text-gray-600">Unable to load endpoint security data</p>
         </div>
@@ -164,7 +173,7 @@ const EndpointSecurity: React.FC = () => {
           <p className="text-gray-600">Monitor and manage endpoint protection across all devices</p>
         </div>
         <div className="flex items-center space-x-2">
-          <DevicePhoneMobileIcon className="w-8 h-8 text-blue-600" />
+          <Smartphone className="w-8 h-8 text-blue-600" />
         </div>
       </div>
 
@@ -204,7 +213,7 @@ const EndpointSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Total Endpoints</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.totalEndpoints}</p>
                 </div>
-                <DevicePhoneMobileIcon className="w-8 h-8 text-blue-600" />
+                <Smartphone className="w-8 h-8 text-blue-600" />
               </div>
             </div>
             
@@ -214,7 +223,7 @@ const EndpointSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Protected Endpoints</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.protectedEndpoints}</p>
                 </div>
-                <ShieldCheckIcon className="w-8 h-8 text-green-600" />
+                <Shield className="w-8 h-8 text-green-600" />
               </div>
             </div>
             
@@ -224,7 +233,7 @@ const EndpointSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Threats Blocked</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.threatsBlocked}</p>
                 </div>
-                <ShieldCheckIcon className="w-8 h-8 text-red-600" />
+                <Shield className="w-8 h-8 text-red-600" />
               </div>
             </div>
             
@@ -234,7 +243,7 @@ const EndpointSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Security Score</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.securityScore}%</p>
                 </div>
-                <ChartBarIcon className="w-8 h-8 text-purple-600" />
+                <TrendingUp className="w-8 h-8 text-purple-600" />
               </div>
             </div>
           </div>

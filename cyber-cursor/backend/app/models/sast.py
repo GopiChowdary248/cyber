@@ -55,7 +55,7 @@ class Rating(str, enum.Enum):
 
 class ScanStatus(str, enum.Enum):
     PENDING = "PENDING"
-    RUNNING = "RUNNING"
+    IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"

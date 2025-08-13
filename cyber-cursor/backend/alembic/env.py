@@ -37,6 +37,8 @@ def get_url():
     url = settings.database.DATABASE_URL
     if url.startswith("postgresql+asyncpg://"):
         url = url.replace("postgresql+asyncpg://", "postgresql://")
+    elif url.startswith("sqlite+aiosqlite://"):
+        url = url.replace("sqlite+aiosqlite://", "sqlite://")
     return url
 
 

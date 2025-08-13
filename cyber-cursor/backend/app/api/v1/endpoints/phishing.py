@@ -8,9 +8,10 @@ from app.core.security import get_current_user, require_analyst
 from app.models.phishing import EmailAnalysis, EmailAttachment, EmailResponse, PhishingTemplate, ThreatIntelligence
 from app.schemas.phishing import (
     EmailAnalysisCreate, EmailAnalysisResponse, EmailAttachmentResponse,
-    EmailResponseCreate, EmailResponseResponse, PhishingTemplateResponse,
-    ThreatIntelligenceResponse, PhishingStats
+    EmailResponseCreate, EmailResponseResponse, PhishingTemplateCreate,
+    PhishingTemplateResponse, ThreatIntelligenceResponse, PhishingStats
 )
+from app.schemas.auth import User
 from app.services.ai_service import ai_service
 
 router = APIRouter()

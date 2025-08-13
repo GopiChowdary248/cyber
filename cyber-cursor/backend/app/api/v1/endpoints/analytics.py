@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from app.services.analytics_service import analytics_service, TimeRange
 from app.models.user import User
 from app.core.database import get_db
+from app.core.security import get_current_user
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -13,7 +14,7 @@ router = APIRouter()
 @router.get("/dashboard")
 async def get_dashboard_overview(
     time_range: str = Query("7d", description="Time range for analytics"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get comprehensive dashboard overview"""
     try:
@@ -33,7 +34,7 @@ async def get_trend_analysis(
     metric: str,
     time_range: TimeRange = Query(TimeRange.DAY, description="Time range for trend analysis"),
     filters: Dict[str, Any] = Body({}),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get trend analysis for a specific metric"""
     try:
@@ -51,7 +52,7 @@ async def get_trend_analysis(
 @router.post("/custom-dashboard")
 async def create_custom_dashboard(
     dashboard_config: Dict[str, Any] = Body(...),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Create a custom dashboard"""
     try:
@@ -67,7 +68,7 @@ async def create_custom_dashboard(
 @router.get("/metrics/incidents")
 async def get_incident_metrics(
     time_range: str = Query("30d", description="Time range for metrics"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get incident-related metrics"""
     try:
@@ -102,7 +103,7 @@ async def get_incident_metrics(
 @router.get("/metrics/security")
 async def get_security_metrics(
     time_range: str = Query("30d", description="Time range for metrics"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get security-related metrics"""
     try:
@@ -127,7 +128,7 @@ async def get_security_metrics(
 @router.get("/metrics/compliance")
 async def get_compliance_metrics(
     time_range: str = Query("30d", description="Time range for metrics"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get compliance-related metrics"""
     try:
@@ -151,7 +152,7 @@ async def get_compliance_metrics(
 @router.get("/reports/security")
 async def get_security_report(
     time_range: str = Query("30d", description="Time range for report"),
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get comprehensive security report"""
     try:

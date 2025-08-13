@@ -27,6 +27,7 @@ import Settings from './pages/Settings/Settings';
 import UserDashboard from './pages/User/UserDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import SASTProjectDetails from './pages/SAST/SASTProjectDetails';
+import DAST from './pages/DAST/DAST';
 
 // Import contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -411,6 +412,24 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            
+            {/* DAST Routes */}
+            <Route
+              path="/dast"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DAST />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            
             <Route 
               path="/sast/issues" 
               element={

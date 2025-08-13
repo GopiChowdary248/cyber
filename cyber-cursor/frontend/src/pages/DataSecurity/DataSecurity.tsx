@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  DocumentTextIcon, 
-  ShieldCheckIcon, 
-  BellIcon, 
-  UserCircleIcon, 
-  ComputerDesktopIcon,
-  ChartBarIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  CogIcon,
-  LockClosedIcon,
-  ServerIcon,
-  ExclamationCircleIcon,
-  ClockIcon,
-  DocumentDuplicateIcon
-} from '@heroicons/react/24/outline';
+import {
+  Shield,
+  Lock,
+  Database,
+  FileText,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  Eye,
+  EyeOff,
+  Users,
+  Settings,
+  Zap
+} from 'lucide-react';
 
 interface DataSecurityData {
   overview: {
@@ -133,23 +136,23 @@ const DataSecurity: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircleIcon className="w-5 h-5" />;
+        return <CheckCircle className="w-5 h-5" />;
       case 'warning':
-        return <ExclamationTriangleIcon className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
       case 'critical':
-        return <XCircleIcon className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
       default:
-        return <ChartBarIcon className="w-5 h-5" />;
+        return <TrendingUp className="w-5 h-5" />;
     }
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
-    { id: 'encryption', label: 'Encryption', icon: <LockClosedIcon className="w-4 h-4" /> },
-    { id: 'dlp', label: 'DLP', icon: <ShieldCheckIcon className="w-4 h-4" /> },
-    { id: 'database-security', label: 'Database Security', icon: <ServerIcon className="w-4 h-4" /> },
-    { id: 'compliance', label: 'Compliance', icon: <DocumentTextIcon className="w-4 h-4" /> },
-    { id: 'monitoring', label: 'Monitoring', icon: <BellIcon className="w-4 h-4" /> }
+    { id: 'overview', label: 'Overview', icon: <TrendingUp className="w-4 h-4" /> },
+    { id: 'encryption', label: 'Encryption', icon: <Lock className="w-4 h-4" /> },
+    { id: 'dlp', label: 'DLP', icon: <Shield className="w-4 h-4" /> },
+    { id: 'database-security', label: 'Database Security', icon: <Database className="w-4 h-4" /> },
+    { id: 'compliance', label: 'Compliance', icon: <FileText className="w-4 h-4" /> },
+    { id: 'monitoring', label: 'Monitoring', icon: <Clock className="w-4 h-4" /> }
   ];
 
   if (loading) {
@@ -164,7 +167,7 @@ const DataSecurity: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900">Error Loading Data</h3>
           <p className="text-gray-600">Unable to load data security data</p>
         </div>
@@ -181,7 +184,7 @@ const DataSecurity: React.FC = () => {
           <p className="text-gray-600">Protect sensitive data with encryption, DLP, and database monitoring</p>
         </div>
         <div className="flex items-center space-x-2">
-          <DocumentTextIcon className="w-8 h-8 text-blue-600" />
+          <FileText className="w-8 h-8 text-blue-600" />
         </div>
       </div>
 
@@ -221,7 +224,7 @@ const DataSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Total Files</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.totalFiles.toLocaleString()}</p>
                 </div>
-                <DocumentTextIcon className="w-8 h-8 text-blue-600" />
+                <FileText className="w-8 h-8 text-blue-600" />
               </div>
             </div>
             
@@ -231,7 +234,7 @@ const DataSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Encrypted Files</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.encryptedFiles.toLocaleString()}</p>
                 </div>
-                <LockClosedIcon className="w-8 h-8 text-green-600" />
+                <Lock className="w-8 h-8 text-green-600" />
               </div>
             </div>
             
@@ -241,7 +244,7 @@ const DataSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">DLP Violations</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.dlpViolations}</p>
                 </div>
-                <ShieldCheckIcon className="w-8 h-8 text-red-600" />
+                <Shield className="w-8 h-8 text-red-600" />
               </div>
             </div>
             
@@ -251,7 +254,7 @@ const DataSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Security Score</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.securityScore}%</p>
                 </div>
-                <ChartBarIcon className="w-8 h-8 text-purple-600" />
+                <TrendingUp className="w-8 h-8 text-purple-600" />
               </div>
             </div>
           </div>

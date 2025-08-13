@@ -1,27 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Shield,
   AlertTriangle,
-  CheckCircle,
   Clock,
-  Eye,
-  Filter,
-  Search,
-  Download,
-  RefreshCw,
   FileText,
   GitBranch,
-  Bug,
   Zap,
   Target,
   Users,
   Settings,
-  ChevronDown,
+  CheckCircle,
+  Eye,
+  RefreshCw,
+  Download,
+  Search,
+  Bug,
   ChevronUp,
-  ExternalLink,
+  ChevronDown,
   MessageSquare,
-  Calendar,
-  User
+  ExternalLink,
+  User,
+  Calendar
 } from 'lucide-react';
 
 interface SecurityHotspot {
@@ -78,7 +76,7 @@ const SASTSecurityHotspots: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('access_token') || '';
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -201,7 +199,7 @@ const SASTSecurityHotspots: React.FC = () => {
     if (!selectedHotspot) return;
     
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('access_token') || '';
       const response = await fetch(`${API_BASE_URL}/security-hotspots/${selectedHotspot.id}/review`, {
         method: 'PUT',
         headers: {

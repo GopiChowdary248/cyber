@@ -40,7 +40,7 @@ class SecuritySettings(BaseSettings):
     API_KEY_LENGTH: int = 32
     
     # CORS Settings
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://yourdomain.com"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://localhost:3000", "https://yourdomain.com"]
     ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     ALLOWED_HEADERS: List[str] = ["*"]
     
@@ -111,36 +111,45 @@ class SecuritySettings(BaseSettings):
 class DatabaseSettings(BaseSettings):
     """Database configuration settings"""
     
-    # Use PostgreSQL in production, SQLite in development
+    # Use environment variable or default to PostgreSQL container
     DATABASE_URL: str = "postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield"
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 3600
     
-    # SSL Configuration
-    DB_SSL_MODE: str = "require"
+    # SSL Configuration (for PostgreSQL)
+    DB_SSL_MODE: str = "disable"  # Disable SSL for local development
     DB_SSL_CERT: Optional[str] = None
     DB_SSL_KEY: Optional[str] = None
     DB_SSL_CA: Optional[str] = None
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Use PostgreSQL by default, only fallback to SQLite if explicitly requested
+        
+        # Override with environment variable if present
+        if os.getenv("DATABASE_URL"):
+            self.DATABASE_URL = os.getenv("DATABASE_URL")
+        
+        # Only use SQLite if explicitly requested
         if os.getenv("USE_SQLITE", "false").lower() == "true":
             self.DATABASE_URL = "sqlite+aiosqlite:///./cybershield.db"
-        # Production PostgreSQL configuration
-        elif os.getenv("ENVIRONMENT", "development") == "production":
-            self.DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield")
 
 class RedisSettings(BaseSettings):
     """Redis configuration settings"""
     
-    REDIS_URL: str = "redis://:redis_password@redis:6379/0"
+    REDIS_URL: str = "redis://:redis_password@localhost:6380/0"
     REDIS_PASSWORD: Optional[str] = "redis_password"
     REDIS_DB: int = 0
     REDIS_SSL: bool = False
     REDIS_MAX_CONNECTIONS: int = 20
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        # Override with environment variable if present
+        if os.getenv("REDIS_URL"):
+            self.REDIS_URL = os.getenv("REDIS_URL")
 
 class APISettings(BaseSettings):
     """API configuration settings"""
@@ -162,6 +171,34 @@ class APISettings(BaseSettings):
     # Response Caching
     ENABLE_CACHING: bool = True
     CACHE_TTL: int = 300  # 5 minutes
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        # Override with environment variables if present
+        if os.getenv("DEBUG"):
+            self.DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+        if os.getenv("HOST"):
+            self.HOST = os.getenv("HOST")
+        if os.getenv("PORT"):
+            self.PORT = int(os.getenv("PORT"))
+
+class AISettings(BaseSettings):
+    """AI configuration settings"""
+    
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-3.5-turbo"
+    OPENAI_BASE_URL: Optional[str] = None
+    AI_ENABLED: bool = False
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        # Override with environment variables if present
+        if os.getenv("OPENAI_API_KEY"):
+            self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        if os.getenv("OPENAI_MODEL"):
+            self.OPENAI_MODEL = os.getenv("OPENAI_MODEL")
 
 class LoggingSettings(BaseSettings):
     """Logging configuration settings"""
@@ -175,12 +212,20 @@ class LoggingSettings(BaseSettings):
     # Security Logging
     SECURITY_LOG_LEVEL: str = "WARNING"
     SECURITY_LOG_FILE: Optional[str] = None
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        # Override with environment variables if present
+        if os.getenv("LOG_LEVEL"):
+            self.LOG_LEVEL = os.getenv("LOG_LEVEL")
 
 # Create settings instances
 security_settings = SecuritySettings()
 database_settings = DatabaseSettings()
 redis_settings = RedisSettings()
 api_settings = APISettings()
+ai_settings = AISettings()
 logging_settings = LoggingSettings()
 
 # Combined settings for easy access
@@ -192,6 +237,7 @@ class Settings:
         self.database = database_settings
         self.redis = redis_settings
         self.api = api_settings
+        self.ai = ai_settings
         self.logging = logging_settings
     
     @property
@@ -202,7 +248,7 @@ class Settings:
     @property
     def is_development(self) -> bool:
         """Check if running in development"""
-        return os.getenv("ENVIRONMENT", "development").lower() == "development"
+        return os.getenv("ENVIRONMENT", "development").lower() == "testing"
     
     @property
     def is_testing(self) -> bool:

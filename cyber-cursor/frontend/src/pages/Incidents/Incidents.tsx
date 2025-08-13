@@ -1,4 +1,24 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Shield,
+  Lock,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  Eye,
+  EyeOff,
+  Users,
+  Settings,
+  Zap,
+  Bell
+} from 'lucide-react';
 
 const Incidents: React.FC = () => {
   return (

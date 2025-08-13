@@ -1,24 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  CloudIcon, 
-  ShieldCheckIcon, 
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ChartBarIcon,
-  CogIcon,
-  ArrowPathIcon,
-  EyeIcon,
-  LockClosedIcon,
-  ServerIcon,
-  UserGroupIcon,
-  GlobeAltIcon,
-  BellIcon,
-  ClockIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon
-} from '@heroicons/react/24/outline';
+import {
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  FileText,
+  GitBranch,
+  Zap,
+  Target,
+  Users,
+  Settings,
+  TrendingUp,
+  TrendingDown,
+  XCircle,
+  Eye,
+  RotateCcw
+} from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -253,59 +251,59 @@ const EnhancedCloudSecurity: React.FC = () => {
     {
       id: 'overview',
       label: 'Overview',
-      icon: <ChartBarIcon className="w-4 h-4" />,
+      icon: <Zap className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <EnhancedCard
               variant="gradient"
-              icon={<CloudIcon className="w-8 h-8 text-blue-500" />}
+              icon={<Target className="w-8 h-8 text-blue-500" />}
               title="Total Resources"
               subtitle="Across all providers"
             >
               <div className="text-3xl font-bold text-white">89</div>
               <div className="flex items-center text-green-400 text-sm">
-                <ArrowTrendingUpIcon className="w-4 h-4 mr-1" />
+                <TrendingUp className="w-4 h-4 mr-1" />
                 +12% from last month
               </div>
             </EnhancedCard>
 
             <EnhancedCard
               variant="gradient"
-              icon={<ExclamationTriangleIcon className="w-8 h-8 text-yellow-500" />}
+              icon={<AlertTriangle className="w-8 h-8 text-yellow-500" />}
               title="Misconfigurations"
               subtitle="Security issues found"
             >
               <div className="text-3xl font-bold text-white">12</div>
               <div className="flex items-center text-red-400 text-sm">
-                <ArrowTrendingDownIcon className="w-4 h-4 mr-1" />
+                <TrendingDown className="w-4 h-4 mr-1" />
                 -3 from last scan
               </div>
             </EnhancedCard>
 
             <EnhancedCard
               variant="gradient"
-              icon={<XCircleIcon className="w-8 h-8 text-red-500" />}
+              icon={<XCircle className="w-8 h-8 text-red-500" />}
               title="Critical Findings"
               subtitle="High priority issues"
             >
               <div className="text-3xl font-bold text-white">3</div>
               <div className="flex items-center text-yellow-400 text-sm">
-                <ExclamationTriangleIcon className="w-4 h-4 mr-1" />
+                <AlertTriangle className="w-4 h-4 mr-1" />
                 Requires attention
               </div>
             </EnhancedCard>
 
             <EnhancedCard
               variant="gradient"
-              icon={<ShieldCheckIcon className="w-8 h-8 text-green-500" />}
+              icon={<Shield className="w-8 h-8 text-green-500" />}
               title="Compliance Score"
               subtitle="Overall security rating"
             >
               <div className="text-3xl font-bold text-white">91%</div>
               <div className="flex items-center text-green-400 text-sm">
-                <ArrowTrendingUpIcon className="w-4 h-4 mr-1" />
+                <TrendingUp className="w-4 h-4 mr-1" />
                 +2% improvement
               </div>
             </EnhancedCard>
@@ -343,7 +341,7 @@ const EnhancedCloudSecurity: React.FC = () => {
     {
       id: 'providers',
       label: 'Cloud Providers',
-      icon: <GlobeAltIcon className="w-4 h-4" />,
+      icon: <Users className="w-4 h-4" />,
       content: (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {cloudProviders.map((provider) => (
@@ -385,7 +383,7 @@ const EnhancedCloudSecurity: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center text-gray-400 text-sm">
-                  <ClockIcon className="w-4 h-4 mr-1" />
+                  <Clock className="w-4 h-4 mr-1" />
                   Last scan: {new Date(provider.lastScan).toLocaleDateString()}
                 </div>
               </div>
@@ -397,7 +395,7 @@ const EnhancedCloudSecurity: React.FC = () => {
     {
       id: 'findings',
       label: 'Security Findings',
-      icon: <EyeIcon className="w-4 h-4" />,
+      icon: <Eye className="w-4 h-4" />,
       content: (
         <div className="space-y-4">
           {securityFindings.map((finding) => (
@@ -430,7 +428,7 @@ const EnhancedCloudSecurity: React.FC = () => {
     {
       id: 'cspm',
       label: 'CSPM',
-      icon: <ShieldCheckIcon className="w-4 h-4" />,
+      icon: <Shield className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
           <EnhancedCard
@@ -466,7 +464,7 @@ const EnhancedCloudSecurity: React.FC = () => {
     {
       id: 'cwp',
       label: 'CWP',
-      icon: <ServerIcon className="w-4 h-4" />,
+      icon: <GitBranch className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
           <EnhancedCard
@@ -482,7 +480,7 @@ const EnhancedCloudSecurity: React.FC = () => {
                     <div key={workload} className="flex justify-between items-center p-3 border border-gray-700 rounded-lg">
                       <span className="text-white">{workload}</span>
                       <div className="flex items-center space-x-2">
-                        <CheckCircleIcon className="w-5 h-5 text-green-400" />
+                        <CheckCircle className="w-5 h-5 text-green-400" />
                         <span className="text-green-400 text-sm">Protected</span>
                       </div>
                     </div>
@@ -511,7 +509,7 @@ const EnhancedCloudSecurity: React.FC = () => {
     {
       id: 'monitoring',
       label: 'Monitoring',
-      icon: <BellIcon className="w-4 h-4" />,
+      icon: <Zap className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
           <EnhancedCard
@@ -572,14 +570,14 @@ const EnhancedCloudSecurity: React.FC = () => {
         <div className="flex items-center space-x-3">
           <EnhancedButton
             variant="outline"
-            icon={<CogIcon className="w-4 h-4" />}
+            icon={<Settings className="w-4 h-4" />}
           >
             Settings
           </EnhancedButton>
           <EnhancedButton
             variant="primary"
             loading={isLoading}
-                            icon={<ArrowPathIcon className="w-4 h-4" />}
+                            icon={<RotateCcw className="w-4 h-4" />}
             onClick={handleScan}
           >
             {isLoading ? 'Scanning...' : 'Run Security Scan'}

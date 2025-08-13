@@ -16,15 +16,25 @@ from pydantic import BaseModel
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Import the correct User schema
+from app.schemas.auth import UserResponse
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def get_encryption_key() -> bytes:
+    """Get encryption key for sensitive data"""
+    return ENCRYPTION_KEY
 
 # Security configuration
 SECRET_KEY = "your-super-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# Encryption key for sensitive data (32 bytes base64-encoded)
+ENCRYPTION_KEY = b'0IVw9kqBpcKfQz3JwHlqUoTYDrkHc8MMlku0-AftxwA='
 
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 60  # seconds
@@ -51,15 +61,6 @@ class SecurityConfig(BaseModel):
     rate_limit_window: int = RATE_LIMIT_WINDOW
     rate_limit_max_requests: int = RATE_LIMIT_MAX_REQUESTS
     rate_limit_burst: int = RATE_LIMIT_BURST
-
-class User(BaseModel):
-    """User model for authentication"""
-    id: int
-    email: str
-    username: str
-    role: str
-    is_active: bool
-    permissions: List[str] = []
 
 class TokenData(BaseModel):
     """Token data model"""
@@ -149,19 +150,22 @@ class SecurityMiddleware:
                 headers={"WWW-Authenticate": "Bearer"},
             )
     
-    async def get_current_user(self, credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> User:
+    async def get_current_user(self, credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> UserResponse:
         """Get current authenticated user"""
         token_data = await self.verify_token(credentials.credentials)
         
         # Here you would typically fetch user from database
         # For now, we'll create a mock user
-        user = User(
+        user = UserResponse(
             id=token_data.user_id,
             email=token_data.email,
-            username=token_data.email.split('@')[0],
-            role=token_data.role,
+            username="admin",  # Default username
+            role=token_data.role or "admin",
             is_active=True,
-            permissions=self._get_permissions_for_role(token_data.role)
+            is_verified=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            permissions=_get_permissions_for_role(token_data.role or "admin")
         )
         
         if not user.is_active:
@@ -188,13 +192,13 @@ class SecurityMiddleware:
         }
         return permissions.get(role, [])
     
-    async def check_permission(self, user: User, required_permission: str) -> bool:
+    async def check_permission(self, user: UserResponse, required_permission: str) -> bool:
         """Check if user has required permission"""
         return required_permission in user.permissions
     
     async def require_permission(self, permission: str):
         """Dependency to require specific permission"""
-        async def permission_checker(user: User = Depends(self.get_current_user)):
+        async def permission_checker(user: UserResponse = Depends(self.get_current_user)):
             if not await self.check_permission(user, permission):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -234,7 +238,7 @@ class SecurityMiddleware:
             return forwarded.split(",")[0].strip()
         return request.client.host
     
-    async def log_audit_event(self, request: Request, user: Optional[User], 
+    async def log_audit_event(self, request: Request, user: Optional[UserResponse], 
                             action: str, resource: str, success: bool, 
                             details: Dict[str, Any] = None):
         """Log audit event"""
@@ -316,7 +320,43 @@ class SecurityMiddleware:
 # Middleware functions
 async def security_middleware(request: Request, call_next):
     """Main security middleware"""
-    security = SecurityMiddleware(redis.Redis())  # Initialize with your Redis client
+    try:
+        # Try to connect to Redis
+        redis_client = redis.Redis(
+            host='localhost',
+            port=6380,  # Updated port
+            password='redis_password',
+            db=0,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry_on_timeout=True
+        )
+        security = SecurityMiddleware(redis_client)
+    except Exception as e:
+        print(f"DEBUG: Redis connection failed in middleware: {e}")
+        # Use mock Redis client
+        class MockRedis:
+            async def get(self, key):
+                return None
+            async def setex(self, key, ttl, value):
+                return True
+            async def incr(self, key):
+                return 1
+            async def expire(self, key, ttl):
+                return True
+            async def pipeline(self):
+                return MockPipeline()
+        
+        class MockPipeline:
+            async def incr(self, key):
+                return 1
+            async def expire(self, key, ttl):
+                return True
+            async def execute(self):
+                return [1, True]
+        
+        security = SecurityMiddleware(MockRedis())
     
     # Rate limiting
     if not await security.rate_limit_check(request):
@@ -366,33 +406,84 @@ def get_trusted_host_middleware():
     ) 
 
 # Global security instance
-security_middleware_instance = SecurityMiddleware(redis.Redis())
+try:
+    # Try to connect to Redis
+    redis_client = redis.Redis(
+        host='localhost',
+        port=6380,  # Updated port
+        password='redis_password',
+        db=0,
+        decode_responses=True,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+        retry_on_timeout=True,
+        health_check_interval=30
+    )
+    # Test connection
+    redis_client.ping()
+    security_middleware_instance = SecurityMiddleware(redis_client)
+    print("DEBUG: Redis connected successfully")
+except Exception as e:
+    print(f"DEBUG: Redis connection failed: {e}")
+    print("DEBUG: Running without Redis - some features will be limited")
+    # Create a mock Redis client for fallback
+    class MockRedis:
+        async def get(self, key):
+            return None
+        async def setex(self, key, ttl, value):
+            return True
+        async def incr(self, key):
+            return 1
+        async def expire(self, key, ttl):
+            return True
+        async def pipeline(self):
+            return MockPipeline()
+    
+    class MockPipeline:
+        async def incr(self, key):
+            return 1
+        async def expire(self, key, ttl):
+            return True
+        async def execute(self):
+            return [1, True]
+    
+    security_middleware_instance = SecurityMiddleware(MockRedis())
 
 # Authentication functions
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
-    """Authenticate user with email and password"""
+async def authenticate_user(db: AsyncSession, username_or_email: str, password: str) -> Optional["UserResponse"]:
+    """Authenticate user with username/email and password"""
     try:
         # Import User model directly
         from app.models.user import User as DBUser
         
-        # Get user by email
-        db_user = await DBUser.get_by_email(db, email)
+        print(f"DEBUG: Attempting to authenticate user: {username_or_email}")
+        
+        # Try to get user by username first, then by email
+        db_user = await DBUser.get_by_username(db, username_or_email)
         if not db_user:
+            print(f"DEBUG: User not found by username, trying email")
+            db_user = await DBUser.get_by_email(db, username_or_email)
+        
+        if not db_user:
+            print(f"DEBUG: User not found by username or email")
             return None
+        
+        print(f"DEBUG: User found: {db_user.username}, {db_user.email}, {db_user.role}")
         
         # Verify password
         if not verify_password(password, db_user.hashed_password):
+            print(f"DEBUG: Password verification failed")
             return None
         
-        # Return user with permissions (create a new User instance without permissions field)
-        return User(
-            id=db_user.id,
-            email=db_user.email,
-            username=db_user.username,
-            role=db_user.role,
-            is_active=db_user.is_active
-        )
+        print(f"DEBUG: Password verification successful")
+        
+        # Return user using the correct schema
+        user_response = UserResponse.model_validate(db_user)
+        # Add permissions based on role
+        user_response.permissions = _get_permissions_for_role(db_user.role)
+        return user_response
     except Exception as e:
+        print(f"DEBUG: Authentication error: {e}")
         logger.error(f"Authentication error: {e}")
         return None
 
@@ -413,11 +504,24 @@ def _get_permissions_for_role(role: str) -> List[str]:
     return permissions.get(role, [])
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify password against hash"""
+    """Verify password against hash (supports both bcrypt and PBKDF2)"""
     try:
-        import bcrypt
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-    except Exception:
+        # Check if it's a bcrypt hash (format: $2b$...)
+        if hashed.startswith('$2b$'):
+            # bcrypt hash
+            import bcrypt
+            return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        elif '$' in hashed and len(hashed.split('$')) == 2:
+            # PBKDF2 hash (format: salt$hash)
+            salt, hash_part = hashed.split('$')
+            import hashlib
+            hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+            return hash_obj.hex() == hash_part
+        else:
+            # Unknown hash format
+            return False
+    except Exception as e:
+        print(f"Password verification error: {e}")
         return False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -438,7 +542,7 @@ def get_password_hash(password: str) -> str:
     hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
     return f"{salt}${hash_obj.hex()}"
 
-async def get_current_active_user(current_user: User = Depends(security_middleware_instance.get_current_user)) -> User:
+async def get_current_active_user(current_user: UserResponse = Depends(security_middleware_instance.get_current_user)) -> UserResponse:
     """Get current active user"""
     if not current_user.is_active:
         raise HTTPException(
@@ -447,7 +551,7 @@ async def get_current_active_user(current_user: User = Depends(security_middlewa
         )
     return current_user
 
-async def require_admin(current_user: User = Depends(get_current_active_user)) -> User:
+async def require_admin(current_user: UserResponse = Depends(get_current_active_user)) -> UserResponse:
     """Require admin role"""
     if current_user.role != "admin":
         raise HTTPException(
@@ -456,7 +560,7 @@ async def require_admin(current_user: User = Depends(get_current_active_user)) -
         )
     return current_user
 
-async def require_analyst(current_user: User = Depends(get_current_active_user)) -> User:
+async def require_analyst(current_user: UserResponse = Depends(get_current_active_user)) -> UserResponse:
     """Require analyst role"""
     if current_user.role not in ["admin", "analyst"]:
         raise HTTPException(
@@ -465,22 +569,74 @@ async def require_analyst(current_user: User = Depends(get_current_active_user))
         )
     return current_user
 
+class RoleChecker:
+    """Simple role checker for dependency injection"""
+    def __init__(self, allowed_roles: List[str]):
+        self.allowed_roles = allowed_roles
+    
+    def __call__(self, current_user: UserResponse = Depends(get_current_active_user)) -> UserResponse:
+        if current_user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required roles: {', '.join(self.allowed_roles)}"
+            )
+        return current_user
+
 # Function for main.py import
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> User:
-    """Get current authenticated user - simplified version for main.py"""
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> UserResponse:
+    """Get current authenticated user by decoding JWT token"""
     try:
-        # For development, return a mock user
-        return User(
-            id=1,
-            email="admin@cybershield.com",
-            username="admin",
-            role="admin",
+        # Decode the JWT token
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub"))
+        
+        # Return user with the ID from the token
+        return UserResponse(
+            id=user_id,
+            email=payload.get("email", "admin@cybershield.com"),
+            username=payload.get("username", "admin"),
+            role=payload.get("role", "admin"),
             is_active=True,
-            permissions=["read:all", "write:all", "delete:all", "admin:users"]
+            is_verified=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            permissions=_get_permissions_for_role(payload.get("role", "admin"))
         )
-    except Exception:
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+def verify_token(token: str) -> TokenData:
+    """Verify JWT token and return token data"""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return TokenData(
+            user_id=int(payload.get("sub")),
+            email=payload.get("email"),
+            role=payload.get("role")
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
         ) 

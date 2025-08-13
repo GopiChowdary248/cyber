@@ -1,6 +1,14 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, users, incidents, cloud_security, phishing, dashboard, mfa, integrations, ai_ml, compliance, health, websocket, analytics, workflows, security, network_security, data_protection, monitoring_siem_soar, threat_intelligence, sast, dast, siem_soar, iam, data_security
+from app.api.v1.endpoints import (
+    auth, users, incidents, cloud_security, phishing, dashboard, mfa, 
+    integrations, ai_ml, compliance, health, websocket, analytics, 
+    workflows, security, network_security, data_protection, 
+    monitoring_siem_soar, threat_intelligence, sast, dast, siem_soar, 
+    iam, data_security, enhanced_cloud_security, endpoint_security, 
+    endpoint_antivirus_edr, device_control, application_security, 
+    projects, quality_goals, reports, admin, user, rasp
+)
 
 api_router = APIRouter()
 
@@ -30,4 +38,17 @@ api_router.include_router(sast.router, prefix="/sast", tags=["sast"])
 api_router.include_router(dast.router, prefix="/dast", tags=["dast"])
 api_router.include_router(siem_soar.router, prefix="/siem-soar", tags=["siem-soar"])
 api_router.include_router(iam.router, prefix="/iam", tags=["iam"])
-api_router.include_router(data_security.router, prefix="/data-security", tags=["data-security"]) 
+api_router.include_router(data_security.router, prefix="/data-security", tags=["data-security"])
+
+# Additional endpoints that were missing
+api_router.include_router(enhanced_cloud_security.router, tags=["enhanced-cloud-security"])
+api_router.include_router(endpoint_security.router, prefix="/endpoint-security", tags=["endpoint-security"])
+api_router.include_router(endpoint_antivirus_edr.router, prefix="/endpoint-antivirus-edr", tags=["endpoint-antivirus-edr"])
+api_router.include_router(device_control.router, prefix="/device-control", tags=["device-control"])
+api_router.include_router(application_security.router, prefix="/application-security", tags=["application-security"])
+api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+api_router.include_router(quality_goals.router, prefix="/quality-goals", tags=["quality-goals"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+api_router.include_router(user.router, prefix="/user", tags=["user"])
+api_router.include_router(rasp.router, prefix="/rasp", tags=["rasp"]) 

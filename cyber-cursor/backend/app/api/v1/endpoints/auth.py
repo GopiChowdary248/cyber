@@ -23,6 +23,11 @@ import structlog
 logger = structlog.get_logger()
 router = APIRouter()
 
+@router.options("/login")
+async def login_options():
+    """Handle CORS preflight request for login endpoint"""
+    return {}
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     login_data: LoginRequest,
@@ -33,49 +38,25 @@ async def login(
     JSON-based login endpoint for React Native frontend
     """
     try:
-        # Simple mock authentication for demo purposes
-        demo_users = {
-            "admin@cybershield.com": {
-                "id": 1,
-                "email": "admin@cybershield.com",
-                "username": "admin",
-                "role": "admin",
-                "is_active": True,
-                "password": "password"
-            },
-            "analyst@cybershield.com": {
-                "id": 2,
-                "email": "analyst@cybershield.com",
-                "username": "analyst",
-                "role": "analyst",
-                "is_active": True,
-                "password": "password"
-            },
-            "user@cybershield.com": {
-                "id": 3,
-                "email": "user@cybershield.com",
-                "username": "user",
-                "role": "user",
-                "is_active": True,
-                "password": "password"
-            }
-        }
+        # Handle both username and email login
+        username = login_data.username or login_data.email
         
-        user_data = demo_users.get(login_data.username)
-        if not user_data or login_data.password != user_data["password"]:
+        # Use database authentication
+        user = await authenticate_user(db, username, login_data.password)
+        if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         
-        # Create a simple token
-        access_token = create_access_token(data={"sub": str(user_data["id"])})
+        # Create access token
+        access_token = create_access_token(data={"sub": str(user.id)})
         
         return {
             "access_token": access_token,
             "refresh_token": "mock_refresh_token",
             "token_type": "bearer",
             "expires_in": 3600,
-            "user_id": user_data["id"],
-            "email": user_data["email"],
-            "role": user_data["role"],
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
             "mfa_required": False
         }
         

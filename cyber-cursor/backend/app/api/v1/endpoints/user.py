@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.schemas.auth import User
 from app.models.incident import Incident
 from app.models.phishing import EmailAnalysis
 from app.schemas.user import (

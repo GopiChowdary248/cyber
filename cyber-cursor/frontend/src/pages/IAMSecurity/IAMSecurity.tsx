@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  KeyIcon, 
-  ShieldCheckIcon, 
-  BellIcon, 
-  UserCircleIcon, 
-  ComputerDesktopIcon,
-  ChartBarIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  CogIcon,
-  LockClosedIcon,
-  DocumentTextIcon,
-  ClockIcon,
-  ExclamationCircleIcon
-} from '@heroicons/react/24/outline';
+import {
+  Shield,
+  Lock,
+  User,
+  Users,
+  Key,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  TrendingUp,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  Eye,
+  EyeOff,
+  Settings,
+  Zap
+} from 'lucide-react';
 
 interface IAMSecurityData {
   overview: {
@@ -132,23 +136,23 @@ const IAMSecurity: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircleIcon className="w-5 h-5" />;
+        return <CheckCircle className="w-5 h-5" />;
       case 'warning':
-        return <ExclamationTriangleIcon className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
       case 'critical':
-        return <XCircleIcon className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
       default:
-        return <ChartBarIcon className="w-5 h-5" />;
+        return <TrendingUp className="w-5 h-5" />;
     }
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
-    { id: 'identity-management', label: 'Identity Management', icon: <UserCircleIcon className="w-4 h-4" /> },
-    { id: 'sso-mfa', label: 'SSO & MFA', icon: <LockClosedIcon className="w-4 h-4" /> },
-    { id: 'pam', label: 'PAM', icon: <KeyIcon className="w-4 h-4" /> },
-    { id: 'rbac', label: 'RBAC', icon: <ShieldCheckIcon className="w-4 h-4" /> },
-    { id: 'audit-compliance', label: 'Audit & Compliance', icon: <BellIcon className="w-4 h-4" /> }
+    { id: 'overview', label: 'Overview', icon: <TrendingUp className="w-4 h-4" /> },
+    { id: 'identity-management', label: 'Identity Management', icon: <User className="w-4 h-4" /> },
+    { id: 'sso-mfa', label: 'SSO & MFA', icon: <Lock className="w-4 h-4" /> },
+    { id: 'pam', label: 'PAM', icon: <Key className="w-4 h-4" /> },
+    { id: 'rbac', label: 'RBAC', icon: <Shield className="w-4 h-4" /> },
+    { id: 'audit-compliance', label: 'Audit & Compliance', icon: <Zap className="w-4 h-4" /> }
   ];
 
   if (loading) {
@@ -163,7 +167,7 @@ const IAMSecurity: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900">Error Loading Data</h3>
           <p className="text-gray-600">Unable to load IAM security data</p>
         </div>
@@ -180,7 +184,7 @@ const IAMSecurity: React.FC = () => {
           <p className="text-gray-600">Identity & Access Management with SSO, MFA, PAM, and RBAC</p>
         </div>
         <div className="flex items-center space-x-2">
-          <KeyIcon className="w-8 h-8 text-blue-600" />
+          <Key className="w-8 h-8 text-blue-600" />
         </div>
       </div>
 
@@ -220,7 +224,7 @@ const IAMSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Total Users</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.totalUsers.toLocaleString()}</p>
                 </div>
-                <UserCircleIcon className="w-8 h-8 text-blue-600" />
+                <Users className="w-8 h-8 text-blue-600" />
               </div>
             </div>
             
@@ -230,7 +234,7 @@ const IAMSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Active Users</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.activeUsers.toLocaleString()}</p>
                 </div>
-                <CheckCircleIcon className="w-8 h-8 text-green-600" />
+                <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
             </div>
             
@@ -240,7 +244,7 @@ const IAMSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Privileged Users</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.privilegedUsers}</p>
                 </div>
-                <KeyIcon className="w-8 h-8 text-red-600" />
+                <Key className="w-8 h-8 text-red-600" />
               </div>
             </div>
             
@@ -250,7 +254,7 @@ const IAMSecurity: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600">Security Score</p>
                   <p className="text-2xl font-bold text-gray-900">{data.overview.securityScore}%</p>
                 </div>
-                <ChartBarIcon className="w-8 h-8 text-purple-600" />
+                <TrendingUp className="w-8 h-8 text-purple-600" />
               </div>
             </div>
           </div>

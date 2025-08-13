@@ -1,0 +1,81 @@
+.App {
+  text-align: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+}
+
+.App-header {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.App-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.App-header h2 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  color: #f0f0f0;
+}
+
+.App-header h3 {
+  font-size: 1.4rem;
+  margin-bottom: 0.5rem;
+  color: #e0e0e0;
+}
+
+.App-header p {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.App-header ul {
+  margin: 1rem 0;
+}
+
+.App-header li {
+  margin: 0.5rem 0;
+  padding: 0.8rem;
+  background-color: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.2);
+  transition: all 0.3s ease;
+}
+
+.App-header li:hover {
+  background-color: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.App-header a {
+  color: #ffd700;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.App-header a:hover {
+  color: #ffed4e;
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .App-header h1 {
+    font-size: 2rem;
+  }
+  
+  .App-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .App-header {
+    padding: 1rem;
+  }
+}

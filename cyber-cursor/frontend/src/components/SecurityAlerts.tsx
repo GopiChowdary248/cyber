@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ExclamationTriangleIcon, 
+import {
+  ExclamationTriangleIcon,
   FunnelIcon,
   EyeIcon,
   CheckCircleIcon,
-  XCircleIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
 
@@ -107,24 +106,11 @@ const SecurityAlerts: React.FC = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />;
-      case 'resolved':
-        return <CheckCircleIcon className="h-4 w-4 text-green-500" />;
-      case 'investigating':
-        return <ClockIcon className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <EyeIcon className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
@@ -170,7 +156,7 @@ const SecurityAlerts: React.FC = () => {
             <FunnelIcon className="h-4 w-4 text-gray-500" />
             <span className="text-sm font-medium text-gray-700">Filters:</span>
           </div>
-          
+
           {/* Severity Filter */}
           <select
             value={filters.severity}
@@ -246,9 +232,9 @@ const SecurityAlerts: React.FC = () => {
                       {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
                     </span>
                   </div>
-                  
+
                   <p className="text-gray-600 mb-3">{alert.description}</p>
-                  
+
                   <div className="flex items-center space-x-6 text-sm text-gray-500">
                     <div className="flex items-center space-x-1">
                       <span className="font-medium">Source:</span>
@@ -264,7 +250,7 @@ const SecurityAlerts: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center space-x-2 ml-4">
                   <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                     <EyeIcon className="h-4 w-4" />

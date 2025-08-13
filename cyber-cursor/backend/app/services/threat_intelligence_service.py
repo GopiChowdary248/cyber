@@ -545,4 +545,11 @@ class ThreatIntelligenceService:
                 "status": "unhealthy",
                 "error": str(e),
                 "last_check": datetime.now()
-            } 
+            }
+
+# Create service instances
+threat_intelligence_service = ThreatIntelligenceService(None)  # Will be initialized with db session
+feed_manager_service = FeedManagerService(None)
+ioc_service = IoCService(None)
+threat_scoring_service = ThreatScoringService(None)
+integration_service = IntegrationService(None) 

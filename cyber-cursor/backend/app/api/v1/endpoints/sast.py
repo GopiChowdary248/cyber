@@ -3,14 +3,17 @@ SAST (Static Application Security Testing) API Endpoints
 Enhanced with SonarQube-like comprehensive functionality
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query, UploadFile, File, status
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query, UploadFile, File, status, Form, Response
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import json
+import shutil
+import zipfile
+from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func, and_, or_, update, delete
+import logging
 
 from app.core.database import get_db
 from app.models.sast import (
@@ -21,7 +24,6 @@ from app.models.sast import (
 )
 from app.models.user import User
 from app.core.security import get_current_user
-# from app.services.sast_service import sast_service  # Removed during cleanup
 from app.schemas.sast_schemas import (
     SASTProjectCreate, SASTScanCreate, SASTIssueCreate, SecurityHotspotCreate,
     QualityGateCreate, SASTOverviewResponse, SASTProjectsResponse,
@@ -33,6 +35,12 @@ from app.schemas.sast_schemas import (
 from app.schemas.sast import (
     SASTProjectResponse, SASTProjectListResponse, SASTProjectDuplicate, SASTProjectUpdate
 )
+
+# Import advanced analysis engines
+from app.sast.advanced_analyzer import AdvancedCodeAnalyzer
+from app.sast.data_flow_engine import DataFlowAnalyzer
+from app.sast.taint_analyzer import TaintAnalyzer
+
 router = APIRouter()
 
 # ============================================================================
@@ -53,7 +61,7 @@ async def simulate_scan_progress(scan_id: str, db: AsyncSession):
     )
     scan = scan_result.scalar_one_or_none()
     if scan:
-        scan.status = ScanStatus.RUNNING
+        scan.status = ScanStatus.IN_PROGRESS
         scan.started_at = time.time()
         await db.commit()
     
@@ -97,7 +105,7 @@ async def get_sast_dashboard(
         
         # Get active scans
         active_scans_result = await db.execute(
-            select(func.count(SASTScan.id)).where(SASTScan.status == ScanStatus.RUNNING)
+            select(func.count(SASTScan.id)).where(SASTScan.status == ScanStatus.IN_PROGRESS)
         )
         active_scans = active_scans_result.scalar() or 0
         
@@ -241,7 +249,7 @@ async def get_sast_overview(
         
         # Get active scans
         active_scans_result = await db.execute(
-            select(func.count(SASTScan.id)).where(SASTScan.status == ScanStatus.RUNNING)
+            select(func.count(SASTScan.id)).where(SASTScan.status == ScanStatus.IN_PROGRESS)
         )
         active_scans = active_scans_result.scalar() or 0
         
@@ -286,13 +294,18 @@ async def get_sast_overview(
 @router.post("/projects", response_model=SASTProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_sast_project(
     project_data: SASTProjectCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new SAST project"""
     try:
+        from sqlalchemy import select
+        
         # Check if project key already exists
-        existing_project = db.query(SASTProject).filter(SASTProject.key == project_data.key).first()
+        existing_project_query = select(SASTProject).where(SASTProject.key == project_data.key)
+        existing_project_result = await db.execute(existing_project_query)
+        existing_project = existing_project_result.scalar_one_or_none()
+        
         if existing_project:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -307,13 +320,13 @@ async def create_sast_project(
             repository_url=project_data.repository_url,
             branch=project_data.branch or "main",
             created_by=current_user.id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         
         db.add(new_project)
-        db.commit()
-        db.refresh(new_project)
+        await db.commit()
+        await db.refresh(new_project)
         
         return SASTProjectResponse(
             id=new_project.id,
@@ -340,7 +353,7 @@ async def create_sast_project(
         )
         
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create project: {str(e)}"
@@ -378,7 +391,7 @@ async def get_sast_projects(
         if status_filter and status_filter != "all":
             if status_filter == "active":
                 # Projects with running scans
-                query = query.join(SASTScan).where(SASTScan.status == "RUNNING")
+                query = query.join(SASTScan).where(SASTScan.status == "IN_PROGRESS")
             elif status_filter == "completed":
                 # Projects with completed scans
                 query = query.join(SASTScan).where(SASTScan.status == "COMPLETED")
@@ -459,12 +472,17 @@ async def get_sast_projects(
 @router.get("/projects/{project_id}", response_model=SASTProjectResponse)
 async def get_sast_project(
     project_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific SAST project by ID"""
     try:
-        project = db.query(SASTProject).filter(SASTProject.id == project_id).first()
+        from sqlalchemy import select
+        
+        project_query = select(SASTProject).where(SASTProject.id == project_id)
+        project_result = await db.execute(project_query)
+        project = project_result.scalar_one_or_none()
+        
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -472,12 +490,16 @@ async def get_sast_project(
             )
         
         # Get last scan
-        last_scan = db.query(SASTScan).filter(
+        last_scan_query = select(SASTScan).where(
             SASTScan.project_id == project.id
-        ).order_by(SASTScan.started_at.desc()).first()
+        ).order_by(SASTScan.started_at.desc())
+        last_scan_result = await db.execute(last_scan_query)
+        last_scan = last_scan_result.scalar_one_or_none()
         
         # Get issue counts
-        issues = db.query(SASTIssue).filter(SASTIssue.project_id == project.id).all()
+        issues_query = select(SASTIssue).where(SASTIssue.project_id == project.id)
+        issues_result = await db.execute(issues_query)
+        issues = issues_result.scalars().all()
         issue_counts = {
             "critical": len([i for i in issues if i.severity == "CRITICAL"]),
             "high": len([i for i in issues if i.severity == "HIGH"]),
@@ -523,13 +545,18 @@ async def get_sast_project(
 async def duplicate_sast_project(
     project_id: int,
     duplicate_data: SASTProjectDuplicate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Duplicate an existing SAST project"""
     try:
+        from sqlalchemy import select
+        
         # Get original project
-        original_project = db.query(SASTProject).filter(SASTProject.id == project_id).first()
+        original_project_query = select(SASTProject).where(SASTProject.id == project_id)
+        original_project_result = await db.execute(original_project_query)
+        original_project = original_project_result.scalar_one_or_none()
+        
         if not original_project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -537,7 +564,10 @@ async def duplicate_sast_project(
             )
         
         # Check if new project key already exists
-        existing_project = db.query(SASTProject).filter(SASTProject.key == duplicate_data.key).first()
+        existing_project_query = select(SASTProject).where(SASTProject.key == duplicate_data.key)
+        existing_project_result = await db.execute(existing_project_query)
+        existing_project = existing_project_result.scalar_one_or_none()
+        
         if existing_project:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -552,13 +582,13 @@ async def duplicate_sast_project(
             repository_url=original_project.repository_url,
             branch=original_project.branch,
             created_by=current_user.id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         
         db.add(duplicated_project)
-        db.commit()
-        db.refresh(duplicated_project)
+        await db.commit()
+        await db.refresh(duplicated_project)
         
         return SASTProjectResponse(
             id=duplicated_project.id,
@@ -587,7 +617,7 @@ async def duplicate_sast_project(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to duplicate project: {str(e)}"
@@ -597,12 +627,17 @@ async def duplicate_sast_project(
 async def update_sast_project(
     project_id: int,
     project_data: SASTProjectUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing SAST project"""
     try:
-        project = db.query(SASTProject).filter(SASTProject.id == project_id).first()
+        from sqlalchemy import select
+        
+        project_query = select(SASTProject).where(SASTProject.id == project_id)
+        project_result = await db.execute(project_query)
+        project = project_result.scalar_one_or_none()
+        
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -614,10 +649,12 @@ async def update_sast_project(
             project.name = project_data.name
         if project_data.key is not None:
             # Check if new key already exists
-            existing_project = db.query(SASTProject).filter(
+            existing_project_query = select(SASTProject).where(
                 SASTProject.key == project_data.key,
                 SASTProject.id != project_id
-            ).first()
+            )
+            existing_project_result = await db.execute(existing_project_query)
+            existing_project = existing_project_result.scalar_one_or_none()
             if existing_project:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -631,10 +668,10 @@ async def update_sast_project(
         if project_data.branch is not None:
             project.branch = project_data.branch
         
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         
-        db.commit()
-        db.refresh(project)
+        await db.commit()
+        await db.refresh(project)
         
         return SASTProjectResponse(
             id=project.id,
@@ -663,7 +700,7 @@ async def update_sast_project(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update project: {str(e)}"
@@ -672,12 +709,17 @@ async def update_sast_project(
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_sast_project(
     project_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a SAST project and all associated data"""
     try:
-        project = db.query(SASTProject).filter(SASTProject.id == project_id).first()
+        from sqlalchemy import select, delete
+        
+        project_query = select(SASTProject).where(SASTProject.id == project_id)
+        project_result = await db.execute(project_query)
+        project = project_result.scalar_one_or_none()
+        
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -692,23 +734,23 @@ async def delete_sast_project(
             )
         
         # Delete associated data (cascade should handle this, but being explicit)
-        db.query(SASTIssue).filter(SASTIssue.project_id == project_id).delete()
-        db.query(SASTSecurityHotspot).filter(SASTSecurityHotspot.project_id == project_id).delete()
-        db.query(SASTQualityGate).filter(SASTQualityGate.project_id == project_id).delete()
-        db.query(SASTScan).filter(SASTScan.project_id == project_id).delete()
+        await db.execute(delete(SASTIssue).where(SASTIssue.project_id == project_id))
+        await db.execute(delete(SASTSecurityHotspot).where(SASTSecurityHotspot.project_id == project_id))
+        await db.execute(delete(SASTQualityGate).where(SASTQualityGate.project_id == project_id))
+        await db.execute(delete(SASTScan).where(SASTScan.project_id == project_id))
         
         # Delete the project
-        db.delete(project)
-        db.commit()
+        await db.execute(delete(SASTProject).where(SASTProject.id == project_id))
+        await db.commit()
         
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete project: {str(e)}"
-        )
+            )
 
 # ============================================================================
 # Scan Management Endpoints
@@ -1175,7 +1217,7 @@ async def get_duplications(
                     "start_line": dup.start_line,
                     "end_line": dup.end_line,
                     "duplicated_lines": dup.duplicated_lines,
-                    "duplicated_code": dup.duplicated_code,
+                    "duplicated_blocks": dup.duplicated_blocks,
                     "created_at": dup.created_at.isoformat() if dup.created_at else None
                 }
                 for dup in duplications
@@ -1263,19 +1305,14 @@ async def get_sast_statistics(
             total_projects=total_projects,
             total_scans=total_scans,
             total_vulnerabilities=total_vulnerabilities,
-            vulnerabilities_by_severity={
-                "critical": severity_counts.get('critical', 0),
-                "high": severity_counts.get('major', 0),
-                "medium": severity_counts.get('minor', 0),
-                "low": severity_counts.get('info', 0)
-            },
             security_score=security_score,
+            severity_distribution=severity_counts,
             recent_scans=recent_scans_data,
             top_vulnerabilities=top_vulnerabilities
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting SAST statistics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting statistics: {str(e)}")
 
 # ============================================================================
 # Configuration & Rules Endpoints
@@ -1364,6 +1401,549 @@ async def get_supported_languages(
         raise HTTPException(status_code=500, detail=f"Error getting supported languages: {str(e)}")
 
 # ============================================================================
+# Quality Management Endpoints
+# ============================================================================
+
+@router.get("/projects/{project_id}/quality-overview")
+async def get_project_quality_overview(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive quality overview for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get quality gate
+        quality_gate_result = await db.execute(
+            select(SASTQualityGate).where(SASTQualityGate.project_id == project_id)
+        )
+        quality_gate = quality_gate_result.scalar_one_or_none()
+        
+        # Get recent scan for metrics
+        recent_scan_result = await db.execute(
+            select(SASTScan)
+            .where(SASTScan.project_id == project_id)
+            .order_by(SASTScan.created_at.desc())
+            .limit(1)
+        )
+        recent_scan = recent_scan_result.scalar_one_or_none()
+        
+        # Calculate quality metrics
+        quality_metrics = {
+            "project_id": project_id,
+            "project_name": project.name,
+            "quality_gate_status": quality_gate.status if quality_gate else QualityGateStatus.PASSED,
+            "ratings": {
+                "maintainability": project.maintainability_rating,
+                "security": project.security_rating,
+                "reliability": project.reliability_rating
+            },
+            "issue_counts": {
+                "vulnerabilities": project.vulnerability_count,
+                "bugs": project.bug_count,
+                "code_smells": project.code_smell_count,
+                "security_hotspots": project.security_hotspot_count
+            },
+            "code_metrics": {
+                "lines_of_code": project.lines_of_code,
+                "lines_of_comment": project.lines_of_comment,
+                "duplicated_lines": project.duplicated_lines,
+                "duplicated_blocks": project.duplicated_blocks
+            },
+            "coverage_metrics": {
+                "coverage": project.coverage,
+                "uncovered_lines": project.uncovered_lines,
+                "uncovered_conditions": project.uncovered_conditions
+            },
+            "technical_debt": {
+                "total_debt": project.technical_debt,
+                "debt_ratio": project.debt_ratio,
+                "debt_hours": round(project.technical_debt / 60, 2) if project.technical_debt else 0
+            },
+            "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None,
+            "scan_status": recent_scan.status if recent_scan else None
+        }
+        
+        return quality_metrics
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality overview: {str(e)}")
+
+@router.get("/projects/{project_id}/quality-metrics")
+async def get_project_quality_metrics(
+    project_id: str,
+    metric_type: Optional[str] = Query(None, description="Type of metrics: 'security', 'reliability', 'maintainability', 'coverage', 'duplications'"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed quality metrics for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        if not metric_type:
+            # Return all metrics
+            return {
+                "project_id": project_id,
+                "project_name": project.name,
+                "security_metrics": {
+                    "rating": project.security_rating,
+                    "vulnerability_count": project.vulnerability_count,
+                    "security_hotspot_count": project.security_hotspot_count
+                },
+                "reliability_metrics": {
+                    "rating": project.reliability_rating,
+                    "bug_count": project.bug_count
+                },
+                "maintainability_metrics": {
+                    "rating": project.maintainability_rating,
+                    "code_smell_count": project.code_smell_count,
+                    "technical_debt": project.technical_debt,
+                    "debt_ratio": project.debt_ratio
+                },
+                "coverage_metrics": {
+                    "coverage": project.coverage,
+                    "uncovered_lines": project.uncovered_lines,
+                    "uncovered_conditions": project.uncovered_conditions
+                },
+                "duplication_metrics": {
+                    "duplicated_lines": project.duplicated_lines,
+                    "duplicated_blocks": project.duplicated_blocks
+                }
+            }
+        
+        # Return specific metric type
+        if metric_type == "security":
+            return {
+                "project_id": project_id,
+                "metric_type": "security",
+                "rating": project.security_rating,
+                "vulnerability_count": project.vulnerability_count,
+                "security_hotspot_count": project.security_hotspot_count,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "reliability":
+            return {
+                "project_id": project_id,
+                "metric_type": "reliability",
+                "rating": project.reliability_rating,
+                "bug_count": project.bug_count,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "maintainability":
+            return {
+                "project_id": project_id,
+                "metric_type": "maintainability",
+                "rating": project.maintainability_rating,
+                "code_smell_count": project.code_smell_count,
+                "technical_debt": project.technical_debt,
+                "debt_ratio": project.debt_ratio,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "coverage":
+            return {
+                "project_id": project_id,
+                "metric_type": "coverage",
+                "coverage": project.coverage,
+                "line_number": project.coverage,
+                "uncovered_lines": project.uncovered_lines,
+                "uncovered_conditions": project.uncovered_conditions,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "duplications":
+            return {
+                "project_id": project_id,
+                "metric_type": "duplications",
+                "duplicated_lines": project.duplicated_lines,
+                "duplicated_blocks": project.duplicated_blocks,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Invalid metric type")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality metrics: {str(e)}")
+
+@router.get("/projects/{project_id}/quality-trends")
+async def get_project_quality_trends(
+    project_id: str,
+    days: int = Query(30, description="Number of days for trend analysis"),
+    metric: str = Query("all", description="Specific metric to analyze: 'security', 'reliability', 'maintainability', 'coverage', 'debt'"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get quality trends for a project over time"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get scans within the specified time period
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        scans_result = await db.execute(
+            select(SASTScan)
+            .where(SASTScan.project_id == project_id)
+            .where(SASTScan.created_at >= cutoff_date)
+            .order_by(SASTScan.created_at.asc())
+        )
+        scans = scans_result.scalars().all()
+        
+        # Generate trend data
+        trends = []
+        for scan in scans:
+            trend_point = {
+                "date": scan.created_at.isoformat(),
+                "scan_id": str(scan.id),
+                "scan_status": scan.status
+            }
+            
+            if metric == "all" or metric == "security":
+                trend_point["security_rating"] = getattr(scan, 'security_rating', None)
+                trend_point["vulnerability_count"] = getattr(scan, 'vulnerabilities_found', 0)
+            
+            if metric == "all" or metric == "reliability":
+                trend_point["reliability_rating"] = getattr(scan, 'reliability_rating', None)
+                trend_point["bug_count"] = getattr(scan, 'bugs_found', 0)
+            
+            if metric == "all" or metric == "maintainability":
+                trend_point["maintainability_rating"] = getattr(scan, 'maintainability_rating', None)
+                trend_point["code_smell_count"] = getattr(scan, 'code_smells_found', 0)
+            
+            if metric == "all" or metric == "coverage":
+                trend_point["coverage"] = getattr(scan, 'coverage', 0.0)
+            
+            if metric == "all" or metric == "debt":
+                trend_point["technical_debt"] = getattr(scan, 'technical_debt', 0)
+            
+            trends.append(trend_point)
+        
+        return {
+            "project_id": project_id,
+            "project_name": project.name,
+            "metric": metric,
+            "period_days": days,
+            "trends": trends,
+            "summary": {
+                "total_scans": len(trends),
+                "period_start": cutoff_date.isoformat(),
+                "period_end": datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality trends: {str(e)}")
+
+@router.get("/projects/{project_id}/quality-report")
+async def get_project_quality_report(
+    project_id: str,
+    format: str = Query("json", description="Report format: 'json', 'pdf', 'csv'"),
+    include_details: bool = Query(True, description="Include detailed issue information"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate comprehensive quality report for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get quality gate
+        quality_gate_result = await db.execute(
+            select(SASTQualityGate).where(SASTQualityGate.project_id == project_id)
+        )
+        quality_gate = quality_gate_result.scalar_one_or_none()
+        
+        # Get recent scan
+        recent_scan_result = await db.execute(
+            select(SASTScan)
+            .where(SASTScan.project_id == project_id)
+            .order_by(SASTScan.created_at.desc())
+            .limit(1)
+        )
+        recent_scan = recent_scan_result.scalar_one_or_none()
+        
+        # Get issues if details are requested
+        issues = []
+        if include_details:
+            issues_result = await db.execute(
+                select(SASTIssue)
+                .where(SASTIssue.project_id == project_id)
+                .order_by(SASTIssue.severity.desc(), SASTIssue.created_at.desc())
+                .limit(100)  # Limit for performance
+            )
+            issues = issues_result.scalars().all()
+        
+        # Generate report data
+        report_data = {
+            "project": {
+                "id": project_id,
+                "name": project.name,
+                "key": project.key,
+                "language": project.language,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            },
+            "quality_gate": {
+                "status": quality_gate.status if quality_gate else QualityGateStatus.PASSED,
+                "evaluated_at": quality_gate.last_evaluation.isoformat() if quality_gate and quality_gate.last_evaluation else None
+            },
+            "ratings": {
+                "maintainability": project.maintainability_rating,
+                "security": project.security_rating,
+                "reliability": project.reliability_rating
+            },
+            "metrics_summary": {
+                "lines_of_code": project.lines_of_code,
+                "coverage": project.coverage,
+                "technical_debt": project.technical_debt,
+                "debt_ratio": project.debt_ratio,
+                "duplicated_lines": project.duplicated_lines
+            },
+            "issue_summary": {
+                "total_issues": len(issues),
+                "vulnerabilities": project.vulnerability_count,
+                "bugs": project.bug_count,
+                "code_smells": project.code_smell_count,
+                "security_hotspots": project.security_hotspot_count
+            },
+            "scan_information": {
+                "last_scan_id": str(recent_scan.id) if recent_scan else None,
+                "last_scan_status": recent_scan.status if recent_scan else None,
+                "last_scan_date": recent_scan.created_at.isoformat() if recent_scan else None
+            },
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        if include_details and issues:
+            report_data["detailed_issues"] = [
+                {
+                    "id": str(issue.id),
+                    "type": issue.type,
+                    "severity": issue.severity,
+                    "status": issue.status,
+                    "file_path": issue.file_path,
+                    "line_number": issue.line_number,
+                    "message": issue.message,
+                    "effort": issue.effort,
+                    "created_at": issue.created_at.isoformat()
+                }
+                for issue in issues
+            ]
+        
+        # Return based on format
+        if format == "json":
+            return report_data
+        elif format == "csv":
+            # Generate CSV response
+            import csv
+            from io import StringIO
+            
+            output = StringIO()
+            writer = csv.writer(output)
+            
+            # Write headers
+            writer.writerow(["Quality Report", project.name])
+            writer.writerow([])
+            writer.writerow(["Project Information"])
+            writer.writerow(["ID", project_id])
+            writer.writerow(["Name", project.name])
+            writer.writerow(["Language", project.language])
+            writer.writerow([])
+            writer.writerow(["Quality Metrics"])
+            writer.writerow(["Maintainability Rating", project.maintainability_rating])
+            writer.writerow(["Security Rating", project.security_rating])
+            writer.writerow(["Reliability Rating", project.reliability_rating])
+            writer.writerow(["Coverage", f"{project.coverage}%"])
+            writer.writerow(["Technical Debt", f"{project.technical_debt} minutes"])
+            writer.writerow(["Debt Ratio", f"{project.debt_ratio}%"])
+            
+            output.seek(0)
+            return Response(content=output.getvalue(), media_type="text/csv")
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating quality report: {str(e)}")
+
+@router.post("/projects/{project_id}/quality-gate/evaluate")
+async def evaluate_project_quality_gate(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Manually evaluate quality gate for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get quality gate
+        quality_gate_result = await db.execute(
+            select(SASTQualityGate).where(SASTQualityGate.project_id == project_id)
+        )
+        quality_gate = quality_gate_result.scalar_one_or_none()
+        
+        if not quality_gate:
+            raise HTTPException(status_code=404, detail="Quality gate not found")
+        
+        # Evaluate quality gate based on current project metrics
+        evaluation_results = {}
+        gate_status = QualityGateStatus.PASSED
+        
+        # Check vulnerability thresholds
+        if project.vulnerability_count > quality_gate.max_blocker_issues:
+            evaluation_results["blocker_issues"] = f"Failed: {project.vulnerability_count} > {quality_gate.max_blocker_issues}"
+            gate_status = QualityGateStatus.FAILED
+        else:
+            evaluation_results["blocker_issues"] = f"Passed: {project.vulnerability_count} <= {quality_gate.max_blocker_issues}"
+        
+        # Check coverage threshold
+        if project.coverage < quality_gate.min_coverage:
+            evaluation_results["coverage"] = f"Failed: {project.coverage}% < {quality_gate.min_coverage}%"
+            gate_status = QualityGateStatus.FAILED
+        else:
+            evaluation_results["coverage"] = f"Passed: {project.coverage}% >= {quality_gate.min_coverage}%"
+        
+        # Check technical debt threshold
+        if project.debt_ratio > quality_gate.max_debt_ratio:
+            evaluation_results["debt_ratio"] = f"Failed: {project.debt_ratio}% > {quality_gate.max_debt_ratio}%"
+            gate_status = QualityGateStatus.FAILED
+        else:
+            evaluation_results["debt_ratio"] = f"Passed: {project.debt_ratio}% <= {quality_gate.max_debt_ratio}%"
+        
+        # Update quality gate status
+        quality_gate.status = gate_status
+        quality_gate.last_evaluation = datetime.now()
+        quality_gate.evaluation_results = evaluation_results
+        
+        await db.commit()
+        
+        return {
+            "project_id": project_id,
+            "quality_gate_status": gate_status,
+            "evaluation_results": evaluation_results,
+            "evaluated_at": quality_gate.last_evaluation.isoformat(),
+            "next_evaluation": "Automatic on next scan or manual trigger"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error evaluating quality gate: {str(e)}")
+
+@router.get("/quality-management/dashboard")
+async def get_quality_management_dashboard(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get quality management dashboard overview"""
+    try:
+        # Get total projects
+        total_projects_result = await db.execute(select(func.count(SASTProject.id)))
+        total_projects = total_projects_result.scalar() or 0
+        
+        # Get projects by quality gate status
+        passed_projects_result = await db.execute(
+            select(func.count(SASTProject.id))
+            .select_from(SASTProject)
+            .join(SASTQualityGate)
+            .where(SASTQualityGate.status == QualityGateStatus.PASSED)
+        )
+        passed_projects = passed_projects_result.scalar() or 0
+        
+        failed_projects_result = await db.execute(
+            select(func.count(SASTProject.id))
+            .select_from(SASTProject)
+            .join(SASTQualityGate)
+            .where(SASTQualityGate.status == QualityGateStatus.FAILED)
+        )
+        failed_projects = failed_projects_result.scalar() or 0
+        
+        # Get average ratings
+        avg_maintainability_result = await db.execute(
+            select(func.avg(SASTProject.maintainability_rating))
+        )
+        avg_maintainability = avg_maintainability_result.scalar()
+        
+        avg_security_result = await db.execute(
+            select(func.avg(SASTProject.security_rating))
+        )
+        avg_security = avg_security_result.scalar()
+        
+        avg_reliability_result = await db.execute(
+            select(func.avg(SASTProject.reliability_rating))
+        )
+        avg_reliability = avg_reliability_result.scalar()
+        
+        # Get total technical debt
+        total_debt_result = await db.execute(
+            select(func.sum(SASTProject.technical_debt))
+        )
+        total_debt = total_debt_result.scalar() or 0
+        
+        # Get average coverage
+        avg_coverage_result = await db.execute(
+            select(func.avg(SASTProject.coverage))
+        )
+        avg_coverage = avg_coverage_result.scalar() or 0
+        
+        return {
+            "summary": {
+                "total_projects": total_projects,
+                "passed_projects": passed_projects,
+                "failed_projects": failed_projects,
+                "pass_rate": round((passed_projects / total_projects * 100), 2) if total_projects > 0 else 0
+            },
+            "average_ratings": {
+                "maintainability": avg_maintainability,
+                "security": avg_security,
+                "reliability": avg_reliability
+            },
+            "overall_metrics": {
+                "total_technical_debt_hours": round(total_debt / 60, 2),
+                "average_coverage": round(avg_coverage, 2)
+            },
+            "quality_distribution": {
+                "excellent": 0,  # A rating
+                "good": 0,       # B rating
+                "moderate": 0,   # C rating
+                "poor": 0,       # D rating
+                "very_poor": 0   # E rating
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality management dashboard: {str(e)}")
+
+# ============================================================================
 # Project Configuration Endpoints
 # ============================================================================
 
@@ -1429,7 +2009,7 @@ async def update_project_configuration(
             config.disabled_rules = config_data.disabled_rules
             config.rule_severities = config_data.rule_severities
             config.quality_gate_id = int(config_data.quality_gate_id) if config_data.quality_gate_id else None
-            config.updated_at = datetime.utcnow()
+            config.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         else:
             # Create new configuration
             config = SASTProjectConfiguration(
@@ -1874,4 +2454,2020 @@ async def get_project_trends(
         }
         return trends_data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching project trends: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error fetching project trends: {str(e)}")
+
+# ============================================================================
+# Quality Profiles Endpoints
+# ============================================================================
+
+@router.get("/quality-profiles")
+async def get_quality_profiles(
+    language: Optional[str] = Query(None),
+    is_default: Optional[bool] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get quality profiles with filtering"""
+    try:
+        # Mock quality profiles data
+        profiles_data = [
+            {
+                "id": "1",
+                "name": "Sonar way",
+                "description": "Default profile for most languages with common security and quality rules",
+                "language": "java",
+                "is_default": True,
+                "active_rule_count": 156,
+                "deprecated_rule_count": 12,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-15T00:00:00Z"
+            },
+            {
+                "id": "2",
+                "name": "Security Profile",
+                "description": "High-security profile with strict security rules enabled",
+                "language": "java",
+                "is_default": False,
+                "active_rule_count": 89,
+                "deprecated_rule_count": 5,
+                "created_at": "2024-01-05T00:00:00Z",
+                "updated_at": "2024-01-15T00:00:00Z"
+            },
+            {
+                "id": "3",
+                "name": "Python Best Practices",
+                "description": "Profile optimized for Python development with PEP 8 compliance",
+                "language": "python",
+                "is_default": False,
+                "active_rule_count": 78,
+                "deprecated_rule_count": 3,
+                "created_at": "2024-01-10T00:00:00Z",
+                "updated_at": "2024-01-15T00:00:00Z"
+            },
+            {
+                "id": "4",
+                "name": "JavaScript ES6+",
+                "description": "Modern JavaScript profile with ES6+ and security rules",
+                "language": "javascript",
+                "is_default": False,
+                "active_rule_count": 92,
+                "deprecated_rule_count": 8,
+                "created_at": "2024-01-12T00:00:00Z",
+                "updated_at": "2024-01-15T00:00:00Z"
+            }
+        ]
+
+        # Apply filters
+        if language:
+            profiles_data = [p for p in profiles_data if p["language"] == language]
+        
+        if is_default is not None:
+            profiles_data = [p for p in profiles_data if p["is_default"] == is_default]
+
+        return {
+            "profiles": profiles_data,
+            "total": len(profiles_data),
+            "languages": ["java", "python", "javascript", "typescript", "csharp", "php"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality profiles: {str(e)}")
+
+@router.post("/quality-profiles")
+async def create_quality_profile(
+    profile_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new quality profile"""
+    try:
+        # Mock profile creation
+        new_profile = {
+            "id": str(len(profile_data) + 1),  # Simple ID generation
+            "name": profile_data.get("name", "New Profile"),
+            "description": profile_data.get("description", ""),
+            "language": profile_data.get("language", "java"),
+            "is_default": False,
+            "active_rule_count": 0,
+            "deprecated_rule_count": 0,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "message": "Quality profile created successfully",
+            "profile": new_profile
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating quality profile: {str(e)}")
+
+@router.put("/quality-profiles/{profile_id}")
+async def update_quality_profile(
+    profile_id: str,
+    profile_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update an existing quality profile"""
+    try:
+        # Mock profile update
+        updated_profile = {
+            "id": profile_id,
+            "name": profile_data.get("name", "Updated Profile"),
+            "description": profile_data.get("description", ""),
+            "language": profile_data.get("language", "java"),
+            "is_default": profile_data.get("is_default", False),
+            "active_rule_count": profile_data.get("active_rule_count", 0),
+            "deprecated_rule_count": profile_data.get("deprecated_rule_count", 0),
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "message": "Quality profile updated successfully",
+            "profile": updated_profile
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating quality profile: {str(e)}")
+
+@router.delete("/quality-profiles/{profile_id}")
+async def delete_quality_profile(
+    profile_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a quality profile"""
+    try:
+        # Mock profile deletion
+        return {
+            "message": "Quality profile deleted successfully",
+            "profile_id": profile_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting quality profile: {str(e)}")
+
+@router.post("/quality-profiles/{profile_id}/duplicate")
+async def duplicate_quality_profile(
+    profile_id: str,
+    duplicate_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Duplicate an existing quality profile"""
+    try:
+        # Mock profile duplication
+        duplicated_profile = {
+            "id": str(int(profile_id) + 100),  # Simple ID generation
+            "name": duplicate_data.get("name", f"Profile {profile_id} - Copy"),
+            "description": duplicate_data.get("description", "Duplicated profile"),
+            "language": duplicate_data.get("language", "java"),
+            "is_default": False,
+            "active_rule_count": 0,
+            "deprecated_rule_count": 0,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "message": "Quality profile duplicated successfully",
+            "profile": duplicated_profile
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error duplicating quality profile: {str(e)}")
+
+@router.post("/quality-profiles/{profile_id}/set-default")
+async def set_default_quality_profile(
+    profile_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Set a quality profile as default for its language"""
+    try:
+        # Mock setting default profile
+        return {
+            "message": "Quality profile set as default successfully",
+            "profile_id": profile_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error setting default quality profile: {str(e)}")
+
+@router.get("/quality-profiles/{profile_id}/rules")
+async def get_profile_rules(
+    profile_id: str,
+    enabled_only: Optional[bool] = Query(False),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get rules for a specific quality profile"""
+    try:
+        # Mock profile rules data
+        rules_data = [
+            {
+                "id": "1",
+                "rule_id": "S1488",
+                "name": "Local variables should not be declared and then immediately returned",
+                "severity": "minor",
+                "category": "Code Smell",
+                "enabled": True,
+                "effort": "5min"
+            },
+            {
+                "id": "2",
+                "rule_id": "S1172",
+                "name": "Unused function parameters should be removed",
+                "severity": "major",
+                "category": "Code Smell",
+                "enabled": True,
+                "effort": "5min"
+            },
+            {
+                "id": "3",
+                "rule_id": "S1135",
+                "name": "Track uses of 'FIXME' tags",
+                "severity": "info",
+                "category": "Code Smell",
+                "enabled": False,
+                "effort": "10min"
+            }
+        ]
+
+        # Apply enabled filter if requested
+        if enabled_only:
+            rules_data = [r for r in rules_data if r["enabled"]]
+
+        return {
+            "profile_id": profile_id,
+            "rules": rules_data,
+            "total": len(rules_data),
+            "enabled_count": len([r for r in rules_data if r["enabled"]]),
+            "disabled_count": len([r for r in rules_data if not r["enabled"]])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting profile rules: {str(e)}")
+
+@router.put("/quality-profiles/{profile_id}/rules/{rule_id}")
+async def update_profile_rule(
+    profile_id: str,
+    rule_id: str,
+    rule_data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a rule in a quality profile (enable/disable, change severity, etc.)"""
+    try:
+        # Mock rule update
+        updated_rule = {
+            "id": rule_id,
+            "rule_id": rule_data.get("rule_id", "S0000"),
+            "name": rule_data.get("name", "Updated Rule"),
+            "severity": rule_data.get("severity", "minor"),
+            "category": rule_data.get("category", "Code Smell"),
+            "enabled": rule_data.get("enabled", True),
+            "effort": rule_data.get("effort", "5min")
+        }
+        
+        return {
+            "message": "Profile rule updated successfully",
+            "rule": updated_rule
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating profile rule: {str(e)}")
+
+# ============================================================================
+# Bulk Operations Endpoints
+# ============================================================================
+
+@router.put("/vulnerabilities/bulk-update")
+async def bulk_update_vulnerabilities(
+    update_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Bulk update vulnerabilities"""
+    try:
+        vulnerability_ids = update_data.get("vulnerability_ids", [])
+        updates = update_data.get("updates", {})
+        
+        if not vulnerability_ids:
+            raise HTTPException(status_code=400, detail="No vulnerability IDs provided")
+        
+        # Update vulnerabilities
+        for vuln_id in vulnerability_ids:
+            await db.execute(
+                update(SASTIssue)
+                .where(SASTIssue.id == int(vuln_id))
+                .values(**updates, updated_at=datetime.now(timezone.utc).replace(tzinfo=None))
+            )
+        
+        await db.commit()
+        return {"message": f"Successfully updated {len(vulnerability_ids)} vulnerabilities"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error bulk updating vulnerabilities: {str(e)}")
+
+@router.delete("/vulnerabilities/bulk-delete")
+async def bulk_delete_vulnerabilities(
+    delete_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Bulk delete vulnerabilities"""
+    try:
+        vulnerability_ids = delete_data.get("vulnerability_ids", [])
+        
+        if not vulnerability_ids:
+            raise HTTPException(status_code=400, detail="No vulnerability IDs provided")
+        
+        # Delete vulnerabilities
+        for vuln_id in vulnerability_ids:
+            await db.execute(delete(SASTIssue).where(SASTIssue.id == int(vuln_id)))
+        
+        await db.commit()
+        return {"message": f"Successfully deleted {len(vulnerability_ids)} vulnerabilities"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error bulk deleting vulnerabilities: {str(e)}")
+
+# ============================================================================
+# File Upload and Scanning Endpoints
+# ============================================================================
+
+@router.post("/scan/upload")
+async def upload_and_scan_file(
+    file: UploadFile = File(...),
+    project_id: str = Form(...),
+    scan_config: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a file and start scanning"""
+    try:
+        # Parse scan config
+        config = json.loads(scan_config) if scan_config else {}
+        
+        # Create scan record
+        scan = SASTScan(
+            project_id=int(project_id),
+            scan_type=config.get("scan_type", "upload"),
+            branch=config.get("branch", "main"),
+            status=ScanStatus.PENDING,
+            started_by=current_user.id
+        )
+        db.add(scan)
+        await db.commit()
+        await db.refresh(scan)
+        
+        # Save uploaded file
+        upload_dir = Path("uploads/sast")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        file_path = upload_dir / f"{scan.id}_{file.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Start background scan
+        background_tasks.add_task(process_uploaded_file, str(file_path), scan.id, db)
+        
+        return {
+            "message": "File uploaded and scan started",
+            "scan_id": str(scan.id),
+            "file_path": str(file_path)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+async def process_uploaded_file(file_path: str, scan_id: str, db: AsyncSession):
+    """Process uploaded file in background"""
+    try:
+        # Extract and analyze file
+        if file_path.endswith('.zip'):
+            # Handle zip files
+            extract_dir = Path(file_path).parent / f"extract_{scan_id}"
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            
+            # Scan extracted files
+            scanner = SASTScanner(str(extract_dir), scan_id)
+            vulnerabilities = await scanner.scan_project()
+        else:
+            # Handle single file
+            scanner = SASTScanner(str(Path(file_path).parent), scan_id)
+            vulnerabilities = await scanner.scan_project()
+        
+        # Update scan with results
+        await update_scan_results(scan_id, vulnerabilities, db)
+        
+    except Exception as e:
+        logger.error(f"Error processing uploaded file: {e}")
+        # Update scan status to failed
+        await update_scan_status(scan_id, ScanStatus.FAILED, str(e), db)
+
+async def update_scan_results(scan_id: str, vulnerabilities: List[Any], db: AsyncSession):
+    """Update scan with results"""
+    try:
+        scan_result = await db.execute(select(SASTScan).where(SASTScan.id == int(scan_id)))
+        scan = scan_result.scalar_one_or_none()
+        
+        if scan:
+            scan.status = ScanStatus.COMPLETED
+            scan.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            scan.vulnerabilities_found = len(vulnerabilities)
+            scan.issues_found = len(vulnerabilities)
+            
+            # Store vulnerabilities
+            for vuln in vulnerabilities:
+                issue = SASTIssue(
+                    project_id=scan.project_id,
+                    scan_id=scan.id,
+                    rule_id=vuln.rule_id,
+                    rule_name=vuln.rule_name,
+                    message=vuln.description,
+                    file_path=vuln.file_name,
+                    line_number=vuln.line_number,
+                    severity=IssueSeverity(vuln.severity.upper()),
+                    type=IssueType.VULNERABILITY,
+                    cwe_id=vuln.cwe_id,
+                    created_at=datetime.now(timezone.utc).replace(tzinfo=None)
+                )
+                db.add(issue)
+            
+            await db.commit()
+            
+    except Exception as e:
+        logger.error(f"Error updating scan results: {e}")
+
+async def update_scan_status(scan_id: str, status: ScanStatus, error_message: str, db: AsyncSession):
+    """Update scan status"""
+    try:
+        scan_result = await db.execute(select(SASTScan).where(SASTScan.id == int(scan_id)))
+        scan = scan_result.scalar_one_or_none()
+        
+        if scan:
+            scan.status = status
+            scan.error_message = error_message
+            if status == ScanStatus.COMPLETED:
+                scan.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            
+            await db.commit()
+            
+    except Exception as e:
+        logger.error(f"Error updating scan status: {e}")
+
+# ============================================================================
+# Enhanced Rule Management Endpoints
+# ============================================================================
+
+@router.post("/rules", response_model=Dict[str, Any])
+async def create_custom_rule(
+    rule_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a custom SAST rule"""
+    try:
+        # Validate rule data
+        required_fields = ["rule_id", "name", "category", "severity", "type", "languages"]
+        for field in required_fields:
+            if field not in rule_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Create new rule
+        new_rule = SASTRule(
+            rule_id=rule_data["rule_id"],
+            name=rule_data["name"],
+            description=rule_data.get("description", ""),
+            category=rule_data["category"],
+            subcategory=rule_data.get("subcategory"),
+            severity=IssueSeverity(rule_data["severity"].upper()),
+            type=IssueType(rule_data["type"].upper()),
+            cwe_id=rule_data.get("cwe_id"),
+            owasp_category=rule_data.get("owasp_category"),
+            tags=rule_data.get("tags", []),
+            enabled=rule_data.get("enabled", True),
+            effort=rule_data.get("effort", 0),
+            languages=rule_data["languages"],
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None)
+        )
+        
+        db.add(new_rule)
+        await db.commit()
+        await db.refresh(new_rule)
+        
+        return {
+            "message": "Custom rule created successfully",
+            "rule": {
+                "id": str(new_rule.id),
+                "rule_id": new_rule.rule_id,
+                "name": new_rule.name,
+                "category": new_rule.category,
+                "severity": new_rule.severity.value,
+                "type": new_rule.type.value,
+                "languages": new_rule.languages
+            }
+        }
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating custom rule: {str(e)}")
+
+@router.put("/rules/{rule_id}", response_model=Dict[str, Any])
+async def update_rule(
+    rule_id: str,
+    rule_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update an existing SAST rule"""
+    try:
+        rule_result = await db.execute(select(SASTRule).where(SASTRule.rule_id == rule_id))
+        rule = rule_result.scalar_one_or_none()
+        
+        if not rule:
+            raise HTTPException(status_code=404, detail="Rule not found")
+        
+        # Update fields
+        updateable_fields = ["name", "description", "category", "subcategory", "severity", 
+                           "type", "cwe_id", "owasp_category", "tags", "enabled", "effort", "languages"]
+        
+        for field in updateable_fields:
+            if field in rule_data:
+                if field == "severity":
+                    rule.severity = IssueSeverity(rule_data[field].upper())
+                elif field == "type":
+                    rule.type = IssueType(rule_data[field].upper())
+                else:
+                    setattr(rule, field, rule_data[field])
+        
+        rule.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        await db.commit()
+        await db.refresh(rule)
+        
+        return {
+            "message": "Rule updated successfully",
+            "rule": {
+                "id": str(rule.id),
+                "rule_id": rule.rule_id,
+                "name": rule.name,
+                "category": rule.category,
+                "severity": rule.severity.value,
+                "type": rule.type.value,
+                "languages": rule.languages
+            }
+        }
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating rule: {str(e)}")
+
+@router.delete("/rules/{rule_id}")
+async def delete_rule(
+    rule_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a SAST rule"""
+    try:
+        rule_result = await db.execute(select(SASTRule).where(SASTRule.rule_id == rule_id))
+        rule = rule_result.scalar_one_or_none()
+        
+        if not rule:
+            raise HTTPException(status_code=404, detail="Rule not found")
+        
+        # Check if rule is being used
+        usage_result = await db.execute(
+            select(func.count(SASTIssue.id)).where(SASTIssue.rule_id == rule_id)
+        )
+        usage_count = usage_result.scalar() or 0
+        
+        if usage_count > 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot delete rule: it is used by {usage_count} existing issues"
+            )
+        
+        await db.delete(rule)
+        await db.commit()
+        
+        return {"message": "Rule deleted successfully"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting rule: {str(e)}")
+
+# ============================================================================
+# Scan Management Enhancement Endpoints
+# ============================================================================
+
+@router.post("/scans/{scan_id}/stop")
+async def stop_scan(
+    scan_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Stop a running scan"""
+    try:
+        scan_result = await db.execute(select(SASTScan).where(SASTScan.id == int(scan_id)))
+        scan = scan_result.scalar_one_or_none()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        if scan.status not in [ScanStatus.PENDING, ScanStatus.IN_PROGRESS]:
+            raise HTTPException(status_code=400, detail="Scan is not running")
+        
+        scan.status = ScanStatus.CANCELLED
+        scan.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        await db.commit()
+        
+        return {"message": "Scan stopped successfully"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error stopping scan: {str(e)}")
+
+@router.get("/scans/{scan_id}/report")
+async def get_scan_report(
+    scan_id: str,
+    format: str = Query("json", regex="^(json|pdf|csv)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get scan report in specified format"""
+    try:
+        scan_result = await db.execute(select(SASTScan).where(SASTScan.id == int(scan_id)))
+        scan = scan_result.scalar_one_or_none()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        # Get scan issues
+        issues_result = await db.execute(
+            select(SASTIssue).where(SASTIssue.scan_id == int(scan_id))
+        )
+        issues = issues_result.scalars().all()
+        
+        # Generate report data
+        report_data = {
+            "scan_id": str(scan.id),
+            "project_id": scan.project_id,
+            "status": scan.status.value,
+            "started_at": scan.started_at.isoformat() if scan.started_at else None,
+            "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+            "duration": scan.duration,
+            "total_issues": len(issues),
+            "vulnerabilities": len([i for i in issues if i.type == IssueType.VULNERABILITY]),
+            "bugs": len([i for i in issues if i.type == IssueType.BUG]),
+            "code_smells": len([i for i in issues if i.type == IssueType.CODE_SMELL]),
+            "issues_by_severity": {},
+            "issues_by_type": {},
+            "issues": []
+        }
+        
+        # Group issues by severity and type
+        for issue in issues:
+            severity = issue.severity.value.lower()
+            issue_type = issue.type.value.lower()
+            
+            report_data["issues_by_severity"][severity] = report_data["issues_by_severity"].get(severity, 0) + 1
+            report_data["issues_by_type"][issue_type] = report_data["issues_by_type"].get(issue_type, 0) + 1
+            
+            report_data["issues"].append({
+                "id": str(issue.id),
+                "rule_id": issue.rule_id,
+                "rule_name": issue.rule_name,
+                "message": issue.message,
+                "severity": issue.severity.value,
+                "type": issue.type.value,
+                "file_path": issue.file_path,
+                "line_number": issue.line_number,
+                "cwe_id": issue.cwe_id,
+                "cvss_score": issue.cvss_score,
+                "owasp_category": issue.owasp_category
+            })
+        
+        if format == "json":
+            return report_data
+        elif format == "csv":
+            # Generate CSV content
+            csv_content = generate_csv_report(report_data)
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=scan_report_{scan_id}.csv"}
+            )
+        elif format == "pdf":
+            # Generate PDF content (placeholder)
+            pdf_content = generate_pdf_report(report_data)
+            return Response(
+                content=pdf_content,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=scan_report_{scan_id}.pdf"}
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating scan report: {str(e)}")
+
+def generate_csv_report(report_data: Dict[str, Any]) -> str:
+    """Generate CSV report content"""
+    import csv
+    import io
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(["Scan Report"])
+    writer.writerow([f"Scan ID: {report_data['scan_id']}"])
+    writer.writerow([f"Total Issues: {report_data['total_issues']}"])
+    writer.writerow([])
+    
+    # Write summary
+    writer.writerow(["Issues by Severity"])
+    for severity, count in report_data["issues_by_severity"].items():
+        writer.writerow([severity.title(), count])
+    
+    writer.writerow([])
+    writer.writerow(["Issues by Type"])
+    for issue_type, count in report_data["issues_by_type"].items():
+        writer.writerow([issue_type.title(), count])
+    
+    writer.writerow([])
+    
+    # Write detailed issues
+    writer.writerow(["Issue Details"])
+    writer.writerow(["ID", "Rule", "Message", "Severity", "Type", "File", "Line", "CWE", "CVSS", "OWASP"])
+    
+    for issue in report_data["issues"]:
+        writer.writerow([
+            issue["id"],
+            issue["rule_name"],
+            issue["message"],
+            issue["severity"],
+            issue["type"],
+            issue["file_path"],
+            issue["line_number"],
+            issue["cwe_id"] or "",
+            issue["cvss_score"] or "",
+            issue["owasp_category"] or ""
+        ])
+    
+    return output.getvalue()
+
+def generate_pdf_report(report_data: Dict[str, Any]) -> bytes:
+    """Generate PDF report content (placeholder)"""
+    # This is a placeholder - in production you'd use a proper PDF library
+    pdf_content = f"""
+    Scan Report
+    ===========
+    
+    Scan ID: {report_data['scan_id']}
+    Total Issues: {report_data['total_issues']}
+    
+    Issues by Severity:
+    {chr(10).join([f"- {k.title()}: {v}" for k, v in report_data['issues_by_severity'].items()])}
+    
+    Issues by Type:
+    {chr(10).join([f"- {k.title()}: {v}" for k, v in report_data['issues_by_type'].items()])}
+    """.encode('utf-8')
+    
+    return pdf_content
+
+# ============================================================================
+# Project Report Endpoints
+# ============================================================================
+
+@router.get("/projects/{project_id}/report")
+async def get_project_report(
+    project_id: str,
+    format: str = Query("json", regex="^(json|pdf|csv)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive project report"""
+    try:
+        # Get project
+        project_result = await db.execute(select(SASTProject).where(SASTProject.id == int(project_id)))
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get project scans
+        scans_result = await db.execute(
+            select(SASTScan).where(SASTScan.project_id == int(project_id))
+        )
+        scans = scans_result.scalars().all()
+        
+        # Get project issues
+        issues_result = await db.execute(
+            select(SASTIssue).where(SASTIssue.project_id == int(project_id))
+        )
+        issues = issues_result.scalars().all()
+        
+        # Generate report data
+        report_data = {
+            "project": {
+                "id": str(project.id),
+                "name": project.name,
+                "key": project.key,
+                "language": project.language,
+                "quality_gate": project.quality_gate.value if project.quality_gate else "UNKNOWN",
+                "security_rating": project.security_rating.value if project.security_rating else "UNKNOWN",
+                "reliability_rating": project.reliability_rating.value if project.reliability_rating else "UNKNOWN",
+                "maintainability_rating": project.maintainability_rating.value if project.maintainability_rating else "UNKNOWN"
+            },
+            "summary": {
+                "total_scans": len(scans),
+                "total_issues": len(issues),
+                "vulnerabilities": len([i for i in issues if i.type == IssueType.VULNERABILITY]),
+                "bugs": len([i for i in issues if i.type == IssueType.BUG]),
+                "code_smells": len([i for i in issues if i.type == IssueType.CODE_SMELL]),
+                "lines_of_code": project.lines_of_code or 0,
+                "coverage": project.coverage or 0.0,
+                "technical_debt": project.technical_debt or 0
+            },
+            "scans": [
+                {
+                    "id": str(scan.id),
+                    "status": scan.status.value,
+                    "started_at": scan.started_at.isoformat() if scan.started_at else None,
+                    "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+                    "issues_found": scan.issues_found or 0,
+                    "vulnerabilities_found": scan.vulnerabilities_found or 0
+                }
+                for scan in scans
+            ],
+            "issues_by_severity": {},
+            "issues_by_type": {},
+            "recent_issues": []
+        }
+        
+        # Group issues by severity and type
+        for issue in issues:
+            severity = issue.severity.value.lower()
+            issue_type = issue.type.value.lower()
+            
+            report_data["issues_by_severity"][severity] = report_data["issues_by_severity"].get(severity, 0) + 1
+            report_data["issues_by_type"][issue_type] = report_data["issues_by_type"].get(issue_type, 0) + 1
+        
+        # Get recent issues
+        recent_issues = sorted(issues, key=lambda x: x.created_at, reverse=True)[:20]
+        report_data["recent_issues"] = [
+            {
+                "id": str(issue.id),
+                "rule_name": issue.rule_name,
+                "severity": issue.severity.value,
+                "type": issue.type.value,
+                "file_path": issue.file_path,
+                "line_number": issue.line_number,
+                "created_at": issue.created_at.isoformat() if issue.created_at else None
+            }
+            for issue in recent_issues
+        ]
+        
+        if format == "json":
+            return report_data
+        elif format == "csv":
+            csv_content = generate_project_csv_report(report_data)
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=project_report_{project_id}.csv"}
+            )
+        elif format == "pdf":
+            pdf_content = generate_project_pdf_report(report_data)
+            return Response(
+                content=pdf_content,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=project_report_{project_id}.pdf"}
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating project report: {str(e)}")
+
+def generate_project_csv_report(report_data: Dict[str, Any]) -> str:
+    """Generate project CSV report content"""
+    import csv
+    import io
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(["Project Report"])
+    writer.writerow([f"Project: {report_data['project']['name']} ({report_data['project']['key']})"])
+    writer.writerow([f"Language: {report_data['project']['language']}"])
+    writer.writerow([])
+    
+    # Write summary
+    writer.writerow(["Summary"])
+    writer.writerow(["Total Scans", report_data["summary"]["total_scans"]])
+    writer.writerow(["Total Issues", report_data["summary"]["total_issues"]])
+    writer.writerow(["Vulnerabilities", report_data["summary"]["vulnerabilities"]])
+    writer.writerow(["Bugs", report_data["summary"]["bugs"]])
+    writer.writerow(["Code Smells", report_data["summary"]["code_smells"]])
+    writer.writerow(["Lines of Code", report_data["summary"]["lines_of_code"]])
+    writer.writerow(["Coverage", f"{report_data['summary']['coverage']}%"])
+    writer.writerow(["Technical Debt", f"{report_data['summary']['technical_debt']} minutes"])
+    writer.writerow([])
+    
+    # Write ratings
+    writer.writerow(["Quality Ratings"])
+    writer.writerow(["Security", report_data["project"]["security_rating"]])
+    writer.writerow(["Reliability", report_data["project"]["reliability_rating"]])
+    writer.writerow(["Maintainability", report_data["project"]["maintainability_rating"]])
+    writer.writerow([])
+    
+    # Write issues breakdown
+    writer.writerow(["Issues by Severity"])
+    for severity, count in report_data["issues_by_severity"].items():
+        writer.writerow([severity.title(), count])
+    
+    writer.writerow([])
+    writer.writerow(["Issues by Type"])
+    for issue_type, count in report_data["issues_by_type"].items():
+        writer.writerow([issue_type.title(), count])
+    
+    return output.getvalue()
+
+def generate_project_pdf_report(report_data: Dict[str, Any]) -> bytes:
+    """Generate project PDF report content (placeholder)"""
+    pdf_content = f"""
+    Project Report
+    ==============
+    
+    Project: {report_data['project']['name']} ({report_data['project']['key']})
+    Language: {report_data['project']['language']}
+    
+    Summary:
+    - Total Scans: {report_data['summary']['total_scans']}
+    - Total Issues: {report_data['summary']['total_issues']}
+    - Vulnerabilities: {report_data['summary']['vulnerabilities']}
+    - Bugs: {report_data['summary']['bugs']}
+    - Code Smells: {report_data['summary']['code_smells']}
+    - Lines of Code: {report_data['summary']['lines_of_code']}
+    - Coverage: {report_data['summary']['coverage']}%
+    - Technical Debt: {report_data['summary']['technical_debt']} minutes
+    
+    Quality Ratings:
+    - Security: {report_data['project']['security_rating']}
+    - Reliability: {report_data['project']['reliability_rating']}
+    - Maintainability: {report_data['project']['maintainability_rating']}
+    """.encode('utf-8')
+    
+    return pdf_content
+
+# ============================================================================
+# Advanced Analysis Endpoints
+# ============================================================================
+
+@router.post("/advanced-analysis/{project_id}")
+async def start_advanced_analysis(
+    project_id: str,
+    analysis_types: List[str] = Query(["data_flow", "taint_analysis", "security_pattern"]),
+    languages: List[str] = Query(["python", "javascript", "java"]),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Start advanced code analysis for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Initialize advanced analyzer
+        advanced_analyzer = AdvancedCodeAnalyzer()
+        
+        # Perform analysis
+        analysis_result = await advanced_analyzer.analyze_project(
+            project_path=project.repository_url or f"projects/{project_id}",
+            project_id=project_id,
+            scan_id=str(uuid.uuid4()),
+            languages=languages
+        )
+        
+        return {
+            "message": "Advanced analysis completed successfully",
+            "analysis_id": analysis_result.analysis_id,
+            "summary": analysis_result.summary,
+            "vulnerabilities_found": len(analysis_result.vulnerabilities),
+            "data_flow_paths": len(analysis_result.data_flow_paths),
+            "taint_flows": len(analysis_result.taint_flows)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during advanced analysis: {str(e)}")
+
+@router.get("/advanced-analysis/{analysis_id}")
+async def get_advanced_analysis_result(
+    analysis_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get results of advanced code analysis"""
+    try:
+        advanced_analyzer = AdvancedCodeAnalyzer()
+        result = advanced_analyzer.get_analysis_result(analysis_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Analysis result not found")
+        
+        return {
+            "analysis_id": result.analysis_id,
+            "project_id": result.project_id,
+            "scan_id": result.scan_id,
+            "analysis_type": result.analysis_type.value,
+            "summary": result.summary,
+            "vulnerabilities": [
+                {
+                    "id": v.id,
+                    "title": v.title,
+                    "description": v.description,
+                    "category": v.category.value,
+                    "severity": v.severity,
+                    "confidence": v.confidence,
+                    "file_path": v.file_path,
+                    "line_number": v.line_number,
+                    "cwe_id": v.cwe_id,
+                    "owasp_category": v.owasp_category,
+                    "evidence": v.evidence,
+                    "recommendations": v.recommendations
+                }
+                for v in result.vulnerabilities
+            ],
+            "data_flow_paths": len(result.data_flow_paths),
+            "taint_flows": len(result.taint_flows),
+            "created_at": result.created_at.isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving analysis result: {str(e)}")
+
+@router.get("/advanced-analysis/{analysis_id}/export")
+async def export_advanced_analysis(
+    analysis_id: str,
+    format: str = Query("json", regex="^(json|csv|pdf)$"),
+    current_user: User = Depends(get_current_user)
+):
+    """Export advanced analysis results"""
+    try:
+        advanced_analyzer = AdvancedCodeAnalyzer()
+        result = advanced_analyzer.get_analysis_result(analysis_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Analysis result not found")
+        
+        if format == "json":
+            # Export as JSON
+            export_path = f"exports/advanced_analysis_{analysis_id}.json"
+            success = advanced_analyzer.export_analysis_report(analysis_id, export_path)
+            
+            if success:
+                return {"message": "Analysis exported successfully", "file_path": export_path}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to export analysis")
+        
+        elif format == "csv":
+            # Export as CSV (simplified)
+            csv_content = "Vulnerability ID,Title,Category,Severity,File Path,Line Number,CWE ID\n"
+            for vuln in result.vulnerabilities:
+                csv_content += f"{vuln.id},{vuln.title},{vuln.category.value},{vuln.severity},{vuln.file_path},{vuln.line_number},{vuln.cwe_id or ''}\n"
+            
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=advanced_analysis_{analysis_id}.csv"}
+            )
+        
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported export format")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exporting analysis: {str(e)}")
+
+@router.get("/data-flow-analysis/{project_id}")
+async def get_data_flow_analysis(
+    project_id: str,
+    file_path: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get data flow analysis for a project or specific file"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Initialize data flow analyzer
+        data_flow_analyzer = DataFlowAnalyzer()
+        
+        # Analyze project files
+        project_path = project.repository_url or f"projects/{project_id}"
+        languages = [project.language] if project.language else ["python", "javascript", "java"]
+        
+        all_paths = []
+        for language in languages:
+            if file_path:
+                # Analyze specific file
+                file_path_obj = Path(project_path) / file_path
+                if file_path_obj.exists():
+                    paths = data_flow_analyzer.analyze_file(file_path_obj, language)
+                    all_paths.extend(paths)
+            else:
+                # Analyze all files of this language
+                language_files = data_flow_analyzer._find_language_files(Path(project_path), language)
+                for lang_file in language_files:
+                    paths = data_flow_analyzer.analyze_file(lang_file, language)
+                    all_paths.extend(paths)
+        
+        # Get summary
+        summary = data_flow_analyzer.get_data_flow_summary()
+        
+        return {
+            "project_id": project_id,
+            "file_path": file_path,
+            "summary": summary,
+            "data_flow_paths": [
+                {
+                    "path_id": path.path_id,
+                    "source": {
+                        "name": path.source.name,
+                        "type": path.source.node_type,
+                        "file_path": path.source.file_path,
+                        "line_number": path.source.line_number
+                    },
+                    "sink": {
+                        "name": path.sink.name,
+                        "type": path.sink.node_type,
+                        "file_path": path.sink.file_path,
+                        "line_number": path.sink.line_number
+                    },
+                    "risk_level": path.risk_level,
+                    "description": path.description,
+                    "node_count": len(path.nodes),
+                    "edge_count": len(path.edges)
+                }
+                for path in all_paths
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during data flow analysis: {str(e)}")
+
+@router.get("/taint-analysis/{project_id}")
+async def get_taint_analysis(
+    project_id: str,
+    file_path: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get taint analysis for a project or specific file"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Initialize taint analyzer
+        taint_analyzer = TaintAnalyzer()
+        
+        # Analyze project files
+        project_path = project.repository_url or f"projects/{project_id}"
+        languages = [project.language] if project.language else ["python", "javascript", "java"]
+        
+        all_flows = []
+        for language in languages:
+            if file_path:
+                # Analyze specific file
+                file_path_obj = Path(project_path) / file_path
+                if file_path_obj.exists():
+                    flows = taint_analyzer.analyze_file(file_path_obj, language)
+                    all_flows.extend(flows)
+            else:
+                # Analyze all files of this language
+                language_files = taint_analyzer._find_language_files(Path(project_path), language)
+                for lang_file in language_files:
+                    flows = taint_analyzer.analyze_file(lang_file, language)
+                    all_flows.extend(flows)
+        
+        # Get summary
+        summary = taint_analyzer.get_taint_summary()
+        
+        return {
+            "project_id": project_id,
+            "file_path": file_path,
+            "summary": summary,
+            "taint_flows": [
+                {
+                    "id": flow.id,
+                    "source": {
+                        "name": flow.source.name,
+                        "taint_type": flow.source.taint_type.value,
+                        "file_path": flow.source.file_path,
+                        "line_number": flow.source.line_number,
+                        "severity": flow.source.severity.value
+                    },
+                    "sink": {
+                        "name": flow.sink.name,
+                        "sink_type": flow.sink.sink_type,
+                        "file_path": flow.sink.file_path,
+                        "line_number": flow.sink.line_number,
+                        "severity": flow.sink.severity.value,
+                        "cwe_id": flow.sink.cwe_id,
+                        "owasp_category": flow.sink.owasp_category
+                    },
+                    "taint_status": flow.taint_status.value,
+                    "severity": flow.severity.value,
+                    "description": flow.description,
+                    "flow_path": flow.flow_path,
+                    "sanitization_points": flow.sanitization_points,
+                    "blocking_points": flow.blocking_points
+                }
+                for flow in all_flows
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during taint analysis: {str(e)}")
+
+@router.get("/advanced-analysis/{analysis_id}/data-flow")
+async def get_analysis_data_flow(
+    analysis_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get data flow paths from advanced analysis"""
+    try:
+        advanced_analyzer = AdvancedCodeAnalyzer()
+        result = advanced_analyzer.get_analysis_result(analysis_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Analysis result not found")
+        
+        return {
+            "analysis_id": analysis_id,
+            "data_flow_paths": [
+                {
+                    "path_id": path.path_id,
+                    "source": {
+                        "name": path.source.name,
+                        "type": path.source.node_type,
+                        "file_path": path.source.file_path,
+                        "line_number": path.source.line_number
+                    },
+                    "sink": {
+                        "name": path.sink.name,
+                        "type": path.sink.node_type,
+                        "file_path": path.sink.file_path,
+                        "line_number": path.sink.line_number
+                    },
+                    "risk_level": path.risk_level,
+                    "description": path.description,
+                    "node_count": len(path.nodes),
+                    "edge_count": len(path.edges)
+                }
+                for path in result.data_flow_paths
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving data flow: {str(e)}")
+
+@router.get("/advanced-analysis/{analysis_id}/taint-flows")
+async def get_analysis_taint_flows(
+    analysis_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get taint flows from advanced analysis"""
+    try:
+        advanced_analyzer = AdvancedCodeAnalyzer()
+        result = advanced_analyzer.get_analysis_result(analysis_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Analysis result not found")
+        
+        return {
+            "analysis_id": analysis_id,
+            "taint_flows": [
+                {
+                    "id": flow.id,
+                    "source": {
+                        "name": flow.source.name,
+                        "taint_type": flow.source.taint_type.value,
+                        "file_path": flow.source.file_path,
+                        "line_number": flow.source.line_number,
+                        "severity": flow.source.severity.value
+                    },
+                    "sink": {
+                        "name": flow.sink.name,
+                        "sink_type": flow.sink.sink_type,
+                        "file_path": flow.sink.file_path,
+                        "line_number": flow.sink.line_number,
+                        "severity": flow.sink.severity.value,
+                        "cwe_id": flow.sink.cwe_id,
+                        "owasp_category": flow.sink.owasp_category
+                    },
+                    "taint_status": flow.taint_status.value,
+                    "severity": flow.severity.value,
+                    "description": flow.description,
+                    "flow_path": flow.flow_path,
+                    "sanitization_points": flow.sanitization_points,
+                    "blocking_points": flow.blocking_points
+                }
+                for flow in result.taint_flows
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving taint flows: {str(e)}")
+
+# ============================================================================
+# Real-time Monitoring Endpoints
+# ============================================================================
+
+@router.post("/realtime/start/{project_id}")
+async def start_realtime_monitoring(
+    project_id: str,
+    config: Optional[Dict[str, Any]] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Start real-time monitoring for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Import real-time analyzer
+        from app.sast.realtime_analyzer import start_realtime_monitoring
+        
+        # Start monitoring
+        await start_realtime_monitoring(project.repository_url or f"projects/{project_id}", config)
+        
+        return {
+            "message": "Real-time monitoring started successfully",
+            "project_id": project_id,
+            "status": "monitoring"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error starting real-time monitoring: {str(e)}")
+
+@router.post("/realtime/stop/{project_id}")
+async def stop_realtime_monitoring(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Stop real-time monitoring for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Import real-time analyzer
+        from app.sast.realtime_analyzer import stop_realtime_monitoring
+        
+        # Stop monitoring
+        await stop_realtime_monitoring(project.repository_url or f"projects/{project_id}")
+        
+        return {
+            "message": "Real-time monitoring stopped successfully",
+            "project_id": project_id,
+            "status": "stopped"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error stopping real-time monitoring: {str(e)}")
+
+@router.get("/realtime/stats/{project_id}")
+async def get_realtime_stats(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get real-time monitoring statistics for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Import real-time analyzer
+        from app.sast.realtime_analyzer import get_realtime_analyzer
+        
+        # Get analyzer instance
+        analyzer = await get_realtime_analyzer(project.repository_url or f"projects/{project_id}")
+        
+        # Get statistics
+        stats = analyzer.get_statistics()
+        
+        return {
+            "project_id": project_id,
+            "statistics": stats
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting real-time stats: {str(e)}")
+
+@router.get("/realtime/export/{project_id}")
+async def export_realtime_data(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export real-time monitoring data for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Import real-time analyzer
+        from app.sast.realtime_analyzer import get_realtime_analyzer
+        
+        # Get analyzer instance
+        analyzer = await get_realtime_analyzer(project.repository_url or f"projects/{project_id}")
+        
+        # Export data
+        export_data = analyzer.export_analysis_data()
+        
+        return {
+            "project_id": project_id,
+            "export_data": export_data,
+            "exported_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exporting real-time data: {str(e)}")
+
+# ============================================================================
+# Quality Management Endpoints
+# ============================================================================
+
+@router.get("/projects/{project_id}/quality-overview")
+async def get_project_quality_overview(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive quality overview for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get quality gate
+        quality_gate_result = await db.execute(
+            select(SASTQualityGate).where(SASTQualityGate.project_id == project_id)
+        )
+        quality_gate = quality_gate_result.scalar_one_or_none()
+        
+        # Get recent scan for metrics
+        recent_scan_result = await db.execute(
+            select(SASTScan)
+            .where(SASTScan.project_id == project_id)
+            .order_by(SASTScan.created_at.desc())
+            .limit(1)
+        )
+        recent_scan = recent_scan_result.scalar_one_or_none()
+        
+        # Calculate quality metrics
+        quality_metrics = {
+            "project_id": project_id,
+            "project_name": project.name,
+            "quality_gate_status": quality_gate.status if quality_gate else QualityGateStatus.PASSED,
+            "ratings": {
+                "maintainability": project.maintainability_rating,
+                "security": project.security_rating,
+                "reliability": project.reliability_rating
+            },
+            "issue_counts": {
+                "vulnerabilities": project.vulnerability_count,
+                "bugs": project.bug_count,
+                "code_smells": project.code_smell_count,
+                "security_hotspots": project.security_hotspot_count
+            },
+            "code_metrics": {
+                "lines_of_code": project.lines_of_code,
+                "lines_of_comment": project.lines_of_comment,
+                "duplicated_lines": project.duplicated_lines,
+                "duplicated_blocks": project.duplicated_blocks
+            },
+            "coverage_metrics": {
+                "coverage": project.coverage,
+                "uncovered_lines": project.uncovered_lines,
+                "uncovered_conditions": project.uncovered_conditions
+            },
+            "technical_debt": {
+                "total_debt": project.technical_debt,
+                "debt_ratio": project.debt_ratio,
+                "debt_hours": round(project.technical_debt / 60, 2) if project.technical_debt else 0
+            },
+            "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None,
+            "scan_status": recent_scan.status if recent_scan else None
+        }
+        
+        return quality_metrics
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality overview: {str(e)}")
+
+@router.get("/projects/{project_id}/quality-metrics")
+async def get_project_quality_metrics(
+    project_id: str,
+    metric_type: Optional[str] = Query(None, description="Type of metrics: 'security', 'reliability', 'maintainability', 'coverage', 'duplications'"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed quality metrics for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        if not metric_type:
+            # Return all metrics
+            return {
+                "project_id": project_id,
+                "project_name": project.name,
+                "security_metrics": {
+                    "rating": project.security_rating,
+                    "vulnerability_count": project.vulnerability_count,
+                    "security_hotspot_count": project.security_hotspot_count
+                },
+                "reliability_metrics": {
+                    "rating": project.reliability_rating,
+                    "bug_count": project.bug_count
+                },
+                "maintainability_metrics": {
+                    "rating": project.maintainability_rating,
+                    "code_smell_count": project.code_smell_count,
+                    "technical_debt": project.technical_debt,
+                    "debt_ratio": project.debt_ratio
+                },
+                "coverage_metrics": {
+                    "coverage": project.coverage,
+                    "uncovered_lines": project.uncovered_lines,
+                    "uncovered_conditions": project.uncovered_conditions
+                },
+                "duplication_metrics": {
+                    "duplicated_lines": project.duplicated_lines,
+                    "duplicated_blocks": project.duplicated_blocks
+                }
+            }
+        
+        # Return specific metric type
+        if metric_type == "security":
+            return {
+                "project_id": project_id,
+                "metric_type": "security",
+                "rating": project.security_rating,
+                "vulnerability_count": project.vulnerability_count,
+                "security_hotspot_count": project.security_hotspot_count,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "reliability":
+            return {
+                "project_id": project_id,
+                "metric_type": "reliability",
+                "rating": project.reliability_rating,
+                "bug_count": project.bug_count,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "maintainability":
+            return {
+                "project_id": project_id,
+                "metric_type": "maintainability",
+                "rating": project.maintainability_rating,
+                "code_smell_count": project.code_smell_count,
+                "technical_debt": project.technical_debt,
+                "debt_ratio": project.debt_ratio,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "coverage":
+            return {
+                "project_id": project_id,
+                "metric_type": "coverage",
+                "coverage": project.coverage,
+                "uncovered_lines": project.uncovered_lines,
+                "uncovered_conditions": project.uncovered_conditions,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        elif metric_type == "duplications":
+            return {
+                "project_id": project_id,
+                "metric_type": "duplications",
+                "duplicated_lines": project.duplicated_lines,
+                "duplicated_blocks": project.duplicated_blocks,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Invalid metric type")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality metrics: {str(e)}")
+
+@router.get("/projects/{project_id}/quality-trends")
+async def get_project_quality_trends(
+    project_id: str,
+    days: int = Query(30, description="Number of days for trend analysis"),
+    metric: str = Query("all", description="Specific metric to analyze: 'security', 'reliability', 'maintainability', 'coverage', 'debt'"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get quality trends for a project over time"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get scans within the specified time period
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        scans_result = await db.execute(
+            select(SASTScan)
+            .where(SASTScan.project_id == project_id)
+            .where(SASTScan.created_at >= cutoff_date)
+            .order_by(SASTScan.created_at.asc())
+        )
+        scans = scans_result.scalars().all()
+        
+        # Generate trend data
+        trends = []
+        for scan in scans:
+            trend_point = {
+                "date": scan.created_at.isoformat(),
+                "scan_id": str(scan.id),
+                "scan_status": scan.status
+            }
+            
+            if metric == "all" or metric == "security":
+                trend_point["security_rating"] = getattr(scan, 'security_rating', None)
+                trend_point["vulnerability_count"] = getattr(scan, 'vulnerabilities_found', 0)
+            
+            if metric == "all" or metric == "reliability":
+                trend_point["reliability_rating"] = getattr(scan, 'reliability_rating', None)
+                trend_point["bug_count"] = getattr(scan, 'bugs_found', 0)
+            
+            if metric == "all" or metric == "maintainability":
+                trend_point["maintainability_rating"] = getattr(scan, 'maintainability_rating', None)
+                trend_point["code_smell_count"] = getattr(scan, 'code_smells_found', 0)
+            
+            if metric == "all" or metric == "coverage":
+                trend_point["coverage"] = getattr(scan, 'coverage', 0.0)
+            
+            if metric == "all" or metric == "debt":
+                trend_point["technical_debt"] = getattr(scan, 'technical_debt', 0)
+            
+            trends.append(trend_point)
+        
+        return {
+            "project_id": project_id,
+            "project_name": project.name,
+            "metric": metric,
+            "period_days": days,
+            "trends": trends,
+            "summary": {
+                "total_scans": len(trends),
+                "period_start": cutoff_date.isoformat(),
+                "period_end": datetime.now().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality trends: {str(e)}")
+
+@router.get("/projects/{project_id}/quality-report")
+async def get_project_quality_report(
+    project_id: str,
+    format: str = Query("json", description="Report format: 'json', 'pdf', 'csv'"),
+    include_details: bool = Query(True, description="Include detailed issue information"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate comprehensive quality report for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get quality gate
+        quality_gate_result = await db.execute(
+            select(SASTQualityGate).where(SASTQualityGate.project_id == project_id)
+        )
+        quality_gate = quality_gate_result.scalar_one_or_none()
+        
+        # Get recent scan
+        recent_scan_result = await db.execute(
+            select(SASTScan)
+            .where(SASTScan.project_id == project_id)
+            .order_by(SASTScan.created_at.desc())
+            .limit(1)
+        )
+        recent_scan = recent_scan_result.scalar_one_or_none()
+        
+        # Get issues if details are requested
+        issues = []
+        if include_details:
+            issues_result = await db.execute(
+                select(SASTIssue)
+                .where(SASTIssue.project_id == project_id)
+                .order_by(SASTIssue.severity.desc(), SASTIssue.created_at.desc())
+                .limit(100)  # Limit for performance
+            )
+            issues = issues_result.scalars().all()
+        
+        # Generate report data
+        report_data = {
+            "project": {
+                "id": project_id,
+                "name": project.name,
+                "key": project.key,
+                "language": project.language,
+                "last_analysis": project.last_analysis.isoformat() if project.last_analysis else None
+            },
+            "quality_gate": {
+                "status": quality_gate.status if quality_gate else QualityGateStatus.PASSED,
+                "evaluated_at": quality_gate.last_evaluation.isoformat() if quality_gate and quality_gate.last_evaluation else None
+            },
+            "ratings": {
+                "maintainability": project.maintainability_rating,
+                "security": project.security_rating,
+                "reliability": project.reliability_rating
+            },
+            "metrics_summary": {
+                "lines_of_code": project.lines_of_code,
+                "coverage": project.coverage,
+                "technical_debt": project.technical_debt,
+                "debt_ratio": project.debt_ratio,
+                "duplicated_lines": project.duplicated_lines
+            },
+            "issue_summary": {
+                "total_issues": len(issues),
+                "vulnerabilities": project.vulnerability_count,
+                "bugs": project.bug_count,
+                "code_smells": project.code_smell_count,
+                "security_hotspots": project.security_hotspot_count
+            },
+            "scan_information": {
+                "last_scan_id": str(recent_scan.id) if recent_scan else None,
+                "last_scan_status": recent_scan.status if recent_scan else None,
+                "last_scan_date": recent_scan.created_at.isoformat() if recent_scan else None
+            },
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        if include_details and issues:
+            report_data["detailed_issues"] = [
+                {
+                    "id": str(issue.id),
+                    "type": issue.type,
+                    "severity": issue.severity,
+                    "status": issue.status,
+                    "file_path": issue.file_path,
+                    "line_number": issue.line_number,
+                    "message": issue.message,
+                    "effort": issue.effort,
+                    "created_at": issue.created_at.isoformat()
+                }
+                for issue in issues
+            ]
+        
+        # Return based on format
+        if format == "json":
+            return report_data
+        elif format == "csv":
+            # Generate CSV response
+            import csv
+            from io import StringIO
+            
+            output = StringIO()
+            writer = csv.writer(output)
+            
+            # Write headers
+            writer.writerow(["Quality Report", project.name])
+            writer.writerow([])
+            writer.writerow(["Project Information"])
+            writer.writerow(["ID", project_id])
+            writer.writerow(["Name", project.name])
+            writer.writerow(["Language", project.language])
+            writer.writerow([])
+            writer.writerow(["Quality Metrics"])
+            writer.writerow(["Maintainability Rating", project.maintainability_rating])
+            writer.writerow(["Security Rating", project.security_rating])
+            writer.writerow(["Reliability Rating", project.reliability_rating])
+            writer.writerow(["Coverage", f"{project.coverage}%"])
+            writer.writerow(["Technical Debt", f"{project.technical_debt} minutes"])
+            writer.writerow(["Debt Ratio", f"{project.debt_ratio}%"])
+            
+            output.seek(0)
+            return Response(content=output.getvalue(), media_type="text/csv")
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating quality report: {str(e)}")
+
+@router.post("/projects/{project_id}/quality-gate/evaluate")
+async def evaluate_project_quality_gate(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Manually evaluate quality gate for a project"""
+    try:
+        # Get project
+        project_result = await db.execute(
+            select(SASTProject).where(SASTProject.id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get quality gate
+        quality_gate_result = await db.execute(
+            select(SASTQualityGate).where(SASTQualityGate.project_id == project_id)
+        )
+        quality_gate = quality_gate_result.scalar_one_or_none()
+        
+        if not quality_gate:
+            raise HTTPException(status_code=404, detail="Quality gate not found")
+        
+        # Evaluate quality gate based on current project metrics
+        evaluation_results = {}
+        gate_status = QualityGateStatus.PASSED
+        
+        # Check vulnerability thresholds
+        if project.vulnerability_count > quality_gate.max_blocker_issues:
+            evaluation_results["blocker_issues"] = f"Failed: {project.vulnerability_count} > {quality_gate.max_blocker_issues}"
+            gate_status = QualityGateStatus.FAILED
+        else:
+            evaluation_results["blocker_issues"] = f"Passed: {project.vulnerability_count} <= {quality_gate.max_blocker_issues}"
+        
+        # Check coverage threshold
+        if project.coverage < quality_gate.min_coverage:
+            evaluation_results["coverage"] = f"Failed: {project.coverage}% < {quality_gate.min_coverage}%"
+            gate_status = QualityGateStatus.FAILED
+        else:
+            evaluation_results["coverage"] = f"Passed: {project.coverage}% >= {quality_gate.min_coverage}%"
+        
+        # Check technical debt threshold
+        if project.debt_ratio > quality_gate.max_debt_ratio:
+            evaluation_results["debt_ratio"] = f"Failed: {project.debt_ratio}% > {quality_gate.max_debt_ratio}%"
+            gate_status = QualityGateStatus.FAILED
+        else:
+            evaluation_results["debt_ratio"] = f"Passed: {project.debt_ratio}% <= {quality_gate.max_debt_ratio}%"
+        
+        # Update quality gate status
+        quality_gate.status = gate_status
+        quality_gate.last_evaluation = datetime.now()
+        quality_gate.evaluation_results = evaluation_results
+        
+        await db.commit()
+        
+        return {
+            "project_id": project_id,
+            "quality_gate_status": gate_status,
+            "evaluation_results": evaluation_results,
+            "evaluated_at": quality_gate.last_evaluation.isoformat(),
+            "next_evaluation": "Automatic on next scan or manual trigger"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error evaluating quality gate: {str(e)}")
+
+@router.get("/quality-management/dashboard")
+async def get_quality_management_dashboard(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get quality management dashboard overview"""
+    try:
+        # Get total projects
+        total_projects_result = await db.execute(select(func.count(SASTProject.id)))
+        total_projects = total_projects_result.scalar() or 0
+        
+        # Get projects by quality gate status
+        passed_projects_result = await db.execute(
+            select(func.count(SASTProject.id))
+            .select_from(SASTProject)
+            .join(SASTQualityGate)
+            .where(SASTQualityGate.status == QualityGateStatus.PASSED)
+        )
+        passed_projects = passed_projects_result.scalar() or 0
+        
+        failed_projects_result = await db.execute(
+            select(func.count(SASTProject.id))
+            .select_from(SASTProject)
+            .join(SASTQualityGate)
+            .where(SASTQualityGate.status == QualityGateStatus.FAILED)
+        )
+        failed_projects = failed_projects_result.scalar() or 0
+        
+        # Get average ratings
+        avg_maintainability_result = await db.execute(
+            select(func.avg(SASTProject.maintainability_rating))
+        )
+        avg_maintainability = avg_maintainability_result.scalar()
+        
+        avg_security_result = await db.execute(
+            select(func.avg(SASTProject.security_rating))
+        )
+        avg_security = avg_security_result.scalar()
+        
+        avg_reliability_result = await db.execute(
+            select(func.avg(SASTProject.reliability_rating))
+        )
+        avg_reliability = avg_reliability_result.scalar()
+        
+        # Get total technical debt
+        total_debt_result = await db.execute(
+            select(func.sum(SASTProject.technical_debt))
+        )
+        total_debt = total_debt_result.scalar() or 0
+        
+        # Get average coverage
+        avg_coverage_result = await db.execute(
+            select(func.avg(SASTProject.coverage))
+        )
+        avg_coverage = avg_coverage_result.scalar() or 0
+        
+        return {
+            "summary": {
+                "total_projects": total_projects,
+                "passed_projects": passed_projects,
+                "failed_projects": failed_projects,
+                "pass_rate": round((passed_projects / total_projects * 100), 2) if total_projects > 0 else 0
+            },
+            "average_ratings": {
+                "maintainability": avg_maintainability,
+                "security": avg_security,
+                "reliability": avg_reliability
+            },
+            "overall_metrics": {
+                "total_technical_debt_hours": round(total_debt / 60, 2),
+                "average_coverage": round(avg_coverage, 2)
+            },
+            "quality_distribution": {
+                "excellent": 0,  # A rating
+                "good": 0,       # B rating
+                "moderate": 0,   # C rating
+                "poor": 0,       # D rating
+                "very_poor": 0   # E rating
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting quality management dashboard: {str(e)}")

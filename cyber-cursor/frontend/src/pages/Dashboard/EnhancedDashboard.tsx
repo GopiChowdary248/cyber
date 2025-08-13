@@ -1,25 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  CloudIcon, 
-  ShieldCheckIcon, 
+import {
+  ShieldCheckIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ChartBarIcon,
-  CogIcon,
-  ArrowPathIcon,
-  EyeIcon,
-  LockClosedIcon,
-  ServerIcon,
-  UserGroupIcon,
-  GlobeAltIcon,
-  BellIcon,
-  ClockIcon,
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
   ArrowUpIcon,
-  ArrowDownIcon
+  ArrowDownIcon,
+  ClockIcon,
+  ArrowPathIcon,
+  ServerIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -33,7 +26,7 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler,
+  Filler
 } from 'chart.js';
 
 // Import enhanced UI components
@@ -41,6 +34,7 @@ import { PageContainer, GridLayout, LoadingSpinner, SearchInput, FilterBar } fro
 import EnhancedCard from '../../components/UI/EnhancedCard';
 import EnhancedButton from '../../components/UI/EnhancedButton';
 import EnhancedBadge from '../../components/UI/EnhancedBadge';
+import BackendTest from '../../components/BackendTest';
 
 ChartJS.register(
   CategoryScale,
@@ -417,6 +411,16 @@ const EnhancedDashboard: React.FC = () => {
         <div className="h-64">
           <Bar data={mockData.resourceUsage} options={chartOptions} />
         </div>
+      </EnhancedCard>
+
+      {/* Backend Test */}
+      <EnhancedCard
+        title="Backend Test"
+        subtitle="Test your backend connection"
+        variant="elevated"
+        className="mt-8"
+      >
+        <BackendTest />
       </EnhancedCard>
     </PageContainer>
   );

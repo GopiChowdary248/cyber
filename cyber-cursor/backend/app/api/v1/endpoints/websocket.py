@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import asyncio
 from enum import Enum
 
-from app.core.security import verify_token
+from app.core.security import verify_token, get_current_user
 from app.services.notification_service import notification_service
 from app.models.user import User
 from app.core.database import get_db
@@ -284,7 +284,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
 
 @router.get("/notifications")
 async def get_user_notifications(
-    current_user: User = Depends(get_db().get_current_user),
+    current_user: User = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=100)
 ):
     """Get user's notifications"""
@@ -298,7 +298,7 @@ async def get_user_notifications(
 @router.post("/notifications/{notification_id}/read")
 async def mark_notification_read(
     notification_id: int,
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Mark a notification as read"""
     try:
@@ -310,7 +310,7 @@ async def mark_notification_read(
 
 @router.get("/notifications/settings")
 async def get_notification_settings(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get user's notification settings"""
     try:
@@ -332,7 +332,7 @@ async def get_notification_settings(
 @router.put("/notifications/settings")
 async def update_notification_settings(
     settings: Dict[str, Any],
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Update user's notification settings"""
     try:
@@ -345,7 +345,7 @@ async def update_notification_settings(
 
 @router.get("/websocket/status")
 async def get_websocket_status(
-    current_user: User = Depends(get_db().get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get WebSocket connection status"""
     try:

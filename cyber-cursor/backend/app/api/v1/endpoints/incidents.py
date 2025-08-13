@@ -8,8 +8,10 @@ from app.core.security import get_current_user, require_analyst
 from app.models.incident import Incident, IncidentResponse, ResponsePlaybook
 from app.schemas.incident import (
     IncidentCreate, IncidentUpdate, IncidentResponse as IncidentResponseSchema,
-    IncidentList, IncidentStats, ResponsePlaybookCreate, ResponsePlaybookResponse
+    IncidentList, IncidentStats, ResponsePlaybookCreate, ResponsePlaybookResponse,
+    IncidentResponseCreate
 )
+from app.schemas.auth import User
 from app.services.ai_service import ai_service
 
 router = APIRouter()

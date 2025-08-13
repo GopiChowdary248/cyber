@@ -10,6 +10,7 @@ import {
   UserGroupIcon,
   ShieldExclamationIcon
 } from '@heroicons/react/24/outline';
+import { cloudSecurityService } from '../../services/cloudSecurityService';
 
 interface CASBDashboardProps {
   provider: string;
@@ -29,6 +30,7 @@ interface CASBProvider {
 const CASBDashboard: React.FC<CASBDashboardProps> = ({ provider }) => {
   const [providerData, setProviderData] = useState<CASBProvider | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProviderData();
@@ -36,14 +38,13 @@ const CASBDashboard: React.FC<CASBDashboardProps> = ({ provider }) => {
 
   const fetchProviderData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch(`/api/v1/cloud-security/casb/providers/${provider}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProviderData(data);
-      }
+      const data = await cloudSecurityService.getCASBProviderData(provider);
+      setProviderData(data);
     } catch (error) {
       console.error('Error fetching CASB provider data:', error);
+      setError('Failed to load CASB provider data. Please try again later.');
     } finally {
       setLoading(false);
     }

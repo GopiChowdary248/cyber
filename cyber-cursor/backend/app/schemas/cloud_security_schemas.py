@@ -98,6 +98,41 @@ class MisconfigurationCreate(BaseModel):
     title: str = Field(..., description="Misconfiguration title")
     description: str = Field(..., description="Detailed description")
     severity: RiskLevel = Field(..., description="Risk severity")
+
+class ComprehensiveScanRequest(BaseModel):
+    account_id: str = Field(..., description="Cloud account identifier")
+    provider: CloudProvider = Field(..., description="Cloud provider")
+    scan_type: str = Field("comprehensive", description="Type of scan to perform")
+    include_cspm: bool = Field(True, description="Include CSPM checks")
+    include_casb: bool = Field(True, description="Include CASB checks")
+    include_cloud_native: bool = Field(True, description="Include cloud-native security checks")
+
+class CSPMScanRequest(BaseModel):
+    account_id: str = Field(..., description="Cloud account identifier")
+    provider: CloudProvider = Field(..., description="Cloud provider")
+    scan_type: str = Field("cspm", description="Type of scan to perform")
+    include_asset_discovery: bool = Field(True, description="Include asset discovery")
+    include_compliance_checks: bool = Field(True, description="Include compliance checks")
+
+class CSPMRemediationRequest(BaseModel):
+    finding_id: str = Field(..., description="Security finding identifier")
+    remediation_type: str = Field(..., description="Type of remediation to apply")
+    auto_remediate: bool = Field(False, description="Whether to apply remediation automatically")
+    approval_required: bool = Field(True, description="Whether approval is required")
+
+class CASBDiscoveryRequest(BaseModel):
+    account_id: str = Field(..., description="Cloud account identifier")
+    provider: CloudProvider = Field(..., description="Cloud provider")
+    discovery_type: str = Field("full", description="Type of discovery to perform")
+    include_saas_apps: bool = Field(True, description="Include SaaS application discovery")
+    include_user_activities: bool = Field(True, description="Include user activity analysis")
+
+class DLPScanRequest(BaseModel):
+    account_id: str = Field(..., description="Cloud account identifier")
+    provider: CloudProvider = Field(..., description="Cloud provider")
+    scan_type: str = Field("dlp", description="Type of DLP scan to perform")
+    include_data_discovery: bool = Field(True, description="Include data discovery")
+    include_classification: bool = Field(True, description="Include data classification")
     category: str = Field(..., description="Misconfiguration category")
     compliance_standards: List[ComplianceStandard] = Field(..., description="Affected compliance standards")
     remediation_steps: str = Field(..., description="Remediation instructions")

@@ -15,6 +15,9 @@ engine = create_async_engine(
     echo=settings.api.DEBUG,
     pool_pre_ping=True,
     pool_recycle=300,
+    connect_args={
+        "ssl": False if settings.database.DB_SSL_MODE == "disable" else True
+    } if "postgresql" in settings.database.DATABASE_URL else {}
 )
 
 # Create async session factory

@@ -28,9 +28,19 @@ async def health_check() -> Dict[str, Any]:
         try:
             db = await get_db().__anext__()
             await db.execute("SELECT 1")
+            
+            # Get database type from configuration
+            db_url = settings.database.DATABASE_URL
+            if "sqlite" in db_url:
+                db_type = "sqlite"
+            elif "postgresql" in db_url:
+                db_type = "postgresql"
+            else:
+                db_type = "unknown"
+            
             health_status["services"]["database"] = {
                 "status": "healthy",
-                "type": "postgresql"
+                "type": db_type
             }
         except Exception as e:
             logger.error("Database health check failed", error=str(e))

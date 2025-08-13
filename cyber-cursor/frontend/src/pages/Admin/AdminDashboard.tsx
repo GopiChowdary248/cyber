@@ -1,29 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ShieldCheckIcon,
-  UserGroupIcon,
-  CogIcon,
-  ChartBarIcon,
-  ServerIcon,
-  KeyIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClockIcon,
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
-  EyeIcon,
+  CogIcon,
+  UserGroupIcon,
+  BellIcon,
+  ChartBarIcon,
+  DocumentTextIcon,
+  ShieldCheckIcon,
   LockClosedIcon,
   GlobeAltIcon,
-  BellIcon,
-  CpuChipIcon,
-  WifiIcon,
+  EyeIcon,
   CloudIcon,
-  DocumentTextIcon,
-  CreditCardIcon,
   Cog6ToothIcon,
+  ChartPieIcon,
+  ClockIcon,
+  CpuChipIcon,
+  ServerIcon,
+  WifiIcon,
+  KeyIcon,
   UsersIcon,
-  ChartPieIcon
+  CreditCardIcon
 } from '@heroicons/react/24/outline';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -53,50 +52,35 @@ ChartJS.register(
   Filler
 );
 
-interface SystemHealth {
-  cpu: number;
-  memory: number;
-  disk: number;
-  network: number;
-  status: 'healthy' | 'warning' | 'critical';
-}
-
-interface LicenseInfo {
-  product: string;
-  status: 'active' | 'expired' | 'trial';
-  expiryDate: string;
-  users: number;
-  maxUsers: number;
-}
-
-interface UserStats {
-  total: number;
-  active: number;
-  inactive: number;
-  newThisMonth: number;
-}
-
 const AdminDashboard: React.FC = () => {
-  const [systemHealth, setSystemHealth] = useState<SystemHealth>({
+  const [systemHealth, setSystemHealth] = useState({
+    status: 'healthy',
+    uptime: '99.9%',
+    lastCheck: new Date().toLocaleString(),
     cpu: 45,
     memory: 62,
     disk: 78,
-    network: 23,
-    status: 'healthy'
+    network: 85
   });
 
-  const [licenses, setLicenses] = useState<LicenseInfo[]>([
-    { product: 'Threat Intelligence', status: 'active', expiryDate: '2024-12-31', users: 45, maxUsers: 50 },
-    { product: 'Vulnerability Scanner', status: 'active', expiryDate: '2024-11-15', users: 38, maxUsers: 40 },
-    { product: 'SIEM Platform', status: 'trial', expiryDate: '2024-10-20', users: 12, maxUsers: 25 },
-    { product: 'Cloud Security', status: 'expired', expiryDate: '2024-09-01', users: 0, maxUsers: 30 }
+  const [licenses, setLicenses] = useState([
+    {
+      name: 'Enterprise Security Suite',
+      product: 'Enterprise Security Suite',
+      status: 'active',
+      expires: '2025-12-31',
+      expiryDate: '2025-12-31',
+      seats: 100,
+      users: 85,
+      maxUsers: 100
+    }
   ]);
 
-  const [userStats, setUserStats] = useState<UserStats>({
-    total: 156,
+  const [userStats, setUserStats] = useState({
+    total: 150,
     active: 142,
-    inactive: 14,
-    newThisMonth: 23
+    inactive: 8,
+    newThisMonth: 12
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -175,7 +159,7 @@ const AdminDashboard: React.FC = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active': return <CheckCircleIcon className="w-5 h-5 text-green-400" />;
+      case 'active': return <ShieldCheckIcon className="w-5 h-5 text-green-400" />;
       case 'trial': return <ClockIcon className="w-5 h-5 text-yellow-400" />;
       case 'expired': return <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />;
       default: return <ExclamationTriangleIcon className="w-5 h-5 text-gray-400" />;

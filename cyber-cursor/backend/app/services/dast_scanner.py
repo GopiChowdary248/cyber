@@ -89,7 +89,7 @@ class DASTScanner:
         # Update scan status
         scan = await DASTScan.get_by_id(self.session, scan_id)
         if scan:
-            scan.status = ScanStatus.RUNNING
+            scan.status = ScanStatus.IN_PROGRESS
             scan.started_at = datetime.utcnow()
             await self.session.commit()
         

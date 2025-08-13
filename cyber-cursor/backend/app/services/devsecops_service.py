@@ -184,7 +184,7 @@ class DevSecOpsService:
                 repository_url=f"https://github.com/org/project-{i % 5}",
                 branch="main" if i % 3 == 0 else "develop",
                 commit_hash=f"abc123{i:03d}",
-                status=ScanStatus.COMPLETED if i < 15 else ScanStatus.RUNNING,
+                status=ScanStatus.COMPLETED if i < 15 else ScanStatus.IN_PROGRESS,
                 started_at=datetime.utcnow() - timedelta(hours=i),
                 completed_at=datetime.utcnow() - timedelta(hours=i, minutes=30) if i < 15 else None,
                 findings_count=10 + (i % 20),
@@ -203,7 +203,7 @@ class DevSecOpsService:
                 image_tag="latest" if i % 3 == 0 else f"v{i % 5}.{i % 3}",
                 digest=f"sha256:abc123{i:03d}",
                 registry="docker.io" if i % 2 == 0 else "gcr.io",
-                scan_status=ScanStatus.COMPLETED if i < 8 else ScanStatus.RUNNING,
+                scan_status=ScanStatus.COMPLETED if i < 8 else ScanStatus.IN_PROGRESS,
                 vulnerabilities_count=5 + (i % 10),
                 critical_vulnerabilities=i % 2,
                 high_vulnerabilities=1 + (i % 4),
@@ -218,7 +218,7 @@ class DevSecOpsService:
                 project_name=f"infra-project-{i % 4}",
                 file_path=f"terraform/main{i}.tf" if i % 3 == 0 else f"k8s/deployment{i}.yaml",
                 file_type="terraform" if i % 3 == 0 else "kubernetes",
-                scan_status=ScanStatus.COMPLETED if i < 12 else ScanStatus.RUNNING,
+                scan_status=ScanStatus.COMPLETED if i < 12 else ScanStatus.IN_PROGRESS,
                 issues_count=3 + (i % 8),
                 critical_issues=i % 2,
                 high_issues=1 + (i % 3),
@@ -276,7 +276,7 @@ class DevSecOpsService:
                 branch="main" if i % 3 == 0 else "feature-branch",
                 commit_hash=f"def456{i:03d}",
                 stage=PipelineStage.BUILD if i % 3 == 0 else PipelineStage.TEST if i % 3 == 1 else PipelineStage.DEPLOY,
-                status=ScanStatus.COMPLETED if i < 12 else ScanStatus.RUNNING,
+                status=ScanStatus.COMPLETED if i < 12 else ScanStatus.IN_PROGRESS,
                 started_at=datetime.utcnow() - timedelta(hours=i * 2),
                 completed_at=datetime.utcnow() - timedelta(hours=i * 2, minutes=45) if i < 12 else None,
                 security_gates_passed=i < 10
@@ -569,7 +569,7 @@ class DevSecOpsService:
     # Summary and Analytics
     async def get_devsecops_summary(self) -> DevSecOpsSummary:
         """Get DevSecOps summary statistics"""
-        active_scans = len([scan for scan in self.security_scans if scan.status == ScanStatus.RUNNING])
+        active_scans = len([scan for scan in self.security_scans if scan.status == ScanStatus.IN_PROGRESS])
         failed_scans = len([scan for scan in self.security_scans if scan.status == ScanStatus.FAILED])
         critical_findings = sum([scan.critical_findings for scan in self.security_scans])
         high_findings = sum([scan.high_findings for scan in self.security_scans])

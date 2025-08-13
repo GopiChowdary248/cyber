@@ -53,7 +53,7 @@ const SASTVulnerabilities: React.FC = () => {
 
       const response = await fetch(`http://localhost:8000/api/v1/sast/vulnerabilities?${queryParams}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
         },
       });
@@ -74,7 +74,7 @@ const SASTVulnerabilities: React.FC = () => {
 
   useEffect(() => {
     fetchVulnerabilities();
-  }, [filters]);
+  }, [fetchVulnerabilities]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -103,21 +103,6 @@ const SASTVulnerabilities: React.FC = () => {
         return 'fas fa-check-circle';
       default:
         return 'fas fa-info';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open':
-        return '#dc3545';
-      case 'in_progress':
-        return '#ffc107';
-      case 'resolved':
-        return '#28a745';
-      case 'false_positive':
-        return '#6c757d';
-      default:
-        return '#6c757d';
     }
   };
 

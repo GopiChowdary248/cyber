@@ -8,6 +8,7 @@ import {
   UserGroupIcon,
   ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
+import { cloudSecurityService } from '../../services/cloudSecurityService';
 
 interface CloudAppsProps {}
 
@@ -25,6 +26,7 @@ interface CloudApp {
 const CloudApps: React.FC<CloudAppsProps> = () => {
   const [apps, setApps] = useState<CloudApp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchApps();
@@ -32,14 +34,13 @@ const CloudApps: React.FC<CloudAppsProps> = () => {
 
   const fetchApps = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch('/api/v1/cloud-security/casb/apps');
-      if (response.ok) {
-        const data = await response.json();
-        setApps(data);
-      }
+      const data = await cloudSecurityService.getCloudApps();
+      setApps(data);
     } catch (error) {
       console.error('Error fetching cloud apps:', error);
+      setError('Failed to load cloud apps. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -47,12 +48,8 @@ const CloudApps: React.FC<CloudAppsProps> = () => {
 
   const handleBlockApp = async (appId: string) => {
     try {
-      const response = await fetch(`/api/v1/cloud-security/casb/apps/${appId}/block`, {
-        method: 'POST',
-      });
-      if (response.ok) {
-        fetchApps(); // Refresh the list
-      }
+      await cloudSecurityService.blockCloudApp(appId);
+      fetchApps(); // Refresh the list
     } catch (error) {
       console.error('Error blocking app:', error);
     }
@@ -60,12 +57,8 @@ const CloudApps: React.FC<CloudAppsProps> = () => {
 
   const handleAllowApp = async (appId: string) => {
     try {
-      const response = await fetch(`/api/v1/cloud-security/casb/apps/${appId}/allow`, {
-        method: 'POST',
-      });
-      if (response.ok) {
-        fetchApps(); // Refresh the list
-      }
+      await cloudSecurityService.allowCloudApp(appId);
+      fetchApps(); // Refresh the list
     } catch (error) {
       console.error('Error allowing app:', error);
     }

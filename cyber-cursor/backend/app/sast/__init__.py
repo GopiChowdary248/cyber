@@ -8,12 +8,14 @@ This module provides comprehensive static code analysis capabilities including:
 - Risk scoring and prioritization
 """
 
-from .scanner import SASTScanner, SASTScanManager
+from .scanner import SASTScanner, PerformanceOptimizedSASTScanner
 from .ai_recommendations import AIRecommendationEngine, RiskScoringEngine
+from ..services.sast_scanner import SASTScanManager
 
 __all__ = [
     "SASTScanner",
-    "SASTScanManager", 
+    "PerformanceOptimizedSASTScanner", 
     "AIRecommendationEngine",
-    "RiskScoringEngine"
+    "RiskScoringEngine",
+    "SASTScanManager"
 ] 

@@ -71,8 +71,6 @@ const EnhancedTabs: React.FC<EnhancedTabsProps> = ({
     }
   };
 
-  const activeTabIndex = tabs.findIndex(tab => tab.id === activeTab);
-
   return (
     <div className={className}>
       {/* Tab Navigation */}

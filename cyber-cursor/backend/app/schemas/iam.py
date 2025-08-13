@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -316,10 +316,17 @@ class MFASetupListResponse(BaseSchema):
 
 # Authentication Schemas
 class LoginRequest(BaseSchema):
-    username: str
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
     mfa_token: Optional[str] = None
     device_info: Optional[Dict[str, Any]] = None
+    
+    @model_validator(mode='after')
+    def validate_username_or_email_required(self):
+        if not self.username and not self.email:
+            raise ValueError('Either username or email must be provided')
+        return self
 
 class SSOLoginRequest(BaseSchema):
     provider: str
@@ -465,10 +472,10 @@ class ErrorResponse(BaseSchema):
     error: str
     message: str
     details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 class ValidationErrorResponse(BaseSchema):
     error: str = "validation_error"
     message: str
     field_errors: Dict[str, List[str]]
-    timestamp: datetime = Field(default_factory=datetime.utcnow) 
+    timestamp: datetime = Field(default_factory=datetime.now) 

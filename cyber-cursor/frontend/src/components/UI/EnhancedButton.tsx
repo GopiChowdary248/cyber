@@ -1,9 +1,8 @@
 import React, { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  ArrowRightIcon, 
-  CheckIcon, 
-  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  XCircleIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
@@ -73,9 +72,9 @@ const EnhancedButton: React.FC<EnhancedButtonProps> = ({
     // Default icons based on variant
     switch (variant) {
       case 'success':
-        return <CheckIcon className="w-4 h-4" />;
+        return <CheckCircleIcon className="w-4 h-4" />;
       case 'danger':
-        return <ExclamationTriangleIcon className="w-4 h-4" />;
+        return <XCircleIcon className="w-4 h-4" />;
       case 'warning':
         return <InformationCircleIcon className="w-4 h-4" />;
       default:
