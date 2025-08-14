@@ -59,14 +59,14 @@ const Login: React.FC = () => {
   };
 
   const handleDemoLogin = async () => {
-    setEmail('admin@cybershield.local');
+    setEmail('admin@cybershield.com');
     setPassword('admin123');
     setLoading(true);
     setError('');
     setSuccess('');
     
     try {
-      await login('admin@cybershield.local', 'admin123');
+      await login('admin@cybershield.com', 'admin123');
       setSuccess('Demo login successful! Redirecting...');
     } catch (error) {
       console.error('Demo login failed:', error);
@@ -317,7 +317,7 @@ const Login: React.FC = () => {
             <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <h3 className="text-sm font-medium text-blue-300 mb-2">Demo Credentials:</h3>
               <div className="text-xs text-blue-200 space-y-1">
-                <p><strong>Email:</strong> admin@cybershield.local</p>
+                <p><strong>Email:</strong> admin@cybershield.com</p>
                 <p><strong>Password:</strong> admin123</p>
               </div>
             </div>

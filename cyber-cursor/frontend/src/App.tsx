@@ -28,6 +28,8 @@ import UserDashboard from './pages/User/UserDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import SASTProjectDetails from './pages/SAST/SASTProjectDetails';
 import DAST from './pages/DAST/DAST';
+import QualityManagement from './pages/SAST/QualityManagement';
+import RASP from './pages/RASP/RASP';
 
 // Import contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -231,6 +233,21 @@ const AppContent: React.FC = () => {
                 </motion.div>
               } 
             />
+            <Route
+              path="/application-security/rasp"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <RASP />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
             <Route 
               path="/projects" 
               element={
@@ -412,6 +429,21 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/sast/quality-management"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <QualityManagement />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
             
             {/* DAST Routes */}
             <Route
@@ -425,6 +457,22 @@ const AppContent: React.FC = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <DAST />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+			{/* RASP Routes */}
+            <Route
+              path="/rasp"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <RASP />
                   </motion.div>
                 </ProtectedRoute>
               }

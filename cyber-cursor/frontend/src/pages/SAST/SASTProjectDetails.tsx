@@ -1765,6 +1765,7 @@ const SASTProjectDetails: React.FC = () => {
               { id: 'issues', name: 'Issues', icon: ExclamationTriangleIcon },
               { id: 'hotspots', name: 'Security Hotspots', icon: ShieldExclamationIcon },
               { id: 'quality-gates', name: 'Quality Gates', icon: CheckCircleIcon },
+              { id: 'quality-management', name: 'Quality Management', icon: Cog6ToothIcon },
               { id: 'coverage', name: 'Coverage', icon: BeakerIcon },
               { id: 'debt', name: 'Technical Debt', icon: ClockIcon },
               { id: 'duplications', name: 'Duplications', icon: DocumentTextIcon },
@@ -2106,6 +2107,20 @@ const SASTProjectDetails: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        {activeTab === 'quality-management' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Quality Management</h3>
+              <p className="text-sm text-gray-600 mb-4">Open the full Quality Management view to manage Quality Profiles and Quality Rules.</p>
+              <a
+                href="/sast/quality-management"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Go to Quality Management
+              </a>
             </div>
           </div>
         )}

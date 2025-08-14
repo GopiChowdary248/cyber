@@ -150,7 +150,7 @@ const EnhancedLogin: React.FC = () => {
 
   const handleDemoLogin = async (role: 'user' | 'admin') => {
     setFormData({
-      email: role === 'admin' ? 'admin@cybershield.local' : 'user@cybershield.local',
+      email: role === 'admin' ? 'admin@cybershield.com' : 'user@cybershield.com',
       password: 'demo123',
       twoFactorCode: ''
     });
