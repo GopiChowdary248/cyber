@@ -11,11 +11,20 @@ import {
   DocumentTextIcon,
   ShieldCheckIcon,
   BellIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  ShieldExclamationIcon,
+  QueueListIcon,
+  SwatchIcon,
+  AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { Target } from 'lucide-react';
 import SASTProjects from './SASTProjects';
 import SASTDashboard from '../../components/SAST/SASTDashboard';
+import SASTIssues from './SASTIssues';
+import QualityRules from '../../components/SAST/QualityRules';
+import QualityProfiles from '../../components/SAST/QualityProfiles';
+import SASTQualityGates from './SASTQualityGates';
+import SASTHotspots from './SASTHotspots';
 
 interface SASTData {
   overview: {
@@ -148,10 +157,13 @@ const SAST: React.FC = () => {
 
   const tabs = [
     { id: 'projects', label: 'Projects', icon: <DocumentTextIcon className="w-4 h-4" /> },
+    { id: 'issues', label: 'Issues', icon: <ExclamationTriangleIcon className="w-4 h-4" /> },
+    { id: 'hotspots', label: 'Security Hotspots', icon: <ShieldExclamationIcon className="w-4 h-4" /> },
     { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
-    { id: 'vulnerabilities', label: 'Vulnerabilities', icon: <ExclamationTriangleIcon className="w-4 h-4" /> },
-    { id: 'scans', label: 'Scan History', icon: <DocumentMagnifyingGlassIcon className="w-4 h-4" /> },
-    { id: 'rules', label: 'Detection Rules', icon: <BugAntIcon className="w-4 h-4" /> },
+    { id: 'activity', label: 'Activity', icon: <DocumentMagnifyingGlassIcon className="w-4 h-4" /> },
+    { id: 'rules', label: 'Rules', icon: <BugAntIcon className="w-4 h-4" /> },
+    { id: 'profiles', label: 'Quality Profiles', icon: <SwatchIcon className="w-4 h-4" /> },
+    { id: 'gates', label: 'Quality Gates', icon: <AdjustmentsHorizontalIcon className="w-4 h-4" /> },
     { id: 'auto-fix', label: 'Auto-Fix', icon: <WrenchScrewdriverIcon className="w-4 h-4" /> },
     { id: 'reports', label: 'Reports', icon: <ClipboardDocumentIcon className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <CogIcon className="w-4 h-4" /> }
@@ -222,26 +234,20 @@ const SAST: React.FC = () => {
 
         {activeTab === 'overview' && <SASTDashboard />}
 
-        {activeTab === 'vulnerabilities' && (
+        {activeTab === 'issues' && <SASTIssues />}
+
+        {activeTab === 'hotspots' && <SASTHotspots />}
+
+        {activeTab === 'activity' && (
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vulnerability Analysis</h3>
-            <p className="text-gray-600">Detailed vulnerability breakdown and analysis will be displayed here.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity</h3>
+            <p className="text-gray-600">Complete analysis activity and background tasks will be displayed here.</p>
           </div>
         )}
 
-        {activeTab === 'scans' && (
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Scan History</h3>
-            <p className="text-gray-600">Complete scan history and management will be displayed here.</p>
-          </div>
-        )}
-
-        {activeTab === 'rules' && (
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Detection Rules</h3>
-            <p className="text-gray-600">OWASP Top 10 and custom detection rules will be displayed here.</p>
-          </div>
-        )}
+        {activeTab === 'rules' && <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"><QualityRules /></div>}
+        {activeTab === 'profiles' && <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"><QualityProfiles /></div>}
+        {activeTab === 'gates' && <SASTQualityGates />}
 
         {activeTab === 'auto-fix' && (
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">

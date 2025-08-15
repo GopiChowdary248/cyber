@@ -525,7 +525,7 @@ class SASTProjectSettings(Base):
     project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
     scan_schedule = Column(String, nullable=True)  # Cron expression
     auto_scan = Column(Boolean, default=True)
-    quality_profile = Column(String, nullable=True)
+    quality_profile = Column(String, nullable=True)  # stores profile ID or key
     quality_gate = Column(String, nullable=True)
     exclusions = Column(JSON, nullable=True)  # Array of exclusion patterns
     notifications_email = Column(Boolean, default=True)
@@ -535,6 +535,13 @@ class SASTProjectSettings(Base):
     integration_gitlab = Column(Boolean, default=False)
     integration_bitbucket = Column(Boolean, default=False)
     integration_jenkins = Column(Boolean, default=False)
+    integration_provider = Column(String, nullable=True)  # github | gitlab
+    integration_repo = Column(String, nullable=True)      # owner/repo or namespace/project
+    integration_branch = Column(String, nullable=True)
+    # New code period settings
+    new_code_mode = Column(String, nullable=True)  # prev-version | days | since-date
+    new_code_days = Column(Integer, nullable=True)
+    new_code_since = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -547,6 +554,30 @@ class SASTProjectPermission(Base):
     group_name = Column(String, nullable=True)  # For group permissions
     role = Column(String, nullable=False)  # "Admin", "User", "Viewer"
     permissions = Column(JSON, nullable=True)  # Array of specific permissions
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# ============================================================================
+# Project Favorites and Metadata
+# ============================================================================
+
+class SASTProjectFavorite(Base):
+    __tablename__ = "sast_project_favorites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SASTProjectMetadata(Base):
+    __tablename__ = "sast_project_metadata"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    homepage_url = Column(String(500), nullable=True)
+    visibility = Column(String(20), default="private")  # public | private
+    tags = Column(JSON, nullable=True)  # array of strings
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -642,6 +673,59 @@ class SASTRule(Base):
         """Get all enabled rules"""
         result = await db.execute(select(cls).where(cls.enabled == True))
         return result.scalars().all()
+
+# ============================================================================
+# Rule Profiles
+# ============================================================================
+
+class SASTRuleProfile(Base):
+    __tablename__ = "sast_rule_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    language = Column(String(50), nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SASTRuleProfileRule(Base):
+    __tablename__ = "sast_rule_profile_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    profile_id = Column(Integer, ForeignKey("sast_rule_profiles.id"), nullable=False)
+    rule_id = Column(Integer, ForeignKey("sast_rules.id"), nullable=False)
+    enabled = Column(Boolean, default=True)
+    severity_override = Column(String(20), nullable=True)  # CRITICAL/HIGH/MEDIUM/LOW/INFO
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Taint / Data Flow Models
+# ============================================================================
+
+class SASTTaintFlow(Base):
+    __tablename__ = "sast_taint_flows"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=True)
+    issue_id = Column(Integer, ForeignKey("sast_issues.id"), nullable=True)
+    source = Column(String(255), nullable=True)
+    sink = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SASTTaintStep(Base):
+    __tablename__ = "sast_taint_steps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    flow_id = Column(Integer, ForeignKey("sast_taint_flows.id"), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    line_number = Column(Integer, nullable=False)
+    function_name = Column(String(255), nullable=True)
+    code_snippet = Column(Text, nullable=True)
+    order_index = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
 # ============================================================================
 # Quality Gates

@@ -84,9 +84,19 @@ const QualityProfiles: React.FC<QualityProfilesProps> = ({ projectId }) => {
         return;
       }
 
-      // For now, we'll use mock data since the backend endpoint doesn't exist yet
-      // In a real implementation, you would call: `${API_BASE_URL}/api/v1/sast/quality-profiles`
-      setProfiles(getMockProfiles());
+      const response = await fetch(`${API_BASE_URL}/api/v1/sast/quality-profiles`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setProfiles((data && data.profiles) ? data.profiles : []);
       setError(null);
     } catch (error) {
       console.error('Error fetching quality profiles:', error);
@@ -186,21 +196,30 @@ const QualityProfiles: React.FC<QualityProfilesProps> = ({ projectId }) => {
         return;
       }
 
-      // In a real implementation, you would call the backend to create the profile
-      const newProfile: QualityProfile = {
-        id: Date.now().toString(),
-        name: profileData.name || 'New Profile',
-        description: profileData.description || '',
-        language: profileData.language || 'java',
-        is_default: false,
-        active_rule_count: 0,
-        deprecated_rule_count: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        rules: []
-      };
+      const response = await fetch(`${API_BASE_URL}/api/v1/sast/quality-profiles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: profileData.name,
+          description: profileData.description,
+          language: profileData.language
+        })
+      });
 
-      setProfiles(prev => [newProfile, ...prev]);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data && data.profile) {
+        setProfiles(prev => [
+          { ...data.profile, rules: [] } as QualityProfile,
+          ...prev
+        ]);
+      }
       setShowCreateModal(false);
       setError(null);
     } catch (error) {
@@ -217,17 +236,26 @@ const QualityProfiles: React.FC<QualityProfilesProps> = ({ projectId }) => {
         return;
       }
 
-      // In a real implementation, you would call the backend to duplicate the profile
-      const duplicatedProfile: QualityProfile = {
-        ...profile,
-        id: Date.now().toString(),
-        name: newName,
-        is_default: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      const response = await fetch(`${API_BASE_URL}/api/v1/sast/quality-profiles/${profile.id}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: newName, language: profile.language })
+      });
 
-      setProfiles(prev => [duplicatedProfile, ...prev]);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data && data.profile) {
+        setProfiles(prev => [
+          { ...data.profile, rules: [] } as QualityProfile,
+          ...prev
+        ]);
+      }
       setShowDuplicateModal(false);
       setSelectedProfile(null);
       setError(null);
@@ -249,7 +277,18 @@ const QualityProfiles: React.FC<QualityProfilesProps> = ({ projectId }) => {
         return;
       }
 
-      // In a real implementation, you would call the backend to delete the profile
+      const response = await fetch(`${API_BASE_URL}/api/v1/sast/quality-profiles/${profileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       setProfiles(prev => prev.filter(p => p.id !== profileId));
       setError(null);
     } catch (error) {
@@ -266,7 +305,18 @@ const QualityProfiles: React.FC<QualityProfilesProps> = ({ projectId }) => {
         return;
       }
 
-      // In a real implementation, you would call the backend to set the profile as default
+      const response = await fetch(`${API_BASE_URL}/api/v1/sast/quality-profiles/${profileId}/set-default`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       setProfiles(prev => prev.map(p => ({
         ...p,
         is_default: p.id === profileId

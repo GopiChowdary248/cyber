@@ -52,6 +52,9 @@ export class ServiceRegistry {
       return response.data as T;
     } catch (error) {
       console.error(`GET request failed for ${url}:`, error);
+      if ((error as any)?.response?.status === 404) {
+        console.error(`Endpoint not found (404): ${url}`);
+      }
       throw error;
     }
   }

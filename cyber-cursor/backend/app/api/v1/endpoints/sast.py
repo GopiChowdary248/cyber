@@ -11,6 +11,9 @@ import json
 import shutil
 import zipfile
 from pathlib import Path
+import io
+import xml.etree.ElementTree as ET
+import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, update, delete
 import logging
@@ -18,10 +21,13 @@ import logging
 from app.core.database import get_db
 from app.models.sast import (
     SASTProject, SASTScan, SASTIssue, SASTSecurityHotspot, SASTCodeCoverage,
-    SASTDuplication, SASTQualityGate, SASTProjectConfiguration, SASTRule,
+    SASTDuplication, SASTDuplicationBlock, SASTQualityGate, SASTProjectConfiguration, SASTRule,
+    SASTRuleProfile, SASTRuleProfileRule, SASTProjectSettings, SASTTaintFlow, SASTTaintStep,
     ScanStatus, IssueSeverity, IssueType, IssueStatus, SecurityHotspotStatus,
-    QualityGateStatus, Rating
+    QualityGateStatus, Rating,
+    SASTProjectFavorite, SASTProjectMetadata
 )
+from app.sast.ai_recommendations import AIRecommendationEngine, RiskScoringEngine
 from app.models.user import User
 from app.core.security import get_current_user
 from app.schemas.sast_schemas import (
@@ -36,12 +42,559 @@ from app.schemas.sast import (
     SASTProjectResponse, SASTProjectListResponse, SASTProjectDuplicate, SASTProjectUpdate
 )
 
+from pydantic import BaseModel
+
+class FavoriteToggleRequest(BaseModel):
+    favorite: bool
+
+class MetadataUpdateRequest(BaseModel):
+    description: Optional[str] = None
+    homepage_url: Optional[str] = None
+    visibility: Optional[str] = None  # public | private
+    tags: Optional[List[str]] = None
+
 # Import advanced analysis engines
 from app.sast.advanced_analyzer import AdvancedCodeAnalyzer
 from app.sast.data_flow_engine import DataFlowAnalyzer
 from app.sast.taint_analyzer import TaintAnalyzer
 
 router = APIRouter()
+ai_engine = AIRecommendationEngine()
+risk_engine = RiskScoringEngine()
+# ============================================================================
+# ALM Checks / PR Decoration
+# ============================================================================
+
+class CheckCreate(BaseModel):
+    provider: str  # github | gitlab
+    repo: str      # owner/repo
+    pr_number: int | None = None
+    branch: str | None = None
+    title: str
+    summary: str
+    status: str    # PASSED | FAILED | WARNING
+    details_url: str | None = None
+
+
+@router.post("/projects/{project_id}/checks")
+async def create_check_run(
+    project_id: int,
+    payload: CheckCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Stub endpoint: publish a check-run/commit status to GitHub/GitLab.
+    This scaffolds the integration; wire actual API tokens and HTTP calls in a service.
+    """
+    try:
+        # Validate project and settings
+        proj = (await db.execute(select(SASTProject).where(SASTProject.id == project_id))).scalar_one_or_none()
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+        settings = (await db.execute(select(SASTProjectSettings).where(SASTProjectSettings.project_id == project_id))).scalar_one_or_none()
+        provider = (payload.provider or (settings.integration_provider if settings else None))
+        if provider not in ("github", "gitlab"):
+            raise HTTPException(status_code=400, detail="provider must be 'github' or 'gitlab'")
+
+        # Here you'd call GitHub/GitLab APIs using app/bot tokens
+        # and create a check-run or commit status with payload fields.
+        # For now, return the intended payload for observability.
+        return {
+            "provider": provider,
+            "repo": payload.repo or (settings.integration_repo if settings else None),
+            "pr_number": payload.pr_number,
+            "branch": payload.branch or (settings.integration_branch if settings else None),
+            "title": payload.title,
+            "summary": payload.summary,
+            "status": payload.status,
+            "details_url": payload.details_url,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating check run: {str(e)}")
+
+@router.post("/projects/{project_id}/issues/{issue_id}/checks/ai-comment")
+async def create_ai_check_comment(
+    project_id: int,
+    issue_id: int,
+    provider: str = Query("github"),
+    repo: str | None = Query(None, description="owner/repo or namespace/project"),
+    pr_number: int | None = Query(None),
+    branch: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate AI recommendation for an issue and publish it as a PR check/comment payload.
+
+    Uses default gate mapping for status: CRITICAL/MAJOR -> FAILED, MINOR/INFO -> WARNING.
+    """
+    try:
+        issue = (await db.execute(select(SASTIssue).where(SASTIssue.id == issue_id))).scalar_one_or_none()
+        if not issue:
+            raise HTTPException(status_code=404, detail="Issue not found")
+        # Build recommendation
+        vuln = {
+            "id": issue.id,
+            "vulnerability_type": issue.rule_name or issue.type,
+            "description": issue.description or issue.message,
+            "file_name": issue.file_path,
+            "line_number": issue.line_number,
+            "severity": str(issue.severity),
+            "tool": "SAST",
+        }
+        rec = await ai_engine.generate_recommendation(vuln)
+        # Build markdown summary
+        sev = str(issue.severity)
+        status = "FAILED" if sev in ("CRITICAL", "MAJOR", "BLOCKER") else "WARNING"
+        title = f"AI Suggestion: {rec.title} ({sev})"
+        def fence(text: str | None) -> str:
+            return f"\n```\n{text}\n```\n" if text else ""
+        summary = (
+            f"{rec.description}\n\n"
+            f"File: `{issue.file_path}` Line: {issue.line_number}\n\n"
+            f"Suggested Fix:{fence(rec.code_fix)}"
+            f"Before:{fence(getattr(rec, 'before_code', None))}After:{fence(getattr(rec, 'after_code', None))}"
+            f"Confidence: {rec.confidence_score}\n"
+        )
+        # Call checks creation (stubbed service)
+        payload = CheckCreate(
+            provider=provider,
+            repo=repo or "",
+            pr_number=pr_number,
+            branch=branch,
+            title=title,
+            summary=summary,
+            status=status,
+            details_url=None,
+        )
+        return await create_check_run(project_id, payload, db, current_user)  # reuse endpoint logic
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating AI check comment: {str(e)}")
+
+# ============================================================================
+# New lightweight endpoints for SonarQube-like features used by frontend
+# ============================================================================
+
+class NewCodeMetrics(BaseModel):
+    coveragePct: float | None = None
+    bugs: int | None = None
+    vulnerabilities: int | None = None
+    codeSmells: int | None = None
+    hotspots: int | None = None
+
+
+@router.get("/projects/{project_id}/new-code-metrics", response_model=NewCodeMetrics)
+async def get_project_new_code_metrics(
+    project_id: int,
+    mode: str = Query("prev-version", pattern="^(prev-version|days|since-date)$"),
+    days: int | None = Query(None, ge=1, le=365),
+    since: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Minimal implementation: read project settings for new-code and return placeholders
+    try:
+        cfg = (await db.execute(select(SASTProjectSettings).where(SASTProjectSettings.project_id == project_id))).scalar_one_or_none()
+        # In future, compute differential vs baseline snapshot
+        return NewCodeMetrics(
+            coveragePct=82.5,
+            bugs=0,
+            vulnerabilities=0,
+            codeSmells=3,
+            hotspots=0,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error computing new code metrics: {str(e)}")
+
+
+class NewCodeSettings(BaseModel):
+    mode: str  # prev-version | days | since-date
+    days: int | None = None
+    since: str | None = None  # ISO date
+
+
+@router.get("/projects/{project_id}/new-code/settings", response_model=NewCodeSettings)
+async def get_new_code_settings(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    cfg = (await db.execute(select(SASTProjectSettings).where(SASTProjectSettings.project_id == project_id))).scalar_one_or_none()
+    mode = cfg.new_code_mode if cfg and cfg.new_code_mode else "prev-version"
+    days = cfg.new_code_days if cfg else None
+    since = cfg.new_code_since.isoformat() if cfg and cfg.new_code_since else None
+    return NewCodeSettings(mode=mode, days=days, since=since)
+
+
+@router.put("/projects/{project_id}/new-code/settings", response_model=NewCodeSettings)
+async def set_new_code_settings(
+    project_id: int,
+    payload: NewCodeSettings,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        cfg = (await db.execute(select(SASTProjectSettings).where(SASTProjectSettings.project_id == project_id))).scalar_one_or_none()
+        if not cfg:
+            cfg = SASTProjectSettings(project_id=project_id)
+            db.add(cfg)
+        cfg.new_code_mode = payload.mode
+        cfg.new_code_days = payload.days
+        try:
+            cfg.new_code_since = datetime.fromisoformat(payload.since) if payload.since else None
+        except Exception:
+            cfg.new_code_since = None
+        await db.commit()
+        return payload
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error saving new code settings: {str(e)}")
+
+
+class BranchInfo(BaseModel):
+    name: str
+    type: str
+    isMain: bool | None = None
+    lastAnalysisAt: str | None = None
+
+
+@router.get("/projects/{project_id}/branches", response_model=list[BranchInfo])
+async def list_project_branches(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: query from VCS metadata
+    now = datetime.now(timezone.utc).isoformat()
+    return [
+        BranchInfo(name="main", type="long", isMain=True, lastAnalysisAt=now),
+        BranchInfo(name="develop", type="long", lastAnalysisAt=now),
+        BranchInfo(name="feature/login", type="short", lastAnalysisAt=now),
+    ]
+
+
+class PRNewCode(BaseModel):
+    coveragePct: float | None = None
+    bugs: int | None = None
+    vulnerabilities: int | None = None
+    codeSmells: int | None = None
+    hotspots: int | None = None
+
+
+class PRInfo(BaseModel):
+    id: int | str
+    key: str | None = None
+    title: str
+    targetBranch: str
+    lastAnalysisAt: str | None = None
+    qualityGate: str | None = None
+    state: str | None = None
+    newCode: PRNewCode | None = None
+
+
+@router.get("/projects/{project_id}/prs", response_model=list[PRInfo])
+async def list_project_prs(
+    project_id: int,
+    state: str = Query("open", pattern="^(open|merged|closed|all)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: pull from ALM provider
+    now = datetime.now(timezone.utc).isoformat()
+    return [
+        PRInfo(id=1, key="PR-101", title="Fix auth bug", targetBranch="main", lastAnalysisAt=now, qualityGate="PASSED", state="OPEN", newCode=PRNewCode(coveragePct=85, bugs=0, vulnerabilities=0, codeSmells=2, hotspots=0)),
+        PRInfo(id=2, key="PR-102", title="Refactor user service", targetBranch="develop", lastAnalysisAt=now, qualityGate="FAILED", state="OPEN", newCode=PRNewCode(coveragePct=55, bugs=1, vulnerabilities=0, codeSmells=5, hotspots=1)),
+    ]
+
+
+class RepoItem(BaseModel):
+    type: str  # 'file' | 'dir'
+    name: str
+    path: str
+
+
+@router.get("/projects/{project_id}/repo/tree", response_model=list[RepoItem])
+async def get_repo_tree(
+    project_id: int,
+    path: str | None = None,
+    ref: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: integrate with SCM provider; this is a stub
+    base = path.strip("/") if path else ""
+    items = [
+        RepoItem(type="dir", name="src", path=f"{base + '/' if base else ''}src"),
+        RepoItem(type="file", name="README.md", path=f"{base + '/' if base else ''}README.md"),
+    ]
+    return items
+
+
+class FileContent(BaseModel):
+    contentBase64: str
+
+
+@router.get("/projects/{project_id}/repo/file", response_model=FileContent)
+async def get_repo_file(
+    project_id: int,
+    path: str,
+    ref: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: serve real file content from SCM; stub returns placeholder
+    sample = "// Example file\nfunction hello() {\n  console.log('hello');\n}\n"
+    import base64
+    return FileContent(contentBase64=base64.b64encode(sample.encode()).decode())
+
+# ============================================================================
+# Rule Profiles Endpoints (CRUD + assignment)
+# ============================================================================
+
+class RuleProfileCreate(BaseModel):
+    name: str
+    language: str
+    is_default: bool | None = False
+
+class RuleProfileUpdate(BaseModel):
+    name: str | None = None
+    is_default: bool | None = None
+
+class RuleProfileRuleUpdate(BaseModel):
+    enabled: bool | None = None
+    severity_override: str | None = None
+
+
+@router.get("/rule-profiles")
+async def list_rule_profiles(
+    language: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    q = select(SASTRuleProfile)
+    if language:
+        q = q.where(SASTRuleProfile.language == language)
+    res = await db.execute(q)
+    profiles = res.scalars().all()
+    return {
+        "profiles": [
+            {"id": p.id, "name": p.name, "language": p.language, "is_default": p.is_default}
+            for p in profiles
+        ]
+    }
+
+
+@router.post("/rule-profiles")
+async def create_rule_profile(
+    payload: RuleProfileCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    profile = SASTRuleProfile(name=payload.name, language=payload.language, is_default=bool(payload.is_default))
+    db.add(profile)
+    await db.commit()
+    await db.refresh(profile)
+    return {"id": profile.id, "name": profile.name, "language": profile.language, "is_default": profile.is_default}
+
+
+@router.put("/rule-profiles/{profile_id}")
+async def update_rule_profile(
+    profile_id: int,
+    payload: RuleProfileUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    res = await db.execute(select(SASTRuleProfile).where(SASTRuleProfile.id == profile_id))
+    profile = res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    if payload.name is not None:
+        profile.name = payload.name
+    if payload.is_default is not None:
+        profile.is_default = payload.is_default
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/rule-profiles/{profile_id}/rules/{rule_id}")
+async def set_profile_rule(
+    profile_id: int,
+    rule_id: int,
+    payload: RuleProfileRuleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # ensure profile and rule exist
+    prof = (await db.execute(select(SASTRuleProfile).where(SASTRuleProfile.id == profile_id))).scalar_one_or_none()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    rule = (await db.execute(select(SASTRule).where(SASTRule.id == rule_id))).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    # upsert mapping
+    mapping = (await db.execute(
+        select(SASTRuleProfileRule).where(
+            (SASTRuleProfileRule.profile_id == profile_id) & (SASTRuleProfileRule.rule_id == rule_id)
+        )
+    )).scalar_one_or_none()
+    if not mapping:
+        mapping = SASTRuleProfileRule(profile_id=profile_id, rule_id=rule_id)
+        db.add(mapping)
+        await db.flush()
+    if payload.enabled is not None:
+        mapping.enabled = payload.enabled
+    if payload.severity_override is not None:
+        mapping.severity_override = payload.severity_override
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.get("/rule-profiles/{profile_id}/rules")
+async def list_profile_rules(
+    profile_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # List all rules for the profile's language, with mapping flags (enabled/severity_override)
+    profile = (await db.execute(select(SASTRuleProfile).where(SASTRuleProfile.id == profile_id))).scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    rules = (await db.execute(select(SASTRule))).scalars().all()
+    # create map of rule_id -> mapping
+    mappings = (await db.execute(select(SASTRuleProfileRule).where(SASTRuleProfileRule.profile_id == profile_id))).scalars().all()
+    map_by_rule: Dict[int, SASTRuleProfileRule] = {m.rule_id: m for m in mappings}
+    out = []
+    for r in rules:
+        # if profile.language provided, filter to matching language if rule languages include
+        if profile.language and r.languages and isinstance(r.languages, list):
+            if profile.language not in r.languages:
+                continue
+        m = map_by_rule.get(r.id)
+        out.append({
+            "id": r.id,
+            "rule_id": r.rule_id,
+            "name": r.name,
+            "severity": r.severity.value,
+            "enabled": m.enabled if m else r.enabled,
+            "severity_override": m.severity_override if m else None,
+        })
+    return {"rules": out}
+
+@router.post("/projects/{project_id}/rule-profile/{profile_id}")
+async def assign_project_rule_profile(
+    project_id: int,
+    profile_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Ensure project and profile exist
+    proj = (await db.execute(select(SASTProject).where(SASTProject.id == project_id))).scalar_one_or_none()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    prof = (await db.execute(select(SASTRuleProfile).where(SASTRuleProfile.id == profile_id))).scalar_one_or_none()
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    # Store on project settings
+    cfg = (await db.execute(select(SASTProjectSettings).where(SASTProjectSettings.project_id == project_id))).scalar_one_or_none()
+    if not cfg:
+        cfg = SASTProjectSettings(project_id=project_id)
+        db.add(cfg)
+        await db.flush()
+    cfg.quality_profile = str(profile_id)
+    await db.commit()
+    return {"status": "ok"}
+
+
+
+class FileIssue(BaseModel):
+    issueId: str | int
+    line: int
+    type: str
+    severity: str
+    message: str
+
+
+@router.get("/projects/{project_id}/issues/by-file", response_model=list[FileIssue])
+async def list_issues_by_file(
+    project_id: int,
+    path: str,
+    ref: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        query = select(SASTIssue).where(
+            (SASTIssue.project_id == project_id) & (SASTIssue.file_path == path)
+        )
+        result = await db.execute(query)
+        issues = result.scalars().all()
+        mapped: list[FileIssue] = []
+        for i in issues:
+            mapped.append(FileIssue(
+                issueId=str(i.id),
+                line=int(getattr(i, 'line_number', 0) or 0),
+                type=str(getattr(i, 'type', 'VULNERABILITY')),
+                severity=str(getattr(i, 'severity', 'MEDIUM')),
+                message=i.message or ''
+            ))
+        return mapped
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing issues by file: {str(e)}")
+
+
+class IssueComment(BaseModel):
+    id: int | str
+    author: str
+    message: str
+    createdAt: str
+
+
+@router.get("/issues/{issue_id}/comments", response_model=list[IssueComment])
+async def get_issue_comments(
+    issue_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: read from comments table
+    now = datetime.now(timezone.utc).isoformat()
+    return [IssueComment(id=1, author=current_user.email, message="Investigating", createdAt=now)]
+
+
+class IssueCommentCreate(BaseModel):
+    message: str
+
+
+@router.post("/issues/{issue_id}/comments", response_model=IssueComment)
+async def create_issue_comment(
+    issue_id: int,
+    payload: IssueCommentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: persist
+    now = datetime.now(timezone.utc).isoformat()
+    return IssueComment(id=uuid.uuid4().hex, author=current_user.email, message=payload.message, createdAt=now)
+
+
+class IssueHistory(BaseModel):
+    at: str
+    fromStatus: str | None = None
+    toStatus: str | None = None
+    actor: str | None = None
+
+
+@router.get("/issues/{issue_id}/history", response_model=list[IssueHistory])
+async def get_issue_history(
+    issue_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # TODO: read from audit trail
+    now = datetime.now(timezone.utc).isoformat()
+    return [IssueHistory(at=now, fromStatus="OPEN", toStatus="CONFIRMED", actor=current_user.email)]
 
 # ============================================================================
 # Helper Functions
@@ -366,12 +919,22 @@ async def get_sast_projects(
     search: Optional[str] = Query(None),
     language: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None),
+    quality_gate: Optional[str] = Query(None, description="Filter by quality gate status"),
+    reliability_rating: Optional[str] = Query(None, description="Filter by reliability rating A-E"),
+    security_rating: Optional[str] = Query(None, description="Filter by security rating A-E"),
+    maintainability_rating: Optional[str] = Query(None, description="Filter by maintainability rating A-E"),
+    min_coverage: Optional[float] = Query(None, ge=0.0, le=100.0, description="Minimum coverage percent"),
+    max_duplication_percent: Optional[float] = Query(None, ge=0.0, le=100.0, description="Maximum duplication percent"),
+    min_hotspots: Optional[int] = Query(None, ge=0, description="Minimum security hotspots count"),
+    sort_by: Optional[str] = Query(None, description="Sort field: last_analysis|quality_gate|coverage|duplication_percent|bug_count|vulnerability_count|code_smell_count|security_hotspot_count|created_at|updated_at"),
+    sort_order: Optional[str] = Query("desc", description="asc or desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all SAST projects with filtering and pagination"""
     try:
-        from sqlalchemy import select, func
+        from sqlalchemy import select, func, text
+        from sqlalchemy.sql import expression
         
         # Build base query
         query = select(SASTProject)
@@ -398,12 +961,68 @@ async def get_sast_projects(
             elif status_filter == "failed":
                 # Projects with failed scans
                 query = query.join(SASTScan).where(SASTScan.status == "FAILED")
+
+        # Apply quality gate filter
+        if quality_gate:
+            query = query.where(SASTProject.quality_gate == quality_gate)
+
+        # Apply ratings filters
+        if reliability_rating:
+            query = query.where(SASTProject.reliability_rating == reliability_rating)
+        if security_rating:
+            query = query.where(SASTProject.security_rating == security_rating)
+        if maintainability_rating:
+            query = query.where(SASTProject.maintainability_rating == maintainability_rating)
+
+        # Apply coverage filter
+        if min_coverage is not None:
+            query = query.where(SASTProject.coverage >= min_coverage)
+
+        # Apply duplication percent filter using duplicated_lines/lines_of_code
+        if max_duplication_percent is not None:
+            # Avoid division by zero by treating zero LOC as 1 for the expression
+            duplication_expr = (SASTProject.duplicated_lines * 100.0) / func.nullif(SASTProject.lines_of_code, 0)
+            query = query.where(duplication_expr <= max_duplication_percent)
+
+        # Apply hotspots filter
+        if min_hotspots is not None:
+            query = query.where(SASTProject.security_hotspot_count >= min_hotspots)
         
         # Get total count
         count_query = select(func.count()).select_from(query.subquery())
         total_count_result = await db.execute(count_query)
         total_count = total_count_result.scalar()
         
+        # Apply sorting
+        if sort_by:
+            sort_by = sort_by.lower()
+            order_desc = (sort_order or "desc").lower() == "desc"
+            sort_column = None
+            duplication_expr = (SASTProject.duplicated_lines * 1.0) / func.nullif(SASTProject.lines_of_code, 0)
+            if sort_by == "last_analysis":
+                sort_column = SASTProject.last_analysis
+            elif sort_by == "quality_gate":
+                sort_column = SASTProject.quality_gate
+            elif sort_by == "coverage":
+                sort_column = SASTProject.coverage
+            elif sort_by == "duplication_percent":
+                sort_column = duplication_expr
+            elif sort_by == "bug_count":
+                sort_column = SASTProject.bug_count
+            elif sort_by == "vulnerability_count":
+                sort_column = SASTProject.vulnerability_count
+            elif sort_by == "code_smell_count":
+                sort_column = SASTProject.code_smell_count
+            elif sort_by == "security_hotspot_count":
+                sort_column = SASTProject.security_hotspot_count
+            elif sort_by == "created_at":
+                sort_column = SASTProject.created_at
+            elif sort_by == "updated_at":
+                sort_column = SASTProject.updated_at
+
+            if sort_column is not None:
+                query = query.order_by(sort_column.desc() if order_desc else sort_column.asc())
+
         # Apply pagination
         query = query.offset(skip).limit(limit)
         projects_result = await db.execute(query)
@@ -430,6 +1049,16 @@ async def get_sast_projects(
                 "low": len([i for i in issues if i.severity == "LOW"])
             }
             
+            # Compute duplication percent if data present
+            try:
+                duplication_percent = 0.0
+                if getattr(project, "duplicated_lines", None) is not None and getattr(project, "lines_of_code", None):
+                    loc = float(project.lines_of_code or 0)
+                    dup_lines = float(project.duplicated_lines or 0)
+                    duplication_percent = round((dup_lines / loc) * 100.0, 2) if loc > 0 else 0.0
+            except Exception:
+                duplication_percent = 0.0
+
             project_responses.append(SASTProjectResponse(
                 id=project.id,
                 name=project.name,
@@ -447,8 +1076,9 @@ async def get_sast_projects(
                 security_hotspot_count=project.security_hotspot_count or 0,
                 lines_of_code=project.lines_of_code or 0,
                 coverage=project.coverage or 0.0,
+                duplication_percent=duplication_percent,
                 technical_debt=project.technical_debt or 0,
-                created_by=current_user.email,  # This should be the actual creator's email
+                created_by=current_user.email,  # TODO: actual creator's email from user table
                 created_at=project.created_at,
                 updated_at=project.updated_at,
                 last_analysis=project.last_analysis,
@@ -462,6 +1092,102 @@ async def get_sast_projects(
             page=skip // limit + 1,
             pages=(total_count + limit - 1) // limit
         )
+@router.post("/projects/{project_id}/favorite")
+async def toggle_favorite_project(
+    project_id: int,
+    request: FavoriteToggleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Check project exists
+        project = await SASTProject.get_by_id(db, project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        if request.favorite:
+            # Add if not exists
+            exists_q = select(SASTProjectFavorite).where(
+                (SASTProjectFavorite.project_id == project_id) & (SASTProjectFavorite.user_id == current_user.id)
+            )
+            exists = (await db.execute(exists_q)).scalar_one_or_none()
+            if not exists:
+                fav = SASTProjectFavorite(project_id=project_id, user_id=current_user.id)
+                db.add(fav)
+                await db.commit()
+        else:
+            # Remove
+            await db.execute(
+                delete(SASTProjectFavorite).where(
+                    (SASTProjectFavorite.project_id == project_id) & (SASTProjectFavorite.user_id == current_user.id)
+                )
+            )
+            await db.commit()
+        return {"project_id": project_id, "favorite": request.favorite}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to toggle favorite: {str(e)}")
+
+
+@router.get("/projects/{project_id}/metadata")
+async def get_project_metadata(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        meta_q = select(SASTProjectMetadata).where(SASTProjectMetadata.project_id == project_id)
+        meta = (await db.execute(meta_q)).scalar_one_or_none()
+        fav_q = select(SASTProjectFavorite).where(
+            (SASTProjectFavorite.project_id == project_id) & (SASTProjectFavorite.user_id == current_user.id)
+        )
+        fav = (await db.execute(fav_q)).scalar_one_or_none()
+        if not meta:
+            return {"project_id": project_id, "description": None, "homepage_url": None, "visibility": "private", "tags": [], "favorite": bool(fav)}
+        return {
+            "project_id": project_id,
+            "description": meta.description,
+            "homepage_url": meta.homepage_url,
+            "visibility": meta.visibility,
+            "tags": meta.tags or [],
+            "favorite": bool(fav)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch metadata: {str(e)}")
+
+
+@router.put("/projects/{project_id}/metadata")
+async def update_project_metadata(
+    project_id: int,
+    request: MetadataUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        meta_q = select(SASTProjectMetadata).where(SASTProjectMetadata.project_id == project_id)
+        meta = (await db.execute(meta_q)).scalar_one_or_none()
+        if not meta:
+            meta = SASTProjectMetadata(project_id=project_id)
+            db.add(meta)
+        if request.description is not None:
+            meta.description = request.description
+        if request.homepage_url is not None:
+            meta.homepage_url = request.homepage_url
+        if request.visibility is not None:
+            if request.visibility not in ("public", "private"):
+                raise HTTPException(status_code=400, detail="visibility must be 'public' or 'private'")
+            meta.visibility = request.visibility
+        if request.tags is not None:
+            meta.tags = request.tags
+        await db.commit()
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update metadata: {str(e)}")
         
     except Exception as e:
         raise HTTPException(
@@ -1178,6 +1904,649 @@ async def get_code_coverage(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting code coverage: {str(e)}")
+
+def _parse_lcov(text: str) -> List[Dict[str, Any]]:
+    """Parse LCOV info format into per-file coverage metrics.
+
+    Returns a list of dicts with keys: file_path, lines_to_cover, covered_lines,
+    uncovered_lines, covered_conditions, uncovered_conditions.
+    """
+    results: List[Dict[str, Any]] = []
+    current_file: Optional[str] = None
+    line_hits: Dict[int, int] = {}
+    branch_hits: List[tuple[int, int, int, int]] = []  # line, block, branch, taken
+
+    def flush_current():
+        if current_file is None:
+            return
+        lines_to_cover = len(line_hits)
+        covered_lines = sum(1 for _, hits in line_hits.items() if hits > 0)
+        uncovered_lines = lines_to_cover - covered_lines
+        # Branch coverage (if present)
+        total_branches = 0
+        covered_branches = 0
+        for (_ln, _b, _br, taken) in branch_hits:
+            total_branches += 1
+            if taken > 0:
+                covered_branches += 1
+        results.append({
+            "file_path": current_file,
+            "lines_to_cover": lines_to_cover,
+            "covered_lines": covered_lines,
+            "uncovered_lines": uncovered_lines,
+            "covered_conditions": covered_branches,
+            "uncovered_conditions": max(0, total_branches - covered_branches),
+        })
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("SF:"):
+            # New source file
+            # Flush previous
+            flush_current()
+            current_file = line[3:]
+            line_hits = {}
+            branch_hits = []
+        elif line.startswith("DA:"):
+            # line number, hit count
+            try:
+                payload = line[3:]
+                ln_str, hits_str = payload.split(",")
+                ln = int(ln_str)
+                hits = int(hits_str)
+                line_hits[ln] = hits
+            except Exception:
+                continue
+        elif line.startswith("BRDA:"):
+            # line, block, branch, taken ("-" or number)
+            try:
+                payload = line[5:]
+                ln_str, b_str, br_str, taken_str = payload.split(",")
+                ln = int(ln_str)
+                b = int(b_str) if b_str != '-' else -1
+                br = int(br_str) if br_str != '-' else -1
+                taken = 0 if taken_str == '-' else int(taken_str)
+                branch_hits.append((ln, b, br, taken))
+            except Exception:
+                continue
+        elif line == "end_of_record":
+            flush_current()
+            current_file = None
+            line_hits = {}
+            branch_hits = []
+
+    # Flush last file if no end_of_record
+    flush_current()
+    return results
+
+def _parse_cobertura(xml_bytes: bytes) -> List[Dict[str, Any]]:
+    """Parse Cobertura XML into per-file coverage metrics."""
+    root = ET.fromstring(xml_bytes)
+    ns = ""  # Cobertura usually has no namespace
+    results: Dict[str, Dict[str, int]] = {}
+
+    # Cobertura structure: coverage/packages/package/classes/class/lines/line
+    for cls in root.findall('.//classes/class'):
+        file_path = cls.get('filename') or ''
+        if not file_path:
+            continue
+        file_acc = results.setdefault(file_path, {
+            "lines_to_cover": 0,
+            "covered_lines": 0,
+            "uncovered_lines": 0,
+            "covered_conditions": 0,
+            "uncovered_conditions": 0,
+        })
+        for line in cls.findall('./lines/line'):
+            hits = int(line.get('hits') or 0)
+            file_acc["lines_to_cover"] += 1
+            if hits > 0:
+                file_acc["covered_lines"] += 1
+            else:
+                file_acc["uncovered_lines"] += 1
+            # condition-coverage like "50% (1/2)"
+            cond_cov = line.get('condition-coverage')
+            if cond_cov and '(' in cond_cov and '/' in cond_cov:
+                try:
+                    frac = cond_cov.split('(')[1].split(')')[0]
+                    covered, total = frac.split('/')
+                    file_acc["covered_conditions"] += int(covered)
+                    file_acc["uncovered_conditions"] += max(0, int(total) - int(covered))
+                except Exception:
+                    pass
+
+    return [
+        {"file_path": fp, **vals}
+        for fp, vals in results.items()
+    ]
+
+def _parse_jacoco(xml_bytes: bytes) -> List[Dict[str, Any]]:
+    """Parse JaCoCo XML into per-file coverage metrics."""
+    root = ET.fromstring(xml_bytes)
+    results: List[Dict[str, Any]] = []
+    # Structure: report/package/sourcefile/line
+    for pkg in root.findall('.//package'):
+        for sf in pkg.findall('./sourcefile'):
+            file_path = sf.get('name') or ''
+            if not file_path:
+                continue
+            lines_to_cover = 0
+            covered_lines = 0
+            uncovered_lines = 0
+            covered_conditions = 0
+            uncovered_conditions = 0
+            for line in sf.findall('./line'):
+                try:
+                    ci = int(line.get('ci') or 0)  # covered instructions
+                    # mi = int(line.get('mi') or 0)  # missed instructions (unused directly)
+                    cb = int(line.get('cb') or 0)  # covered branches
+                    mb = int(line.get('mb') or 0)  # missed branches
+                except Exception:
+                    ci, cb, mb = 0, 0, 0
+                lines_to_cover += 1
+                if ci > 0:
+                    covered_lines += 1
+                else:
+                    uncovered_lines += 1
+                covered_conditions += cb
+                uncovered_conditions += mb
+            results.append({
+                "file_path": file_path,
+                "lines_to_cover": lines_to_cover,
+                "covered_lines": covered_lines,
+                "uncovered_lines": uncovered_lines,
+                "covered_conditions": covered_conditions,
+                "uncovered_conditions": uncovered_conditions,
+            })
+    return results
+
+@router.post("/projects/{project_id}/coverage/import")
+async def import_code_coverage(
+    project_id: int,
+    file: UploadFile = File(...),
+    format: str = Query("auto", pattern="^(auto|lcov|cobertura|jacoco)$"),
+    scan_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Import code coverage in LCOV, Cobertura, or JaCoCo formats.
+
+    - Creates `SASTCodeCoverage` rows per file
+    - Updates project-level and optional scan-level coverage metrics
+    """
+    try:
+        # Ensure project exists
+        project_q = await db.execute(select(SASTProject).where(SASTProject.id == project_id))
+        project = project_q.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        content = await file.read()
+
+        # Auto-detect format if requested
+        fmt = format.lower()
+        if fmt == "auto":
+            name = (file.filename or '').lower()
+            if name.endswith('.info') or 'lcov' in name:
+                fmt = 'lcov'
+            elif name.endswith('.xml'):
+                # Heuristic: check root tag
+                try:
+                    root = ET.fromstring(content)
+                    tag = root.tag.lower()
+                    if tag.endswith('coverage'):
+                        fmt = 'cobertura'  # Cobertura root often 'coverage'
+                    elif tag.endswith('report'):
+                        fmt = 'jacoco'  # JaCoCo root 'report'
+                    else:
+                        # Default to Cobertura if ambiguous
+                        fmt = 'cobertura'
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Unable to auto-detect XML coverage format")
+            else:
+                raise HTTPException(status_code=400, detail="Unable to auto-detect coverage format; specify ?format=")
+
+        # Parse into per-file metrics
+        if fmt == 'lcov':
+            items = _parse_lcov(content.decode(errors='ignore'))
+        elif fmt == 'cobertura':
+            items = _parse_cobertura(content)
+        elif fmt == 'jacoco':
+            items = _parse_jacoco(content)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+
+        if not items:
+            return {"status": "ok", "files_imported": 0, "overall_coverage": 0.0}
+
+        # Optionally clear existing coverage for this scan or the whole project
+        if scan_id is not None:
+            await db.execute(
+                delete(SASTCodeCoverage).where(
+                    (SASTCodeCoverage.project_id == project_id) & (SASTCodeCoverage.scan_id == scan_id)
+                )
+            )
+        else:
+            await db.execute(
+                delete(SASTCodeCoverage).where(SASTCodeCoverage.project_id == project_id)
+            )
+
+        # Insert rows
+        total_lines_to_cover = 0
+        total_covered_lines = 0
+        total_uncovered_conditions = 0
+        total_covered_conditions = 0
+        for it in items:
+            lines_to_cover = int(it.get("lines_to_cover") or 0)
+            covered_lines = int(it.get("covered_lines") or 0)
+            uncovered_lines = int(it.get("uncovered_lines") or 0)
+            covered_conditions = int(it.get("covered_conditions") or 0)
+            uncovered_conditions = int(it.get("uncovered_conditions") or 0)
+
+            line_coverage = (covered_lines / lines_to_cover * 100.0) if lines_to_cover > 0 else 0.0
+            total_lines_to_cover += lines_to_cover
+            total_covered_lines += covered_lines
+            total_covered_conditions += covered_conditions
+            total_uncovered_conditions += uncovered_conditions
+
+            cov = SASTCodeCoverage(
+                project_id=project_id,
+                scan_id=scan_id,
+                file_path=it["file_path"],
+                lines_to_cover=lines_to_cover,
+                uncovered_lines=uncovered_lines,
+                covered_lines=covered_lines,
+                line_coverage=line_coverage,
+                conditions_to_cover=covered_conditions + uncovered_conditions,
+                uncovered_conditions=uncovered_conditions,
+                covered_conditions=covered_conditions,
+                branch_coverage=(
+                    (covered_conditions / (covered_conditions + uncovered_conditions) * 100.0)
+                    if (covered_conditions + uncovered_conditions) > 0 else 0.0
+                ),
+                overall_coverage=line_coverage,
+            )
+            db.add(cov)
+
+        # Update aggregate coverage on project (and scan if present)
+        overall_coverage = (total_covered_lines / total_lines_to_cover * 100.0) if total_lines_to_cover > 0 else 0.0
+        project.coverage = overall_coverage
+        project.uncovered_lines = max(0, total_lines_to_cover - total_covered_lines)
+        project.uncovered_conditions = total_uncovered_conditions
+        project.last_analysis = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        if scan_id is not None:
+            scan_q = await db.execute(select(SASTScan).where(SASTScan.id == scan_id))
+            scan = scan_q.scalar_one_or_none()
+            if scan:
+                scan.coverage = overall_coverage
+                # Persist counts if present on scan model
+                if hasattr(scan, 'uncovered_lines'):
+                    scan.uncovered_lines = project.uncovered_lines
+                if hasattr(scan, 'uncovered_conditions'):
+                    scan.uncovered_conditions = project.uncovered_conditions
+
+        await db.commit()
+
+        return {
+            "status": "ok",
+            "project_id": str(project_id),
+            "scan_id": str(scan_id) if scan_id is not None else None,
+            "files_imported": len(items),
+            "overall_coverage": round(overall_coverage, 2),
+            "total_lines_to_cover": total_lines_to_cover,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error importing code coverage: {str(e)}")
+
+# ==========================================================================
+# Code Duplication Import (CPD XML, jscpd JSON)
+# ==========================================================================
+
+def _parse_cpd_xml(xml_bytes: bytes) -> List[Dict[str, Any]]:
+    """Parse PMD CPD XML output to duplication blocks.
+
+    Returns a list of records: { files: [{path, startLine, endLine}],
+    lines, tokens, code_snippet }
+    """
+    root = ET.fromstring(xml_bytes)
+    records: List[Dict[str, Any]] = []
+    for dup in root.findall('./duplication'):
+        try:
+            lines = int(dup.get('lines') or 0)
+            tokens = int(dup.get('tokens') or 0)
+        except Exception:
+            lines, tokens = 0, 0
+        files = []
+        for f in dup.findall('./file'):
+            files.append({
+                'path': f.get('path') or '',
+                'startLine': int(f.get('line') or 0),
+                'endLine': int(f.get('endline') or 0) if f.get('endline') else 0,
+            })
+        code_snippet = ''
+        code = dup.find('./codefragment')
+        if code is not None and code.text:
+            code_snippet = code.text
+        if files:
+            records.append({
+                'lines': lines,
+                'tokens': tokens,
+                'files': files,
+                'code_snippet': code_snippet,
+            })
+    return records
+
+def _parse_jscpd_json(json_bytes: bytes) -> List[Dict[str, Any]]:
+    """Parse jscpd JSON report to duplication blocks."""
+    data = json.loads(json_bytes.decode('utf-8', errors='ignore'))
+    records: List[Dict[str, Any]] = []
+    duplicates = data.get('duplicates') or []
+    for d in duplicates:
+        fragment = d.get('fragment') or {}
+        lines = int(fragment.get('lines') or 0)
+        files = []
+        for inst in d.get('instances') or []:
+            files.append({
+                'path': inst.get('path') or '',
+                'startLine': int(inst.get('start') or 0),
+                'endLine': int(inst.get('end') or 0),
+            })
+        code_snippet = fragment.get('code') or ''
+        if files:
+            records.append({
+                'lines': lines,
+                'files': files,
+                'code_snippet': code_snippet,
+            })
+    return records
+
+@router.post("/projects/{project_id}/duplications/import")
+async def import_duplications(
+    project_id: int,
+    file: UploadFile = File(...),
+    format: str = Query("auto", pattern="^(auto|cpd|jscpd)$"),
+    language: Optional[str] = Query(None),
+    scan_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Import code duplication results from PMD CPD (XML) or jscpd (JSON).
+
+    - Creates `SASTDuplication` summary rows and associated `SASTDuplicationBlock` records
+    - Updates project duplicated line/block totals
+    """
+    try:
+        proj_res = await db.execute(select(SASTProject).where(SASTProject.id == project_id))
+        project = proj_res.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        content = await file.read()
+        fmt = format.lower()
+        if fmt == 'auto':
+            name = (file.filename or '').lower()
+            if name.endswith('.xml'):
+                fmt = 'cpd'
+            elif name.endswith('.json'):
+                fmt = 'jscpd'
+            else:
+                # crude sniffing
+                txt = content[:64].lstrip()
+                if txt.startswith(b'<?xml') or b'<pmd-cpd' in content or b'<duplication' in content:
+                    fmt = 'cpd'
+                elif txt.startswith(b'{'):
+                    fmt = 'jscpd'
+                else:
+                    raise HTTPException(status_code=400, detail="Unable to auto-detect duplication format")
+
+        if fmt == 'cpd':
+            records = _parse_cpd_xml(content)
+        elif fmt == 'jscpd':
+            records = _parse_jscpd_json(content)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported duplication format")
+
+        if not records:
+            return {"status": "ok", "duplications": 0, "blocks": 0}
+
+        # Optionally clear existing duplicates for project/scan
+        if scan_id is not None:
+            await db.execute(
+                delete(SASTDuplication).where(
+                    (SASTDuplication.project_id == project_id) & (SASTDuplication.scan_id == scan_id)
+                )
+            )
+            await db.execute(
+                delete(SASTDuplicationBlock).where(
+                    SASTDuplicationBlock.duplication_id.notin_(select(SASTDuplication.id))
+                )
+            )
+        else:
+            await db.execute(delete(SASTDuplication).where(SASTDuplication.project_id == project_id))
+            await db.execute(delete(SASTDuplicationBlock))
+
+        total_duplicated_lines = 0
+        total_duplicated_blocks = 0
+        created_blocks = 0
+
+        for rec in records:
+            files = rec.get('files') or []
+            lines = int(rec.get('lines') or 0)
+            # Simple density: duplicated lines / max(lines,1) * 100
+            density = (lines / max(lines, 1)) * 100.0
+            dup = SASTDuplication(
+                project_id=project_id,
+                scan_id=scan_id or 0,
+                file_path=files[0]['path'] if files else '',
+                duplicated_lines=lines,
+                duplicated_blocks=len(files),
+                duplication_density=density,
+                language=language or (project.language if hasattr(project, 'language') else 'unknown'),
+            )
+            db.add(dup)
+            await db.flush()  # get dup.id
+
+            for f in files:
+                block = SASTDuplicationBlock(
+                    duplication_id=dup.id,
+                    file_path=f['path'],
+                    start_line=int(f.get('startLine') or f.get('start') or 0),
+                    end_line=int(f.get('endLine') or f.get('end') or 0),
+                    code_snippet=rec.get('code_snippet') or '',
+                )
+                db.add(block)
+                created_blocks += 1
+
+            total_duplicated_lines += lines
+            total_duplicated_blocks += len(files)
+
+        # Update project totals
+        project.duplicated_lines = (project.duplicated_lines or 0) + total_duplicated_lines
+        project.duplicated_blocks = (project.duplicated_blocks or 0) + total_duplicated_blocks
+        project.last_analysis = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        await db.commit()
+
+        return {
+            "status": "ok",
+            "project_id": str(project_id),
+            "scan_id": str(scan_id) if scan_id is not None else None,
+            "duplications": len(records),
+            "blocks": created_blocks,
+            "duplicated_lines": total_duplicated_lines,
+            "duplicated_blocks": total_duplicated_blocks,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error importing duplications: {str(e)}")
+
+# ==========================================================================
+# Taint flow endpoints (storage after Semgrep taint mode runs)
+# ==========================================================================
+
+class TaintFlowCreate(BaseModel):
+    scan_id: int | None = None
+    issue_id: int | None = None
+    source: str | None = None
+    sink: str | None = None
+    steps: list[dict] = []  # {file_path,line_number,function_name,code_snippet}
+
+
+@router.post("/projects/{project_id}/taint-flows")
+async def create_taint_flow(
+    project_id: int,
+    payload: TaintFlowCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        flow = SASTTaintFlow(
+            project_id=project_id,
+            scan_id=payload.scan_id,
+            issue_id=payload.issue_id,
+            source=payload.source,
+            sink=payload.sink,
+        )
+        db.add(flow)
+        await db.flush()
+        order_index = 0
+        for s in payload.steps or []:
+            step = SASTTaintStep(
+                flow_id=flow.id,
+                file_path=s.get('file_path') or '',
+                line_number=int(s.get('line_number') or 0),
+                function_name=s.get('function_name'),
+                code_snippet=s.get('code_snippet'),
+                order_index=order_index,
+            )
+            db.add(step)
+            order_index += 1
+        await db.commit()
+        return {"status": "ok", "flow_id": flow.id}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating taint flow: {str(e)}")
+
+
+@router.get("/projects/{project_id}/taint-flows")
+async def list_taint_flows(
+    project_id: int,
+    issue_id: int | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        q = select(SASTTaintFlow).where(SASTTaintFlow.project_id == project_id)
+        if issue_id is not None:
+            q = q.where(SASTTaintFlow.issue_id == issue_id)
+        flows = (await db.execute(q)).scalars().all()
+        out = []
+        for f in flows:
+            steps = (await db.execute(select(SASTTaintStep).where(SASTTaintStep.flow_id == f.id).order_by(SASTTaintStep.order_index.asc()))).scalars().all()
+            out.append({
+                "id": f.id,
+                "scan_id": f.scan_id,
+                "issue_id": f.issue_id,
+                "source": f.source,
+                "sink": f.sink,
+                "steps": [
+                    {
+                        "file_path": s.file_path,
+                        "line_number": s.line_number,
+                        "function_name": s.function_name,
+                        "code_snippet": s.code_snippet,
+                        "order_index": s.order_index,
+                    } for s in steps
+                ]
+            })
+        return {"flows": out}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing taint flows: {str(e)}")
+
+# ==========================================================================
+# AI Recommendations & Risk Triage
+# ==========================================================================
+
+class AIRecommendRequest(BaseModel):
+    issue_id: int
+
+
+@router.post("/issues/{issue_id}/ai-recommendation")
+async def generate_issue_ai_recommendation(
+    issue_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        issue = (await db.execute(select(SASTIssue).where(SASTIssue.id == issue_id))).scalar_one_or_none()
+        if not issue:
+            raise HTTPException(status_code=404, detail="Issue not found")
+        vuln = {
+            "id": issue.id,
+            "vulnerability_type": issue.rule_name or issue.type,
+            "description": issue.description or issue.message,
+            "file_name": issue.file_path,
+            "line_number": issue.line_number,
+            "severity": str(issue.severity),
+            "tool": "SAST",
+        }
+        rec = await ai_engine.generate_recommendation(vuln)
+        return {
+            "title": rec.title,
+            "description": rec.description,
+            "code_fix": rec.code_fix,
+            "before_code": getattr(rec, 'before_code', None),
+            "after_code": getattr(rec, 'after_code', None),
+            "confidence_score": rec.confidence_score,
+            "reasoning": rec.reasoning,
+            "tags": rec.tags,
+            "created_at": rec.created_at.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating recommendation: {str(e)}")
+
+
+@router.post("/projects/{project_id}/ai/triage")
+async def ai_triage_project(
+    project_id: int,
+    limit: int | None = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        rows = (await db.execute(select(SASTIssue).where(SASTIssue.project_id == project_id))).scalars().all()
+        scored = []
+        for i in rows:
+            v = {
+                "severity": str(i.severity).lower(),
+                "vulnerability_type": (i.rule_name or i.type or "").lower(),
+                "context": {"confidence": "medium"},
+            }
+            score = risk_engine.calculate_vulnerability_risk_score(v)
+            scored.append({
+                "id": i.id,
+                "rule_name": i.rule_name,
+                "severity": str(i.severity),
+                "file_path": i.file_path,
+                "line_number": i.line_number,
+                "score": score,
+            })
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return {"issues": scored[: limit or 50]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error triaging project: {str(e)}")
 
 # ============================================================================
 # Code Duplications Endpoints
@@ -4318,6 +5687,94 @@ async def get_project_quality_report(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating quality report: {str(e)}")
+
+@router.post("/projects/{project_id}/quality-gate/evaluate-new-code")
+async def evaluate_quality_gate_on_new_code(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Evaluate quality gate using new-code period based on project settings.
+
+    Uses existing SASTQualityGate thresholds against metrics restricted to new code.
+    """
+    try:
+        proj = (await db.execute(select(SASTProject).where(SASTProject.id == project_id))).scalar_one_or_none()
+        if not proj:
+            raise HTTPException(status_code=404, detail="Project not found")
+        qg = (await db.execute(select(SASTQualityGate).where(SASTQualityGate.project_id == project_id))).scalar_one_or_none()
+        if not qg:
+            raise HTTPException(status_code=404, detail="Quality gate not found")
+        cfg = (await db.execute(select(SASTProjectSettings).where(SASTProjectSettings.project_id == project_id))).scalar_one_or_none()
+        # Determine baseline start
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        start = None
+        if cfg and cfg.new_code_mode == "days" and cfg.new_code_days:
+            start = now - timedelta(days=int(cfg.new_code_days))
+        elif cfg and cfg.new_code_mode == "since-date" and cfg.new_code_since:
+            start = cfg.new_code_since if cfg.new_code_since.tzinfo else cfg.new_code_since.replace(tzinfo=timezone.utc)
+        else:
+            # prev-version: approximate using last_analysis or 7 days
+            start = (proj.last_analysis if proj.last_analysis else now - timedelta(days=7))
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+
+        # New-code issues since baseline
+        issues_rows = (await db.execute(
+            select(SASTIssue).where(
+                (SASTIssue.project_id == project_id) & (SASTIssue.created_at >= start.replace(tzinfo=None))
+            )
+        )).scalars().all()
+        by_sev = {"BLOCKER": 0, "CRITICAL": 0, "MAJOR": 0, "MINOR": 0, "INFO": 0}
+        for i in issues_rows:
+            sev = str(i.severity)
+            if sev in by_sev:
+                by_sev[sev] += 1
+
+        # New-code coverage: average of code coverage entries since baseline
+        cov_avg_row = await db.execute(
+            select(func.avg(SASTCodeCoverage.overall_coverage)).where(
+                (SASTCodeCoverage.project_id == project_id) & (SASTCodeCoverage.created_at >= start.replace(tzinfo=None))
+            )
+        )
+        new_coverage = cov_avg_row.scalar() or 0.0
+
+        # Evaluate against quality gate thresholds
+        results = []
+        status = QualityGateStatus.PASSED
+
+        def add_result(metric: str, operator: str, threshold: float, actual: float, passed: bool, category: str):
+            nonlocal status
+            if not passed and status != QualityGateStatus.FAILED:
+                status = QualityGateStatus.FAILED
+            results.append({
+                "metric": metric,
+                "operator": operator,
+                "threshold": threshold,
+                "actual": actual,
+                "passed": passed,
+                "category": category,
+            })
+
+        # Coverage
+        add_result("Coverage (new code)", ">=", qg.min_coverage or 0.0, new_coverage, (new_coverage >= (qg.min_coverage or 0.0)), "COVERAGE")
+        # Severities
+        add_result("Critical issues (new code)", "<=", qg.max_critical_issues or 0, by_sev["CRITICAL"], (by_sev["CRITICAL"] <= (qg.max_critical_issues or 0)), "SECURITY")
+        add_result("Major issues (new code)", "<=", qg.max_major_issues or 0, by_sev["MAJOR"], (by_sev["MAJOR"] <= (qg.max_major_issues or 0)), "RELIABILITY")
+        add_result("Minor issues (new code)", "<=", qg.max_minor_issues or 0, by_sev["MINOR"], (by_sev["MINOR"] <= (qg.max_minor_issues or 0)), "MAINTAINABILITY")
+
+        return {
+            "status": status,
+            "start": start.isoformat(),
+            "coverage": new_coverage,
+            "issue_counts": by_sev,
+            "results": results,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error evaluating new code gate: {str(e)}")
 
 @router.post("/projects/{project_id}/quality-gate/evaluate")
 async def evaluate_project_quality_gate(

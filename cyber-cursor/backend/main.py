@@ -121,7 +121,8 @@ except Exception as e:
 # Import and include RASP endpoints
 try:
     from app.api.v1.endpoints.rasp import router as rasp_router
-    app.include_router(rasp_router, prefix="/api/rasp", tags=["RASP"])
+    # Align RASP under /api/v1 for consistency with frontend mappings
+    app.include_router(rasp_router, prefix="/api/v1/rasp", tags=["RASP"])
     logger.info("RASP API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load RASP API router: {e}")
@@ -129,10 +130,18 @@ except Exception as e:
 # Import and include DAST endpoints
 try:
     from app.api.v1.endpoints.dast import router as dast_router
-    app.include_router(dast_router, prefix="/dast", tags=["DAST"])
+    app.include_router(dast_router, prefix="/api/v1/dast", tags=["DAST"])
     logger.info("DAST API router loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load DAST API router: {e}")
+
+# Import and include DAST Project Tools endpoints (Burp-like tools under projects)
+try:
+    from app.api.v1.endpoints.dast_project_tools import router as dast_tools_router
+    app.include_router(dast_tools_router, prefix="/api/v1/dast/projects", tags=["DAST Project Tools"])
+    logger.info("DAST Project Tools API router loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load DAST Project Tools API router: {e}")
 
 # Import and include Cloud Security endpoints
 try:

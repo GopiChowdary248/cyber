@@ -47,7 +47,7 @@ const DASTDashboard: React.FC<DASTDashboardProps> = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await dastService.getDASTDashboard();
+      const data = await dastService.getOverview();
       setDashboardData(data);
     } catch (error) {
       console.error('Error fetching DAST dashboard data:', error);

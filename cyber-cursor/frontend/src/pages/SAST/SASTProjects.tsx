@@ -29,6 +29,7 @@ interface SASTProject {
   language: string;
   repositoryUrl?: string;
   branch: string;
+  linesOfCode?: number;
   lastScan?: {
     id: number;
     status: 'COMPLETED' | 'RUNNING' | 'FAILED' | 'PENDING';
@@ -41,7 +42,28 @@ interface SASTProject {
     medium: number;
     low: number;
   };
+  // Additional Sonar-like counters
+  bugCount: number;
+  vulnerabilityCount: number;
+  codeSmellCount: number;
+  securityHotspotCount: number;
+  coverage: number;
+  duplicationPercent: number;
+  // New Code metrics
+  newCodeCoverage?: number;
+  newBugs?: number;
+  newVulnerabilities?: number;
+  newCodeSmells?: number;
+  newHotspots?: number;
+  // Ratings
+  maintainabilityRating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  securityRating?: 'A' | 'B' | 'C' | 'D' | 'E';
+  reliabilityRating?: 'A' | 'B' | 'C' | 'D' | 'E';
   qualityGate: 'PASSED' | 'FAILED' | 'WARNING' | 'NONE';
+  // Metadata (optional)
+  favorite?: boolean;
+  visibility?: 'public' | 'private';
+  tags?: string[];
   createdBy: string;
   createdAt: string;
 }
@@ -68,8 +90,17 @@ const SASTProjects: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedQualityGate, setSelectedQualityGate] = useState<string>('all');
+  const [selectedReliability, setSelectedReliability] = useState<string>('all');
+  const [selectedSecurity, setSelectedSecurity] = useState<string>('all');
+  const [selectedMaintainability, setSelectedMaintainability] = useState<string>('all');
+  const [minCoverage, setMinCoverage] = useState<string>('');
+  const [maxDuplication, setMaxDuplication] = useState<string>('');
+  const [minHotspots, setMinHotspots] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(12);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(12);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<SASTProject | null>(null);
@@ -88,6 +119,37 @@ const SASTProjects: React.FC = () => {
   const [totalProjects, setTotalProjects] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [updatingProjectId, setUpdatingProjectId] = useState<number | null>(null);
+  const [newTagByProject, setNewTagByProject] = useState<Record<number, string>>({});
+  // New filters/scopes
+  const [selectedVisibility, setSelectedVisibility] = useState<'all' | 'public' | 'private'>('all');
+  const [favoriteOnly, setFavoriteOnly] = useState<boolean>(false);
+  const [selectedTags, setSelectedTags] = useState<string>(''); // comma-separated
+  const [selectedBranch, setSelectedBranch] = useState<string>('all');
+  const [myProjectsOnly, setMyProjectsOnly] = useState<boolean>(false);
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  // New Code (leak period)
+  const [newCodeMode, setNewCodeMode] = useState<'none' | 'prev-version' | 'days' | 'since-date'>('none');
+  const [newCodeDays, setNewCodeDays] = useState<number>(30);
+  const [newCodeSince, setNewCodeSince] = useState<string>('');
+  const [showNewCodeMetrics, setShowNewCodeMetrics] = useState<boolean>(false);
+  // Filtering breadth
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [owner, setOwner] = useState<string>('');
+  const [team, setTeam] = useState<string>('');
+  const [permission, setPermission] = useState<'all' | 'admin' | 'browse' | 'execute'>('all');
+  const [almProvider, setAlmProvider] = useState<'all' | 'github' | 'gitlab' | 'azure' | 'bitbucket' | 'bound' | 'unbound'>('all');
+  const [minLoc, setMinLoc] = useState<string>('');
+  const [maxLoc, setMaxLoc] = useState<string>('');
+  const [tagsMode, setTagsMode] = useState<'any' | 'all'>('any');
+  const [excludeTags, setExcludeTags] = useState<boolean>(false);
+  // Bulk selection
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<number>>(new Set());
+  // Saved views
+  type SavedView = { name: string; state: any };
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [selectedView, setSelectedView] = useState<string>('');
 
   const fetchProjects = async () => {
     try {
@@ -99,7 +161,40 @@ const SASTProjects: React.FC = () => {
 
       if (searchTerm) params.append('search', searchTerm);
       if (selectedLanguage !== 'all') params.append('language', selectedLanguage);
+      if (selectedLanguages.length && !selectedLanguages.includes('all')) params.append('languages', selectedLanguages.join(','));
       if (selectedStatus !== 'all') params.append('status_filter', selectedStatus);
+      if (selectedQualityGate !== 'all') params.append('quality_gate', selectedQualityGate);
+      if (selectedReliability !== 'all') params.append('reliability_rating', selectedReliability);
+      if (selectedSecurity !== 'all') params.append('security_rating', selectedSecurity);
+      if (selectedMaintainability !== 'all') params.append('maintainability_rating', selectedMaintainability);
+      if (minCoverage) params.append('min_coverage', minCoverage);
+      if (maxDuplication) params.append('max_duplication_percent', maxDuplication);
+      if (minHotspots) params.append('min_hotspots', minHotspots);
+      if (selectedVisibility !== 'all') params.append('visibility', selectedVisibility);
+      if (favoriteOnly) params.append('favorite', 'true');
+      if (selectedTags.trim()) params.append('tags', selectedTags.trim());
+      if (tagsMode) params.append('tags_mode', tagsMode);
+      if (excludeTags) params.append('exclude_tags', 'true');
+      if (selectedBranch !== 'all') params.append('branch', selectedBranch);
+      if (owner) params.append('owner', owner);
+      if (team) params.append('team', team);
+      if (permission !== 'all') params.append('permission', permission);
+      if (almProvider !== 'all') params.append('alm_provider', almProvider);
+      if (minLoc) params.append('min_loc', minLoc);
+      if (maxLoc) params.append('max_loc', maxLoc);
+      if (myProjectsOnly) params.append('owner_scope', 'me');
+      if (newCodeMode !== 'none') {
+        params.append('new_code_mode', newCodeMode);
+        if (newCodeMode === 'days') params.append('new_code_days', String(newCodeDays));
+        if (newCodeMode === 'since-date' && newCodeSince) params.append('new_code_since', newCodeSince);
+        if (showNewCodeMetrics) params.append('include_new_code', 'true');
+      }
+      if (dateFrom) params.append('last_analyzed_from', dateFrom);
+      if (dateTo) params.append('last_analyzed_to', dateTo);
+      if (sortBy) {
+        params.append('sort_by', sortBy);
+        params.append('sort_order', sortOrder);
+      }
 
       const response = await fetch(`${API_URL}/api/v1/sast/projects?${params}`, {
         headers: {
@@ -129,6 +224,15 @@ const SASTProjects: React.FC = () => {
           duration: project.last_scan.duration
         } : undefined,
         issues: project.issues || { critical: 0, high: 0, medium: 0, low: 0 },
+        bugCount: project.bug_count || 0,
+        vulnerabilityCount: project.vulnerability_count || 0,
+        codeSmellCount: project.code_smell_count || 0,
+        securityHotspotCount: project.security_hotspot_count || 0,
+        coverage: project.coverage || 0,
+        duplicationPercent: project.duplication_percent || 0,
+        maintainabilityRating: project.maintainability_rating,
+        securityRating: project.security_rating,
+        reliabilityRating: project.reliability_rating,
         qualityGate: project.quality_gate || 'NONE',
         createdBy: project.created_by,
         createdAt: project.created_at
@@ -138,6 +242,39 @@ const SASTProjects: React.FC = () => {
       setTotalProjects(data.total);
       setTotalPages(data.pages);
       setError(null);
+      // Fetch metadata (favorite/visibility/tags) for visible projects in parallel
+      try {
+        const metaResponses = await Promise.all(
+          transformedProjects.map(async (p) => {
+            try {
+              const r = await fetch(`${API_URL}/api/v1/sast/projects/${p.id}/metadata`, {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                }
+              });
+              if (!r.ok) return null;
+              const m = await r.json();
+              return { id: p.id, meta: m } as { id: number; meta: any };
+            } catch {
+              return null;
+            }
+          })
+        );
+        const metaById: Record<number, any> = {};
+        metaResponses.forEach((item) => {
+          if (item && item.meta) metaById[item.id] = item.meta;
+        });
+        if (Object.keys(metaById).length) {
+          setProjects((prev) => prev.map((p) => ({
+            ...p,
+            favorite: metaById[p.id]?.favorite ?? p.favorite,
+            visibility: metaById[p.id]?.visibility ?? p.visibility,
+            tags: metaById[p.id]?.tags ?? p.tags
+          })));
+        }
+      } catch {
+        // ignore metadata fetch errors
+      }
     } catch (error) {
       console.error('Error fetching SAST projects:', error);
       setError('Failed to fetch projects');
@@ -205,9 +342,145 @@ const SASTProjects: React.FC = () => {
     }
   };
 
+  const applyDatePreset = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - days);
+    setDateTo(to.toISOString().slice(0, 10));
+    setDateFrom(from.toISOString().slice(0, 10));
+  };
+
+  const exportProjectsAsCSV = () => {
+    const headers = [
+      'id',
+      'name',
+      'key',
+      'language',
+      'branch',
+      'qualityGate',
+      'bugs',
+      'vulnerabilities',
+      'codeSmells',
+      'hotspots',
+      'coverage',
+      'duplicationPercent',
+      'visibility',
+      'favorite',
+      'tags',
+      'lastScanStatus',
+      'lastScanAt'
+    ];
+    const rows = projects.map((p) => [
+      p.id,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      p.key,
+      p.language,
+      p.branch,
+      p.qualityGate,
+      p.bugCount ?? '',
+      p.vulnerabilityCount ?? '',
+      p.codeSmellCount ?? '',
+      p.securityHotspotCount ?? '',
+      p.coverage ?? '',
+      p.duplicationPercent ?? '',
+      p.visibility ?? '',
+      p.favorite ? 'true' : 'false',
+      (p.tags || []).join('|'),
+      p.lastScan?.status ?? '',
+      p.lastScan?.timestamp ?? ''
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'sast-projects.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleFavorite = async (projectId: number, favorite: boolean) => {
+    try {
+      setUpdatingProjectId(projectId);
+      const resp = await fetch(`${API_URL}/api/v1/sast/projects/${projectId}/favorite`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ favorite })
+      });
+      if (!resp.ok) throw new Error('Failed to update favorite');
+      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, favorite } : p));
+    } catch (e) {
+      console.error(e);
+      setError('Failed to update favorite');
+    } finally {
+      setUpdatingProjectId(null);
+    }
+  };
+
+  const updateVisibility = async (projectId: number, visibility: 'public' | 'private') => {
+    try {
+      setUpdatingProjectId(projectId);
+      const resp = await fetch(`${API_URL}/api/v1/sast/projects/${projectId}/metadata`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ visibility })
+      });
+      if (!resp.ok) throw new Error('Failed to update visibility');
+      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, visibility } : p));
+    } catch (e) {
+      console.error(e);
+      setError('Failed to update visibility');
+    } finally {
+      setUpdatingProjectId(null);
+    }
+  };
+
+  const updateTags = async (projectId: number, tags: string[]) => {
+    try {
+      setUpdatingProjectId(projectId);
+      const resp = await fetch(`${API_URL}/api/v1/sast/projects/${projectId}/metadata`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ tags })
+      });
+      if (!resp.ok) throw new Error('Failed to update tags');
+      setProjects(prev => prev.map(p => p.id === projectId ? { ...p, tags } : p));
+    } catch (e) {
+      console.error(e);
+      setError('Failed to update tags');
+    } finally {
+      setUpdatingProjectId(null);
+    }
+  };
+
+  const addTag = (projectId: number) => {
+    const value = (newTagByProject[projectId] || '').trim();
+    if (!value) return;
+    const current = projects.find(p => p.id === projectId)?.tags || [];
+    if (current.includes(value)) return;
+    updateTags(projectId, [...current, value]);
+    setNewTagByProject(prev => ({ ...prev, [projectId]: '' }));
+  };
+
+  const removeTag = (projectId: number, tag: string) => {
+    const current = projects.find(p => p.id === projectId)?.tags || [];
+    updateTags(projectId, current.filter(t => t !== tag));
+  };
+
   useEffect(() => {
     fetchProjects();
-  }, [currentPage, searchTerm, selectedLanguage, selectedStatus]);
+  }, [currentPage, searchTerm, selectedLanguage, selectedLanguages, selectedStatus, selectedQualityGate, selectedReliability, selectedSecurity, selectedMaintainability, minCoverage, maxDuplication, minHotspots, sortBy, sortOrder, selectedVisibility, favoriteOnly, selectedTags, tagsMode, excludeTags, selectedBranch, owner, team, permission, almProvider, minLoc, maxLoc, myProjectsOnly, newCodeMode, newCodeDays, newCodeSince, showNewCodeMetrics, dateFrom, dateTo, itemsPerPage]);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,6 +656,87 @@ const SASTProjects: React.FC = () => {
   };
 
   const languages = ['all', ...Array.from(new Set(projects.map(p => p.language)))];
+  const branches = ['all', ...Array.from(new Set(projects.map(p => p.branch)))];
+
+  // Bulk selection helpers
+  const toggleSelectProject = (id: number) => {
+    setSelectedProjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedProjectIds(new Set());
+  const selectAllOnPage = () => setSelectedProjectIds(new Set(projects.map(p => p.id)));
+
+  // Saved views helpers
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sastProjectViews');
+      if (raw) setSavedViews(JSON.parse(raw));
+    } catch {}
+  }, []);
+  const persistSavedViews = (views: SavedView[]) => {
+    try { localStorage.setItem('sastProjectViews', JSON.stringify(views)); } catch {}
+  };
+  const collectCurrentViewState = () => ({
+    searchTerm, selectedLanguage, selectedLanguages, selectedStatus, selectedQualityGate,
+    selectedReliability, selectedSecurity, selectedMaintainability, minCoverage, maxDuplication,
+    minHotspots, sortBy, sortOrder, selectedVisibility, favoriteOnly, selectedTags, tagsMode,
+    excludeTags, selectedBranch, owner, team, permission, almProvider, minLoc, maxLoc,
+    myProjectsOnly, newCodeMode, newCodeDays, newCodeSince, showNewCodeMetrics, dateFrom, dateTo, itemsPerPage
+  });
+  const setStateFromView = (s: any) => {
+    setSearchTerm(s.searchTerm ?? '');
+    setSelectedLanguage(s.selectedLanguage ?? 'all');
+    setSelectedLanguages(s.selectedLanguages ?? []);
+    setSelectedStatus(s.selectedStatus ?? 'all');
+    setSelectedQualityGate(s.selectedQualityGate ?? 'all');
+    setSelectedReliability(s.selectedReliability ?? 'all');
+    setSelectedSecurity(s.selectedSecurity ?? 'all');
+    setSelectedMaintainability(s.selectedMaintainability ?? 'all');
+    setMinCoverage(s.minCoverage ?? '');
+    setMaxDuplication(s.maxDuplication ?? '');
+    setMinHotspots(s.minHotspots ?? '');
+    setSortBy(s.sortBy ?? '');
+    setSortOrder(s.sortOrder ?? 'desc');
+    setSelectedVisibility(s.selectedVisibility ?? 'all');
+    setFavoriteOnly(!!s.favoriteOnly);
+    setSelectedTags(s.selectedTags ?? '');
+    setTagsMode(s.tagsMode ?? 'any');
+    setExcludeTags(!!s.excludeTags);
+    setSelectedBranch(s.selectedBranch ?? 'all');
+    setOwner(s.owner ?? '');
+    setTeam(s.team ?? '');
+    setPermission(s.permission ?? 'all');
+    setAlmProvider(s.almProvider ?? 'all');
+    setMinLoc(s.minLoc ?? '');
+    setMaxLoc(s.maxLoc ?? '');
+    setMyProjectsOnly(!!s.myProjectsOnly);
+    setNewCodeMode(s.newCodeMode ?? 'none');
+    setNewCodeDays(s.newCodeDays ?? 30);
+    setNewCodeSince(s.newCodeSince ?? '');
+    setShowNewCodeMetrics(!!s.showNewCodeMetrics);
+    setDateFrom(s.dateFrom ?? '');
+    setDateTo(s.dateTo ?? '');
+    setItemsPerPage(s.itemsPerPage ?? 12);
+  };
+  const saveCurrentView = () => {
+    const name = window.prompt('Save view as:');
+    if (!name) return;
+    const next = [...savedViews.filter(v => v.name !== name), { name, state: collectCurrentViewState() }];
+    setSavedViews(next); persistSavedViews(next); setSelectedView(name);
+  };
+  const applyViewByName = (name: string) => {
+    setSelectedView(name);
+    const v = savedViews.find(x => x.name === name);
+    if (v) { setStateFromView(v.state); setCurrentPage(1); }
+  };
+  const deleteViewByName = (name: string) => {
+    const next = savedViews.filter(v => v.name !== name);
+    setSavedViews(next); persistSavedViews(next);
+    if (selectedView === name) setSelectedView('');
+  };
 
   if (loading) {
     return (
@@ -400,13 +754,38 @@ const SASTProjects: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">SAST Projects</h1>
           <p className="text-gray-600">Manage and monitor your static application security testing projects</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <PlusIcon className="w-4 h-4 mr-2" />
-          Create Project
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedView}
+              onChange={(e) => applyViewByName(e.target.value)}
+              className="px-3 py-2 border border-gray-300 text-sm rounded-md"
+              title="Saved views"
+            >
+              <option value="">Views</option>
+              {savedViews.map(v => (
+                <option key={v.name} value={v.name}>{v.name}</option>
+              ))}
+            </select>
+            <button onClick={saveCurrentView} className="px-3 py-2 border border-gray-300 text-sm rounded-md bg-white">Save View</button>
+            {selectedView && (
+              <button onClick={() => deleteViewByName(selectedView)} className="px-3 py-2 border border-gray-300 text-sm rounded-md bg-white">Delete View</button>
+            )}
+          </div>
+          <button
+            onClick={exportProjectsAsCSV}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <PlusIcon className="w-4 h-4 mr-2" />
+            Create Project
+          </button>
+        </div>
       </div>
 
       {/* Error Alert */}
@@ -437,7 +816,7 @@ const SASTProjects: React.FC = () => {
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
@@ -446,6 +825,28 @@ const SASTProjects: React.FC = () => {
               {languages.map(lang => (
                 <option key={lang} value={lang}>
                   {lang === 'all' ? 'All Languages' : lang}
+                </option>
+              ))}
+            </select>
+            <select
+              multiple
+              value={selectedLanguages}
+              onChange={(e) => setSelectedLanguages(Array.from(e.target.selectedOptions).map(o => o.value))}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-w-[10rem]"
+              title="Languages (multi-select)"
+            >
+              {languages.map(lang => (
+                <option key={`multi-${lang}`} value={lang}>{lang}</option>
+              ))}
+            </select>
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              {branches.map(b => (
+                <option key={b} value={b}>
+                  {b === 'all' ? 'All Branches' : b}
                 </option>
               ))}
             </select>
@@ -459,6 +860,256 @@ const SASTProjects: React.FC = () => {
               <option value="completed">Completed</option>
               <option value="failed">Failed</option>
             </select>
+            <select
+              value={selectedQualityGate}
+              onChange={(e) => setSelectedQualityGate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Gates</option>
+              <option value="PASSED">Passed</option>
+              <option value="FAILED">Failed</option>
+              <option value="WARNING">Warning</option>
+            </select>
+            <select
+              value={selectedVisibility}
+              onChange={(e) => setSelectedVisibility(e.target.value as 'all'|'public'|'private')}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Visibility</option>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+            <select
+              value={permission}
+              onChange={(e) => setPermission(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="Permission"
+            >
+              <option value="all">Any Permission</option>
+              <option value="admin">Admin</option>
+              <option value="browse">Browse</option>
+              <option value="execute">Execute Analysis</option>
+            </select>
+            <select
+              value={almProvider}
+              onChange={(e) => setAlmProvider(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="ALM Provider"
+            >
+              <option value="all">All Providers</option>
+              <option value="github">GitHub</option>
+              <option value="gitlab">GitLab</option>
+              <option value="azure">Azure DevOps</option>
+              <option value="bitbucket">Bitbucket</option>
+              <option value="bound">Bound</option>
+              <option value="unbound">Unbound</option>
+            </select>
+            <select
+              value={selectedReliability}
+              onChange={(e) => setSelectedReliability(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">Reliability A–E</option>
+              {['A','B','C','D','E'].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select
+              value={selectedSecurity}
+              onChange={(e) => setSelectedSecurity(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">Security A–E</option>
+              {['A','B','C','D','E'].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select
+              value={selectedMaintainability}
+              onChange={(e) => setSelectedMaintainability(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">Maintainability A–E</option>
+              {['A','B','C','D','E'].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <input
+              type="text"
+              placeholder="Tags (comma-separated)"
+              value={selectedTags}
+              onChange={(e) => setSelectedTags(e.target.value)}
+              className="w-48 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <select
+              value={tagsMode}
+              onChange={(e) => setTagsMode(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="Tag match mode"
+            >
+              <option value="any">Tags match any</option>
+              <option value="all">Tags match all</option>
+            </select>
+            <label className="inline-flex items-center gap-2 px-2 py-2 border border-gray-300 rounded-md">
+              <input type="checkbox" checked={excludeTags} onChange={(e) => setExcludeTags(e.target.checked)} />
+              <span className="text-sm text-gray-700">Exclude tags</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              placeholder="Min Coverage %"
+              value={minCoverage}
+              onChange={(e) => setMinCoverage(e.target.value)}
+              className="w-36 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="number"
+              min={0}
+              max={100}
+              placeholder="Max Duplication %"
+              value={maxDuplication}
+              onChange={(e) => setMaxDuplication(e.target.value)}
+              className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="number"
+              min={0}
+              placeholder="Min Hotspots"
+              value={minHotspots}
+              onChange={(e) => setMinHotspots(e.target.value)}
+              className="w-36 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="number"
+              min={0}
+              placeholder="Min LOC"
+              value={minLoc}
+              onChange={(e) => setMinLoc(e.target.value)}
+              className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="number"
+              min={0}
+              placeholder="Max LOC"
+              value={maxLoc}
+              onChange={(e) => setMaxLoc(e.target.value)}
+              className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="Last analysis from"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="Last analysis to"
+            />
+            <div className="flex items-center gap-1">
+              <button onClick={() => applyDatePreset(7)} className="px-2 py-1 text-xs border rounded">Last 7</button>
+              <button onClick={() => applyDatePreset(30)} className="px-2 py-1 text-xs border rounded">30</button>
+              <button onClick={() => applyDatePreset(90)} className="px-2 py-1 text-xs border rounded">90</button>
+            </div>
+            <select
+              value={newCodeMode}
+              onChange={(e) => setNewCodeMode(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="New Code period"
+            >
+              <option value="none">No New Code period</option>
+              <option value="prev-version">Previous Version</option>
+              <option value="days">Last X days</option>
+              <option value="since-date">Since date</option>
+            </select>
+            {newCodeMode === 'days' && (
+              <input
+                type="number"
+                min={1}
+                value={newCodeDays}
+                onChange={(e) => setNewCodeDays(Number(e.target.value))}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Days"
+              />
+            )}
+            {newCodeMode === 'since-date' && (
+              <input
+                type="date"
+                value={newCodeSince}
+                onChange={(e) => setNewCodeSince(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+            )}
+            <label className="inline-flex items-center gap-2 px-2 py-2 border border-gray-300 rounded-md">
+              <input
+                type="checkbox"
+                checked={showNewCodeMetrics}
+                onChange={(e) => setShowNewCodeMetrics(e.target.checked)}
+              />
+              <span className="text-sm text-gray-700">Show New Code</span>
+            </label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Sort By</option>
+              <option value="name">Name</option>
+              <option value="key">Key</option>
+              <option value="last_analysis">Last Analysis</option>
+              <option value="analysis_recency">Activity Trend</option>
+              <option value="quality_gate">Quality Gate</option>
+              <option value="coverage">Coverage</option>
+              <option value="duplication_percent">Duplication %</option>
+              <option value="lines_of_code">Lines of Code</option>
+              <option value="bug_count">Bugs</option>
+              <option value="vulnerability_count">Vulnerabilities</option>
+              <option value="code_smell_count">Code Smells</option>
+              <option value="security_hotspot_count">Security Hotspots</option>
+              <option value="new_code_coverage">New Code Coverage</option>
+              <option value="new_code_bugs">New Code Bugs</option>
+              <option value="new_code_vulnerabilities">New Code Vulnerabilities</option>
+              <option value="new_code_smells">New Code Smells</option>
+              <option value="new_code_hotspots">New Code Hotspots</option>
+              <option value="created_at">Created</option>
+              <option value="updated_at">Updated</option>
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="desc">Desc</option>
+              <option value="asc">Asc</option>
+            </select>
+            <label className="inline-flex items-center gap-2 px-2 py-2 border border-gray-300 rounded-md">
+              <input
+                type="checkbox"
+                checked={favoriteOnly}
+                onChange={(e) => setFavoriteOnly(e.target.checked)}
+              />
+              <span className="text-sm text-gray-700">Favorites</span>
+            </label>
+            <label className="inline-flex items-center gap-2 px-2 py-2 border border-gray-300 rounded-md">
+              <input
+                type="checkbox"
+                checked={myProjectsOnly}
+                onChange={(e) => setMyProjectsOnly(e.target.checked)}
+              />
+              <span className="text-sm text-gray-700">My projects</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Owner (id/email)"
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+              className="w-48 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Team"
+              value={team}
+              onChange={(e) => setTeam(e.target.value)}
+              className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
             <div className="flex border border-gray-300 rounded-md">
               <button
                 onClick={() => setViewMode('cards')}
@@ -481,6 +1132,16 @@ const SASTProjects: React.FC = () => {
                 List
               </button>
             </div>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              title="Items per page"
+            >
+              {[12, 24, 50, 100].map(n => (
+                <option key={n} value={n}>{n} / page</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -495,6 +1156,15 @@ const SASTProjects: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
             >
+              <div className="flex items-center justify-between mb-2">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={selectedProjectIds.has(project.id)} onChange={() => toggleSelectProject(project.id)} />
+                  Select
+                </label>
+                {typeof project.linesOfCode === 'number' && (
+                  <span className="text-xs text-gray-500">LOC: {project.linesOfCode}</span>
+                )}
+              </div>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">{project.name}</h3>
@@ -505,6 +1175,26 @@ const SASTProjects: React.FC = () => {
                       {project.qualityGate}
                     </span>
                   </div>
+                </div>
+                <div className="ml-3 flex items-center gap-2">
+                  <button
+                    title={project.favorite ? 'Unstar' : 'Star'}
+                    onClick={() => toggleFavorite(project.id, !project.favorite)}
+                    className={`text-sm ${project.favorite ? 'text-yellow-500' : 'text-gray-400'} hover:text-yellow-500`}
+                    disabled={updatingProjectId === project.id}
+                  >
+                    ★
+                  </button>
+                  <select
+                    title="Visibility"
+                    value={project.visibility || 'private'}
+                    onChange={(e) => updateVisibility(project.id, e.target.value as 'public' | 'private')}
+                    className="text-xs border border-gray-300 rounded px-1 py-0.5"
+                    disabled={updatingProjectId === project.id}
+                  >
+                    <option value="public">public</option>
+                    <option value="private">private</option>
+                  </select>
                 </div>
               </div>
 
@@ -545,6 +1235,85 @@ const SASTProjects: React.FC = () => {
                     <div className={`font-bold ${getSeverityColor('low')}`}>{project.issues.low}</div>
                     <div className="text-gray-500">Low</div>
                   </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs mt-3">
+                  <div className="text-center">
+                    <div className="font-bold text-gray-800">{project.bugCount}</div>
+                    <div className="text-gray-500">Bugs</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-gray-800">{project.vulnerabilityCount}</div>
+                    <div className="text-gray-500">Vulnerabilities</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-gray-800">{project.codeSmellCount}</div>
+                    <div className="text-gray-500">Code Smells</div>
+                  </div>
+                </div>
+                {showNewCodeMetrics && (
+                  <div className="grid grid-cols-5 gap-2 text-[10px] mt-3">
+                    <div className="text-center">
+                      <div className="font-bold text-gray-800">{project.newBugs ?? '-'}</div>
+                      <div className="text-gray-500">NC Bugs</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-gray-800">{project.newVulnerabilities ?? '-'}</div>
+                      <div className="text-gray-500">NC Vulns</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-gray-800">{project.newCodeSmells ?? '-'}</div>
+                      <div className="text-gray-500">NC Smells</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-gray-800">{project.newHotspots ?? '-'}</div>
+                      <div className="text-gray-500">NC Hotspots</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-gray-800">{typeof project.newCodeCoverage === 'number' ? `${project.newCodeCoverage}%` : '-'}</div>
+                      <div className="text-gray-500">NC Cov</div>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2 text-xs mt-3">
+                  <div className="text-center">
+                    <div className="font-bold text-gray-800">{project.securityHotspotCount}</div>
+                    <div className="text-gray-500">Hotspots</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-gray-800">{project.coverage}%</div>
+                    <div className="text-gray-500">Coverage</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-gray-800">{project.duplicationPercent}%</div>
+                    <div className="text-gray-500">Duplication</div>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1 items-center">
+                  {(project.tags || []).map((t, idx) => (
+                    <span key={`${t}-${idx}`} className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded inline-flex items-center gap-1">
+                      #{t}
+                      <button
+                        className="text-gray-400 hover:text-red-500"
+                        title="Remove tag"
+                        onClick={() => removeTag(project.id, t)}
+                        disabled={updatingProjectId === project.id}
+                      >×</button>
+                    </span>
+                  ))}
+                  <input
+                    value={newTagByProject[project.id] || ''}
+                    onChange={(e) => setNewTagByProject(prev => ({ ...prev, [project.id]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(project.id); } }}
+                    placeholder="Add tag"
+                    className="text-[10px] px-2 py-1 border border-gray-300 rounded"
+                    disabled={updatingProjectId === project.id}
+                    style={{ minWidth: '80px' }}
+                  />
+                  <button
+                    className="text-[10px] px-2 py-1 bg-gray-800 text-white rounded"
+                    onClick={() => addTag(project.id)}
+                    disabled={updatingProjectId === project.id}
+                  >Add</button>
                 </div>
               </div>
 
@@ -598,10 +1367,13 @@ const SASTProjects: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3"></th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Language</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Scan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metrics</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Code</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quality Gate</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -609,6 +1381,9 @@ const SASTProjects: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {projects.map((project) => (
                 <tr key={project.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <input type="checkbox" checked={selectedProjectIds.has(project.id)} onChange={() => toggleSelectProject(project.id)} />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">{project.name}</div>
@@ -642,9 +1417,55 @@ const SASTProjects: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getQualityGateColor(project.qualityGate)}`}>
-                      {project.qualityGate}
-                    </span>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.bugCount} Bugs</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.vulnerabilityCount} Vulns</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.codeSmellCount} Smells</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.securityHotspotCount} Hotspots</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.coverage}% Cov</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.duplicationPercent}% Dup</span>
+                      {typeof project.linesOfCode === 'number' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.linesOfCode} LOC</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {showNewCodeMetrics ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.newBugs ?? '-'} NC Bugs</span>
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.newVulnerabilities ?? '-'} NC Vulns</span>
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.newCodeSmells ?? '-'} NC Smells</span>
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{project.newHotspots ?? '-'} NC Hotspots</span>
+                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800">{typeof project.newCodeCoverage === 'number' ? `${project.newCodeCoverage}%` : '-'} NC Cov</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getQualityGateColor(project.qualityGate)}`}>
+                        {project.qualityGate}
+                      </span>
+                      <button
+                        title={project.favorite ? 'Unstar' : 'Star'}
+                        onClick={() => toggleFavorite(project.id, !project.favorite)}
+                        className={`text-sm ${project.favorite ? 'text-yellow-500' : 'text-gray-400'} hover:text-yellow-500`}
+                        disabled={updatingProjectId === project.id}
+                      >
+                        ★
+                      </button>
+                      <select
+                        title="Visibility"
+                        value={project.visibility || 'private'}
+                        onChange={(e) => updateVisibility(project.id, e.target.value as 'public' | 'private')}
+                        className="text-xs border border-gray-300 rounded px-1 py-0.5"
+                        disabled={updatingProjectId === project.id}
+                      >
+                        <option value="public">public</option>
+                        <option value="private">private</option>
+                      </select>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                          <div className="flex space-x-2">
@@ -673,6 +1494,42 @@ const SASTProjects: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {selectedProjectIds.size > 0 && (
+            <div className="p-3 border-t flex items-center justify-between bg-gray-50">
+              <div className="text-sm text-gray-700">Selected: {selectedProjectIds.size}</div>
+              <div className="flex items-center gap-2">
+                <button onClick={selectAllOnPage} className="px-2 py-1 text-xs border rounded">Select all on page</button>
+                <button onClick={clearSelection} className="px-2 py-1 text-xs border rounded">Clear</button>
+                <button onClick={async () => { await Promise.all(Array.from(selectedProjectIds).map(id => toggleFavorite(id, true))); clearSelection(); fetchProjects(); }} className="px-2 py-1 text-xs border rounded">Star</button>
+                <button onClick={async () => { await Promise.all(Array.from(selectedProjectIds).map(id => toggleFavorite(id, false))); clearSelection(); fetchProjects(); }} className="px-2 py-1 text-xs border rounded">Unstar</button>
+                <button onClick={async () => { await Promise.all(Array.from(selectedProjectIds).map(id => updateVisibility(id, 'public'))); clearSelection(); fetchProjects(); }} className="px-2 py-1 text-xs border rounded">Set Public</button>
+                <button onClick={async () => { await Promise.all(Array.from(selectedProjectIds).map(id => updateVisibility(id, 'private'))); clearSelection(); fetchProjects(); }} className="px-2 py-1 text-xs border rounded">Set Private</button>
+                <button onClick={async () => {
+                  const tag = window.prompt('Add tag to selected:');
+                  if (!tag) return;
+                  await Promise.all(Array.from(selectedProjectIds).map(async (id) => {
+                    const current = projects.find(p => p.id === id)?.tags || [];
+                    if (!current.includes(tag)) await updateTags(id, [...current, tag]);
+                  }));
+                  clearSelection(); fetchProjects();
+                }} className="px-2 py-1 text-xs border rounded">Add Tag</button>
+                <button onClick={async () => {
+                  const tag = window.prompt('Remove tag from selected:');
+                  if (!tag) return;
+                  await Promise.all(Array.from(selectedProjectIds).map(async (id) => {
+                    const current = projects.find(p => p.id === id)?.tags || [];
+                    if (current.includes(tag)) await updateTags(id, current.filter(t => t !== tag));
+                  }));
+                  clearSelection(); fetchProjects();
+                }} className="px-2 py-1 text-xs border rounded">Remove Tag</button>
+                <button onClick={async () => {
+                  if (!window.confirm('Delete selected projects?')) return;
+                  await Promise.all(Array.from(selectedProjectIds).map(id => handleDeleteProject(id)));
+                  clearSelection(); fetchProjects();
+                }} className="px-2 py-1 text-xs border rounded text-red-600">Delete</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

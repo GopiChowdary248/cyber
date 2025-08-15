@@ -102,6 +102,8 @@ class SASTProjectResponse(BaseModel):
     security_hotspot_count: int = 0
     lines_of_code: int = 0
     coverage: float = 0.0
+    # Computed field on response (not stored): percent of duplicated lines over LOC
+    duplication_percent: float = 0.0
     technical_debt: int = 0
     created_by: str
     created_at: Optional[datetime] = None

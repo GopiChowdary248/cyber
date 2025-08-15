@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ShieldCheckIcon,
@@ -68,6 +69,7 @@ interface DuplicateProjectData {
 }
 
 const DASTProjects: React.FC = () => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<DASTProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('cards');
@@ -487,6 +489,12 @@ const DASTProjects: React.FC = () => {
                           <PlayIcon className="w-3 h-3 mr-1" />
                           {project.lastScan?.status === 'RUNNING' ? 'Scanning...' : 'Start Scan'}
                         </button>
+                          <button
+                            onClick={() => navigate(`/dast/projects/${project.id}`)}
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                          >
+                            Open Tools
+                          </button>
                         <button
                           onClick={() => {
                             setSelectedProject(project);
@@ -599,6 +607,12 @@ const DASTProjects: React.FC = () => {
                               className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
                             >
                               {project.lastScan?.status === 'RUNNING' ? 'Scanning...' : 'Scan'}
+                            </button>
+                            <button
+                              onClick={() => navigate(`/dast/projects/${project.id}`)}
+                              className="text-gray-600 hover:text-gray-900"
+                            >
+                              Open
                             </button>
                             <button
                               onClick={() => {

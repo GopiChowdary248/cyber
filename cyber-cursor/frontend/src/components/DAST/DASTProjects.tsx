@@ -34,8 +34,8 @@ const DASTProjects: React.FC<DASTProjectsProps> = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await dastService.getDASTProjects();
-      setProjects(response.projects || []);
+      const response = await dastService.getProjects();
+      setProjects((response as any)?.projects || response || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
       setError('Failed to load projects. Please try again later.');
@@ -55,7 +55,7 @@ const DASTProjects: React.FC<DASTProjectsProps> = () => {
 
   const handleCreateProject = async () => {
     try {
-      await dastService.createDASTProject(formData);
+      await dastService.createProject(formData);
       setShowCreateForm(false);
       setFormData({ 
         name: '', 
@@ -75,7 +75,7 @@ const DASTProjects: React.FC<DASTProjectsProps> = () => {
     if (!confirm('Are you sure you want to delete this project?')) return;
 
     try {
-      await dastService.deleteDASTProject(projectId);
+      await dastService.deleteProject(String(projectId));
       fetchProjects();
     } catch (error) {
       console.error('Error deleting project:', error);

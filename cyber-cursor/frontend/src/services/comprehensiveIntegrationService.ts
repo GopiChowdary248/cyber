@@ -70,7 +70,7 @@ export const API_ENDPOINTS = {
     SCAN: (id: string) => `/api/v1/dast/scans/${id}`,
     VULNERABILITIES: '/api/v1/dast/vulnerabilities',
     PAYLOADS: '/api/v1/dast/payloads',
-    REPORTS: (id: string) => `/api/v1/dast/reports/${id}`,
+    REPORTS: (scanId: string) => `/api/v1/dast/reports/${scanId}`,
     WEBHOOK: '/api/v1/dast/webhook'
   },
   RASP: {

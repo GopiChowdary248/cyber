@@ -166,7 +166,8 @@ class DASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.get(endpoint as string)
       );
-      return response;
+      // Backend returns { scans: [...] }
+      return (response as any)?.scans || response;
     } catch (error) {
       console.error('Failed to fetch DAST scans:', error);
       throw error;
@@ -307,6 +308,7 @@ class DASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.get(endpoint)
       );
+      // Backend generate endpoint is /reports/{scan_id}; list may differ; pass-through for now
       return response;
     } catch (error) {
       console.error('Failed to fetch DAST reports:', error);
@@ -317,10 +319,10 @@ class DASTService {
   /**
    * Generate DAST report
    */
-  async generateReport(scanId: string, format: 'pdf' | 'html' | 'json' = 'pdf'): Promise<DASTReport> {
+  async generateReport(scanId: string, format: 'pdf' | 'html' | 'json' = 'json'): Promise<DASTReport> {
     try {
       const response = await apiCallWithRetry(() => 
-        serviceRegistry.post(`${API_ENDPOINTS.DAST.SCAN(scanId)}/report`, { format })
+        serviceRegistry.get(API_ENDPOINTS.DAST.REPORTS(scanId), { params: { format } })
       );
       return response;
     } catch (error) {

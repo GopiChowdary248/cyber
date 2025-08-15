@@ -215,14 +215,29 @@ const QualityRules: React.FC<QualityRulesProps> = ({ projectId }) => {
         return;
       }
 
+      // Determine the toggled state and the correct rule key (rule_id)
+      const targetRule = rules.find(r => r.id === ruleId);
+      if (!targetRule) return;
+      const nextEnabled = !targetRule.enabled;
+
       // Update local state immediately for better UX
       setRules(prev => prev.map(rule =>
-        rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule
+        rule.id === ruleId ? { ...rule, enabled: nextEnabled } : rule
       ));
 
-      // In a real implementation, you would call the backend to update the rule status
-      // For now, we'll just update the local state
-      console.log(`Rule ${ruleId} ${rules.find(r => r.id === ruleId)?.enabled ? 'disabled' : 'enabled'}`);
+      // Persist to backend using rule.rule_id (not numeric id)
+      const response = await fetch(`${API_BASE_URL}/api/v1/sast/rules/${targetRule.rule_id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ enabled: nextEnabled })
+      });
+      if (!response.ok) {
+        // Non-fatal: keep optimistic UI but surface error
+        console.warn('Backend did not accept rule toggle, status:', response.status);
+      }
     } catch (error) {
       console.error('Error updating rule status:', error);
       setError('Failed to update rule status');

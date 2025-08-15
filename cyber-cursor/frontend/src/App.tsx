@@ -19,6 +19,7 @@ import SIEMSOAR from './pages/SIEMSOAR/SIEMSOAR';
 import SAST from './pages/SAST/SAST';
 import SASTIssues from './pages/SAST/SASTIssues';
 import SASTScanResults from './pages/SAST/SASTScanResults';
+import SASTRuleProfiles from './pages/SAST/SASTRuleProfiles';
 import Projects from './pages/Projects/Projects';
 import Login from './pages/Login/Login';
 import Register from './pages/Auth/Register';
@@ -28,6 +29,7 @@ import UserDashboard from './pages/User/UserDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import SASTProjectDetails from './pages/SAST/SASTProjectDetails';
 import DAST from './pages/DAST/DAST';
+import DASTProjectTools from './pages/DAST/DASTProjectTools';
 import QualityManagement from './pages/SAST/QualityManagement';
 import RASP from './pages/RASP/RASP';
 
@@ -234,6 +236,21 @@ const AppContent: React.FC = () => {
               } 
             />
             <Route
+              path="/dast/projects/:projectId"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DASTProjectTools />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/application-security/rasp"
               element={
                 <ProtectedRoute>
@@ -395,6 +412,21 @@ const AppContent: React.FC = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <SASTProjectDetails />
+                  </motion.div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sast/rule-profiles"
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SASTRuleProfiles />
                   </motion.div>
                 </ProtectedRoute>
               }

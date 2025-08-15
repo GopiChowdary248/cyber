@@ -95,12 +95,12 @@ const DAST: React.FC = () => {
             active: 28,
             custom: 15
           },
-          recentScans: scans.slice(0, 5).map(scan => ({
-            id: scan.id.toString(),
-            projectName: `Project ${scan.project_id}`,
+          recentScans: (scans || []).slice(0, 5).map((scan: any) => ({
+            id: String(scan.id),
+            projectName: scan.project_name || `Project ${scan.project_id}`,
             status: scan.status,
-            vulnerabilities: scan.findings_count || 0,
-            duration: '2m 30s', // Can be calculated from timestamps
+            vulnerabilities: scan.vulnerabilities_found || scan.findings_count || 0,
+            duration: scan.duration || '—',
             timestamp: scan.started_at
           }))
         };

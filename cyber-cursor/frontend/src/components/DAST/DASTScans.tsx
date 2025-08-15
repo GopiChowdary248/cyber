@@ -27,8 +27,8 @@ const DASTScans: React.FC<DASTScansProps> = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await dastService.getDASTScans();
-      setScans(response.scans || []);
+      const response = await dastService.getScans();
+      setScans((response as any)?.scans || response || []);
     } catch (error) {
       console.error('Error fetching scans:', error);
       setError('Failed to load scans. Please try again later.');
@@ -48,7 +48,7 @@ const DASTScans: React.FC<DASTScansProps> = () => {
 
   const handleStartScan = async (scanId: number) => {
     try {
-      await dastService.startDASTScan(scanId);
+      await dastService.startScan(String(scanId), { scan_type: 'full', max_duration: 600, threads: 4 });
       fetchScans();
     } catch (error) {
       console.error('Error starting scan:', error);
@@ -58,7 +58,7 @@ const DASTScans: React.FC<DASTScansProps> = () => {
 
   const handleStopScan = async (scanId: number) => {
     try {
-      await dastService.stopDASTScan(scanId);
+      await dastService.stopScan(String(scanId));
       fetchScans();
     } catch (error) {
       console.error('Error stopping scan:', error);
