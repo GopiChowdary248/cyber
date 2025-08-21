@@ -1,0 +1,407 @@
+{
+  "info": {
+    "name": "CyberShield CSPM API Collection",
+    "description": "Complete API collection for testing Cloud Security Posture Management endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "asset_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "policy_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin@cybershield.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assets & Relationships",
+      "item": [
+        {
+          "name": "Get All Assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/assets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "assets"]
+            }
+          }
+        },
+        {
+          "name": "Get Asset Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/assets/{{asset_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "assets", "{{asset_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Asset Relationship",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"child_asset_id\": \"{{asset_id}}\",\n  \"relationship_type\": \"contains\",\n  \"metadata\": {\n    \"description\": \"EC2 instance contains security group\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/assets/{{asset_id}}/relationships",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "assets", "{{asset_id}}", "relationships"]
+            }
+          }
+        },
+        {
+          "name": "Get Asset Relationships",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/assets/{{asset_id}}/relationships",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "assets", "{{asset_id}}", "relationships"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Policies & Evaluation",
+      "item": [
+        {
+          "name": "Get All Policies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/policies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "policies"]
+            }
+          }
+        },
+        {
+          "name": "Evaluate Policy on Asset",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/policies/{{policy_id}}/evaluate?asset_id={{asset_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "policies", "{{policy_id}}", "evaluate"],
+              "query": [
+                {
+                  "key": "asset_id",
+                  "value": "{{asset_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Policy Evaluation Results",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/policies/{{policy_id}}/evaluation-results",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "policies", "{{policy_id}}", "evaluation-results"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Compliance",
+      "item": [
+        {
+          "name": "Get Compliance Frameworks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/compliance/frameworks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "compliance", "frameworks"]
+            }
+          }
+        },
+        {
+          "name": "Create Compliance Control",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"framework_id\": \"{{framework_id}}\",\n  \"control_id\": \"CIS.1.1\",\n  \"title\": \"Ensure no root account access key exists\",\n  \"description\": \"Root account access keys should not exist\",\n  \"category\": \"Identity and Access Management\",\n  \"requirements\": [],\n  \"policy_mappings\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/compliance/controls",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "compliance", "controls"]
+            }
+          }
+        },
+        {
+          "name": "Get Framework Controls",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/compliance/frameworks/{{framework_id}}/controls",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "compliance", "frameworks", "{{framework_id}}", "controls"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scan Templates",
+      "item": [
+        {
+          "name": "Create Scan Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"name\": \"Daily Security Scan\",\n  \"description\": \"Comprehensive daily security scan\",\n  \"scan_config\": {\n    \"services\": [\"ec2\", \"s3\", \"iam\"],\n    \"scan_depth\": \"comprehensive\",\n    \"timeout_minutes\": 60\n  },\n  \"schedule\": \"0 2 * * *\",\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/scan-templates",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "scan-templates"]
+            }
+          }
+        },
+        {
+          "name": "Get Scan Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/scan-templates?project_id={{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "scan-templates"],
+              "query": [
+                {
+                  "key": "project_id",
+                  "value": "{{project_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Remediation",
+      "item": [
+        {
+          "name": "Create Remediation Playbook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"S3 Bucket Security Fix\",\n  \"description\": \"Fix public S3 bucket access\",\n  \"category\": \"aws\",\n  \"steps\": [\n    {\n      \"action\": \"update_bucket_policy\",\n      \"description\": \"Update bucket policy to deny public access\",\n      \"parameters\": {\n        \"effect\": \"Deny\",\n        \"principal\": \"*\",\n        \"action\": \"s3:GetObject\"\n      }\n    }\n  ],\n  \"estimated_time\": 15,\n  \"risk_level\": \"medium\",\n  \"auto_approval\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/remediation/playbooks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "remediation", "playbooks"]
+            }
+          }
+        },
+        {
+          "name": "Get Remediation Playbooks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/remediation/playbooks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "remediation", "playbooks"]
+            }
+          }
+        },
+        {
+          "name": "Execute Remediation Playbook",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/remediation/playbooks/{{playbook_id}}/execute?finding_id={{finding_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "remediation", "playbooks", "{{playbook_id}}", "execute"],
+              "query": [
+                {
+                  "key": "finding_id",
+                  "value": "{{finding_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Risk Assessment",
+      "item": [
+        {
+          "name": "Create Risk Assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"overall_score\": 75.5,\n  \"factors\": {\n    \"public_exposure\": 80,\n    \"outdated_software\": 70,\n    \"missing_patches\": 65\n  },\n  \"recommendations\": [\n    {\n      \"action\": \"restrict_access\",\n      \"description\": \"Restrict public access to internal resources\",\n      \"priority\": \"high\"\n    },\n    {\n      \"action\": \"update_software\",\n      \"description\": \"Update to latest software versions\",\n      \"priority\": \"medium\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/assets/{{asset_id}}/risk-assessment",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "assets", "{{asset_id}}", "risk-assessment"]
+            }
+          }
+        },
+        {
+          "name": "Get Asset Risk Assessments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/assets/{{asset_id}}/risk-assessments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "assets", "{{asset_id}}", "risk-assessments"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Integrations",
+      "item": [
+        {
+          "name": "Create Integration Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"webhook_url\": \"https://webhook.site/your-unique-url\",\n  \"secret_key\": \"your-secret-key\",\n  \"events\": [\"finding.created\", \"finding.updated\", \"asset.risk_changed\"],\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/integrations/{{integration_id}}/webhooks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "integrations", "{{integration_id}}", "webhooks"]
+            }
+          }
+        },
+        {
+          "name": "Test Webhook",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cspm/integrations/{{integration_id}}/webhooks/{{webhook_id}}/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cspm", "integrations", "{{integration_id}}", "webhooks", "{{webhook_id}}", "test"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

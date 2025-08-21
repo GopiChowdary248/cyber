@@ -406,7 +406,7 @@ async def validate_password_strength(
             }
         }
     except Exception as e:
-        logger.error("Failed to validate password strength", error=str(e))
+        logger.error(f"Failed to validate password strength: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to validate password strength") 
 
 @router.get("/summary")

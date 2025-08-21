@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.database import Base
 from app.models.sast import *  # Import all SAST models
+from app.models.rasp import *  # Import all RASP models
 from app.models.user import User
 from app.core.config import settings
 

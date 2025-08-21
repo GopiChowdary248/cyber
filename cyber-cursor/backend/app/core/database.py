@@ -1,33 +1,26 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import MetaData, text
-import structlog
-import os
+"""
+Database configuration and session management
+"""
 
+import os
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import MetaData, text
 from app.core.config import settings
 
-logger = structlog.get_logger()
-
 # Get database URL from environment or use default
-DATABASE_URL = os.getenv("DATABASE_URL", settings.database.DATABASE_URL)
+DATABASE_URL = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
 # Create async engine with proper database configuration
 engine = create_async_engine(
     DATABASE_URL,
-    echo=settings.api.DEBUG,
+    echo=settings.DEBUG,
     pool_pre_ping=True,
     pool_recycle=300,
-    pool_size=settings.database.DB_POOL_SIZE,
-    max_overflow=settings.database.DB_MAX_OVERFLOW,
-    pool_timeout=settings.database.DB_POOL_TIMEOUT,
-    # Database specific optimizations
-    connect_args={
-        "server_settings": {
-            "application_name": "cybershield",
-            "timezone": "UTC",
-        }
-    } if "postgresql" in DATABASE_URL else {}
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
 )
 
 # Create async session factory
@@ -50,7 +43,6 @@ async def get_db() -> AsyncSession:
         try:
             yield session
         except Exception as e:
-            logger.error("Database session error", error=str(e))
             await session.rollback()
             raise
         finally:
@@ -62,47 +54,25 @@ async def init_db():
         async with engine.begin() as conn:
             # Create all tables with checkfirst=True to avoid conflicts
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
-        logger.info("Database initialized successfully")
+        print("Database initialized successfully")
     except Exception as e:
-        logger.error("Database initialization failed", error=str(e))
+        print(f"Database initialization failed: {e}")
         # Continue even if there are table creation errors
-        logger.warning("Continuing with existing database schema")
+        print("Continuing with existing database schema")
 
 async def close_db():
     """Close database connections"""
     await engine.dispose()
-    logger.info("Database connections closed")
+    print("Database connections closed")
 
-def check_db_connection():
-    """Check if database connection is working (synchronous version for testing)"""
+def create_tables():
+    """Create database tables (synchronous version for scripts)"""
     try:
-        import asyncio
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
-        async def test_connection():
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute(text("SELECT 1"))
-                return True
-            except Exception as e:
-                logger.error(f"Database connection test failed: {e}")
-                return False
-        
-        result = loop.run_until_complete(test_connection())
+        loop.run_until_complete(init_db())
         loop.close()
-        return result
+        return True
     except Exception as e:
-        logger.error(f"Database connection check failed: {e}")
-        return False
-
-# Helper function to ensure proper async database operations
-async def execute_query(session: AsyncSession, query, **kwargs):
-    """Execute a query with proper error handling"""
-    try:
-        result = await session.execute(query, **kwargs)
-        return result
-    except Exception as e:
-        logger.error(f"Database query execution failed: {e}")
-        await session.rollback()
-        raise 
+        print(f"Failed to create tables: {e}")
+        return False 

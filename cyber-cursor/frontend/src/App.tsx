@@ -9,6 +9,7 @@ import LandingPage from './components/LandingPage';
 
 // Import pages
 import EnhancedDashboard from './pages/Dashboard/EnhancedDashboard';
+import ComprehensiveDashboard from './pages/Dashboard/ComprehensiveDashboard';
 import EnhancedCloudSecurity from './pages/CloudSecurity/EnhancedCloudSecurity';
 import ApplicationSecurity from './pages/ApplicationSecurity/ApplicationSecurity';
 import NetworkSecurity from './pages/NetworkSecurity/NetworkSecurity';
@@ -32,6 +33,7 @@ import DAST from './pages/DAST/DAST';
 import DASTProjectTools from './pages/DAST/DASTProjectTools';
 import QualityManagement from './pages/SAST/QualityManagement';
 import RASP from './pages/RASP/RASP';
+import CSPM from './pages/CloudSecurity/CSPM';
 
 // Import contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -198,7 +200,7 @@ const AppContent: React.FC = () => {
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <UserDashboard />
+                    <ComprehensiveDashboard />
                   </motion.div>
                 </ProtectedRoute>
               } 
@@ -251,7 +253,7 @@ const AppContent: React.FC = () => {
               }
             />
             <Route
-              path="/application-security/rasp"
+              path="/rasp"
               element={
                 <ProtectedRoute>
                   <motion.div
@@ -291,6 +293,21 @@ const AppContent: React.FC = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <EnhancedCloudSecurity />
+                  </motion.div>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/cloud-security/cspm" 
+              element={
+                <ProtectedRoute>
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <CSPM />
                   </motion.div>
                 </ProtectedRoute>
               } 
@@ -495,7 +512,7 @@ const AppContent: React.FC = () => {
             />
 			{/* RASP Routes */}
             <Route
-              path="/rasp"
+              path="/application-security/rasp"
               element={
                 <ProtectedRoute>
                   <motion.div

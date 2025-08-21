@@ -1,13 +1,13 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    auth, users, incidents, cloud_security, phishing, dashboard, mfa, 
+    auth, users, incidents, incident_management, cloud_security, phishing, dashboard, mfa, 
     integrations, ai_ml, compliance, health, websocket, analytics, 
     workflows, security, network_security, data_protection, 
     monitoring_siem_soar, threat_intelligence, sast, dast, siem_soar, 
     iam, data_security, enhanced_cloud_security, endpoint_security, 
     endpoint_antivirus_edr, device_control, application_security, 
-    projects, quality_goals, reports, admin, user, rasp
+    projects, quality_goals, reports, admin, user, rasp, cspm
 )
 
 api_router = APIRouter()
@@ -16,6 +16,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
+api_router.include_router(incident_management.router, prefix="/incident-management", tags=["incident-management"])
 api_router.include_router(cloud_security.router, prefix="/cloud-security", tags=["cloud-security"])
 api_router.include_router(phishing.router, prefix="/phishing", tags=["phishing"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
@@ -51,4 +52,5 @@ api_router.include_router(quality_goals.router, prefix="/quality-goals", tags=["
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(user.router, prefix="/user", tags=["user"])
-api_router.include_router(rasp.router, prefix="/rasp", tags=["rasp"]) 
+api_router.include_router(rasp.router, prefix="/rasp", tags=["rasp"])
+api_router.include_router(cspm.router, tags=["cspm"]) 

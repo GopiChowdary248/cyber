@@ -1,636 +1,481 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Form
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
-from typing import Optional, List
-import structlog
+"""
+Data Security API endpoints for Cyber Cursor Security Platform
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
+import json
+import asyncio
 from datetime import datetime, timedelta
 
-from app.core.database import get_db
-from app.core.security import get_current_active_user, require_admin, require_analyst
-from app.models.data_security import (
-    EncryptionKey, EncryptedAsset, DatabaseEncryption, DLPPolicy, DLPIncident,
-    DataDiscovery, DatabaseConnection, DatabaseAuditLog, DatabaseAccessRequest,
-    DatabaseVulnerability, DataMasking, DataTokenization, SecurityCompliance,
-    SecurityReport
-)
-from app.schemas.data_security import (
-    EncryptionKeyCreate, EncryptionKeyUpdate, EncryptionKeyResponse, EncryptionKeyListResponse,
-    EncryptedAssetCreate, EncryptedAssetResponse,
-    DatabaseEncryptionCreate, DatabaseEncryptionResponse,
-    DLPPolicyCreate, DLPPolicyUpdate, DLPPolicyResponse, DLPPolicyListResponse,
-    DLPIncidentCreate, DLPIncidentUpdate, DLPIncidentResponse, DLPIncidentListResponse,
-    DataDiscoveryCreate, DataDiscoveryResponse,
-    DatabaseConnectionCreate, DatabaseConnectionUpdate, DatabaseConnectionResponse, DatabaseConnectionListResponse,
-    DatabaseAuditLogCreate, DatabaseAuditLogResponse, DatabaseAuditLogListResponse,
-    DatabaseAccessRequestCreate, DatabaseAccessRequestUpdate, DatabaseAccessRequestResponse, DatabaseAccessRequestListResponse,
-    DatabaseVulnerabilityCreate, DatabaseVulnerabilityResponse,
-    DataMaskingCreate, DataMaskingResponse,
-    DataTokenizationCreate, DataTokenizationResponse,
-    SecurityComplianceCreate, SecurityComplianceResponse,
-    SecurityReportCreate, SecurityReportResponse,
-    DataSecurityStats, EncryptionStats, DLPStats, DatabaseSecurityStats,
-    DataSecurityHealthCheck
-)
-from app.services.data_security_service import data_security_service
-from app.models.iam import IAMUser
-
 router = APIRouter()
-logger = structlog.get_logger()
 
-# ============================================================================
-# ENCRYPTION ENDPOINTS
-# ============================================================================
+# Pydantic models
+class DataClassification(BaseModel):
+    classification: str  # public, internal, confidential, restricted
+    sensitivity_level: int  # 1-5, where 5 is most sensitive
+    description: str
+    handling_requirements: List[str]
 
-@router.post("/encryption/keys", response_model=EncryptionKeyResponse)
-async def create_encryption_key(
-    key_data: EncryptionKeyCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Create a new encryption key"""
+class EncryptionRequest(BaseModel):
+    data_type: str
+    algorithm: str  # AES-256, RSA-2048, etc.
+    key_management: str  # KMS, HSM, etc.
+    data_size: int
+
+class DataLossPreventionRule(BaseModel):
+    rule_name: str
+    pattern: str
+    action: str  # block, alert, encrypt, quarantine
+    severity: str  # low, medium, high, critical
+    enabled: bool = True
+
+@router.get("/")
+async def get_data_security_overview():
+    """Get Data Security module overview"""
+    return {
+        "module": "Data Security",
+        "description": "Data Protection, Encryption, and Privacy Management",
+        "status": "active",
+        "version": "2.0.0",
+        "features": [
+            "Data Classification",
+            "Encryption Management",
+            "Data Loss Prevention",
+            "Privacy Management",
+            "Access Controls",
+            "Audit Logging",
+            "Compliance Monitoring"
+        ],
+        "components": {
+            "encryption_engine": "active",
+            "dlp_engine": "active",
+            "classification_engine": "active",
+            "privacy_manager": "active",
+            "audit_logger": "active"
+        }
+    }
+
+@router.get("/classification/overview")
+async def get_data_classification_overview():
+    """Get data classification overview"""
+    return {
+        "total_datasets": 1250,
+        "classified_datasets": 1180,
+        "unclassified_datasets": 70,
+        "classifications": {
+            "public": {
+                "count": 450,
+                "percentage": 36,
+                "examples": ["Marketing materials", "Public documentation"]
+            },
+            "internal": {
+                "count": 380,
+                "percentage": 30,
+                "examples": ["Internal reports", "Team documents"]
+            },
+            "confidential": {
+                "count": 320,
+                "percentage": 26,
+                "examples": ["Customer data", "Financial records"]
+            },
+            "restricted": {
+                "count": 100,
+                "percentage": 8,
+                "examples": ["Personal data", "Trade secrets"]
+            }
+        },
+        "sensitivity_distribution": {
+            "level_1": 450,
+            "level_2": 380,
+            "level_3": 250,
+            "level_4": 120,
+            "level_5": 50
+        }
+    }
+
+@router.post("/classification/classify")
+async def classify_data(data_description: str, content_sample: str = None):
+    """Classify data based on description and content"""
     try:
-        key = await data_security_service.encryption_service.create_encryption_key(
-            db, key_data.dict()
-        )
-        return EncryptionKeyResponse.from_orm(key)
-    except Exception as e:
-        logger.error("Failed to create encryption key", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to create encryption key")
-
-@router.get("/encryption/keys", response_model=EncryptionKeyListResponse)
-async def get_encryption_keys(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    key_type: Optional[str] = Query(None),
-    is_active: Optional[bool] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get list of encryption keys"""
-    try:
-        query = select(EncryptionKey)
+        # Simulate data classification
+        await asyncio.sleep(1.0)
         
-        if key_type:
-            query = query.where(EncryptionKey.key_type == key_type)
-        if is_active is not None:
-            query = query.where(EncryptionKey.is_active == is_active)
-        
-        total = await db.scalar(select(func.count()).select_from(query.subquery()))
-        
-        query = query.offset(skip).limit(limit)
-        result = await db.execute(query)
-        keys = result.scalars().all()
-        
-        return EncryptionKeyListResponse(
-            keys=[EncryptionKeyResponse.from_orm(key) for key in keys],
-            total=total or 0,
-            page=skip // limit + 1,
-            size=limit
-        )
-    except Exception as e:
-        logger.error("Failed to get encryption keys", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get encryption keys")
-
-@router.put("/encryption/keys/{key_id}", response_model=EncryptionKeyResponse)
-async def update_encryption_key(
-    key_id: int,
-    key_data: EncryptionKeyUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Update an encryption key"""
-    try:
-        result = await db.execute(select(EncryptionKey).where(EncryptionKey.key_id == key_id))
-        key = result.scalar_one_or_none()
-        
-        if not key:
-            raise HTTPException(status_code=404, detail="Encryption key not found")
-        
-        update_data = key_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(key, field, value)
-        
-        await db.commit()
-        await db.refresh(key)
-        
-        return EncryptionKeyResponse.from_orm(key)
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        logger.error("Failed to update encryption key", key_id=key_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to update encryption key")
-
-@router.post("/encryption/keys/{key_id}/rotate")
-async def rotate_encryption_key(
-    key_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Rotate an encryption key"""
-    try:
-        success = await data_security_service.encryption_service.rotate_key(db, key_id)
-        if success:
-            return {"message": "Key rotated successfully"}
+        # Simple classification logic (in production, this would use ML/AI)
+        if any(word in data_description.lower() for word in ["personal", "private", "sensitive"]):
+            classification = "restricted"
+            sensitivity = 5
+        elif any(word in data_description.lower() for word in ["customer", "financial", "confidential"]):
+            classification = "confidential"
+            sensitivity = 4
+        elif any(word in data_description.lower() for word in ["internal", "company", "business"]):
+            classification = "internal"
+            sensitivity = 2
         else:
-            raise HTTPException(status_code=500, detail="Failed to rotate key")
+            classification = "public"
+            sensitivity = 1
+        
+        classification_result = {
+            "classification_id": f"class_{hash(data_description)}",
+            "data_description": data_description,
+            "classification": classification,
+            "sensitivity_level": sensitivity,
+            "confidence": 0.92,
+            "recommended_actions": [
+                "Apply appropriate access controls",
+                "Implement encryption if needed",
+                "Set up monitoring and auditing"
+            ],
+            "compliance_requirements": [
+                "GDPR" if classification in ["confidential", "restricted"] else "None",
+                "Data Protection Act" if classification in ["confidential", "restricted"] else "None"
+            ]
+        }
+        
+        return classification_result
     except Exception as e:
-        logger.error("Failed to rotate encryption key", key_id=key_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to rotate encryption key")
-
-@router.post("/encryption/files/encrypt")
-async def encrypt_file(
-    file_path: str = Form(...),
-    key_id: int = Form(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_analyst)
-):
-    """Encrypt a file"""
-    try:
-        encrypted_path = await data_security_service.file_encryption_service.encrypt_file(
-            db, file_path, key_id
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Data classification failed: {str(e)}"
         )
-        return {"encrypted_file_path": encrypted_path}
-    except Exception as e:
-        logger.error("Failed to encrypt file", file_path=file_path, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to encrypt file")
 
-# ============================================================================
-# DLP ENDPOINTS
-# ============================================================================
+@router.get("/encryption/status")
+async def get_encryption_status():
+    """Get encryption status across the organization"""
+    return {
+        "encryption_status": "active",
+        "total_encrypted_datasets": 980,
+        "encryption_coverage": 78.4,
+        "encryption_algorithms": {
+            "AES-256": {
+                "count": 650,
+                "percentage": 66.3,
+                "status": "active"
+            },
+            "RSA-2048": {
+                "count": 200,
+                "percentage": 20.4,
+                "status": "active"
+            },
+            "ChaCha20": {
+                "count": 80,
+                "percentage": 8.2,
+                "status": "active"
+            },
+            "Other": {
+                "count": 50,
+                "percentage": 5.1,
+                "status": "active"
+            }
+        },
+        "key_management": {
+            "KMS": "active",
+            "HSM": "active",
+            "Software": "active"
+        },
+        "compliance": {
+            "FIPS_140": "compliant",
+            "Common_Criteria": "compliant",
+            "GDPR": "compliant"
+        }
+    }
 
-@router.post("/dlp/policies", response_model=DLPPolicyResponse)
-async def create_dlp_policy(
-    policy_data: DLPPolicyCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Create a new DLP policy"""
+@router.post("/encryption/encrypt")
+async def encrypt_data(request: EncryptionRequest):
+    """Encrypt data with specified parameters"""
     try:
-        policy = await data_security_service.dlp_service.create_dlp_policy(
-            db, policy_data.dict()
+        # Simulate encryption process
+        await asyncio.sleep(2.0)
+        
+        encryption_result = {
+            "encryption_id": f"enc_{hash(str(request))}",
+            "data_type": request.data_type,
+            "algorithm": request.algorithm,
+            "key_management": request.key_management,
+            "data_size": request.data_size,
+            "encrypted_size": int(request.data_size * 1.1),  # Encryption adds overhead
+            "status": "completed",
+            "encryption_time": 2.0,
+            "key_id": f"key_{hash(request.algorithm)}",
+            "encryption_metadata": {
+                "iv": "random_iv_here",
+                "tag": "authentication_tag",
+                "algorithm_mode": "GCM"
+            }
+        }
+        
+        return encryption_result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Data encryption failed: {str(e)}"
         )
-        return DLPPolicyResponse.from_orm(policy)
-    except Exception as e:
-        logger.error("Failed to create DLP policy", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to create DLP policy")
 
-@router.get("/dlp/policies", response_model=DLPPolicyListResponse)
-async def get_dlp_policies(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    policy_type: Optional[str] = Query(None),
-    is_active: Optional[bool] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get list of DLP policies"""
+@router.get("/dlp/rules")
+async def get_dlp_rules():
+    """Get Data Loss Prevention rules"""
+    return {
+        "rules": [
+            {
+                "id": "dlp_001",
+                "name": "Credit Card Detection",
+                "pattern": r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",
+                "action": "block",
+                "severity": "high",
+                "enabled": True,
+                "created_at": "2024-01-01T00:00:00Z",
+                "last_modified": "2024-01-01T00:00:00Z"
+            },
+            {
+                "id": "dlp_002",
+                "name": "SSN Detection",
+                "pattern": r"\b\d{3}-\d{2}-\d{4}\b",
+                "action": "alert",
+                "severity": "high",
+                "enabled": True,
+                "created_at": "2024-01-01T00:00:00Z",
+                "last_modified": "2024-01-01T00:00:00Z"
+            },
+            {
+                "id": "dlp_003",
+                "name": "Email Address Detection",
+                "pattern": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+                "action": "alert",
+                "severity": "medium",
+                "enabled": True,
+                "created_at": "2024-01-01T00:00:00Z",
+                "last_modified": "2024-01-01T00:00:00Z"
+            }
+        ],
+        "total_rules": 3,
+        "active_rules": 3,
+        "dlp_status": "active"
+    }
+
+@router.post("/dlp/rules")
+async def create_dlp_rule(rule: DataLossPreventionRule):
+    """Create a new DLP rule"""
     try:
-        query = select(DLPPolicy)
+        # Simulate rule creation
+        await asyncio.sleep(0.5)
         
-        if policy_type:
-            query = query.where(DLPPolicy.policy_type == policy_type)
-        if is_active is not None:
-            query = query.where(DLPPolicy.is_active == is_active)
+        new_rule = {
+            "id": f"dlp_{hash(rule.rule_name)}",
+            "name": rule.rule_name,
+            "pattern": rule.pattern,
+            "action": rule.action,
+            "severity": rule.severity,
+            "enabled": rule.enabled,
+            "created_at": datetime.utcnow().isoformat(),
+            "last_modified": datetime.utcnow().isoformat()
+        }
         
-        total = await db.scalar(select(func.count()).select_from(query.subquery()))
-        
-        query = query.offset(skip).limit(limit)
-        result = await db.execute(query)
-        policies = result.scalars().all()
-        
-        return DLPPolicyListResponse(
-            policies=[DLPPolicyResponse.from_orm(policy) for policy in policies],
-            total=total or 0,
-            page=skip // limit + 1,
-            size=limit
+        return new_rule
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"DLP rule creation failed: {str(e)}"
         )
-    except Exception as e:
-        logger.error("Failed to get DLP policies", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get DLP policies")
 
-@router.put("/dlp/policies/{policy_id}", response_model=DLPPolicyResponse)
-async def update_dlp_policy(
-    policy_id: int,
-    policy_data: DLPPolicyUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Update a DLP policy"""
-    try:
-        result = await db.execute(select(DLPPolicy).where(DLPPolicy.policy_id == policy_id))
-        policy = result.scalar_one_or_none()
-        
-        if not policy:
-            raise HTTPException(status_code=404, detail="DLP policy not found")
-        
-        update_data = policy_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(policy, field, value)
-        
-        await db.commit()
-        await db.refresh(policy)
-        
-        return DLPPolicyResponse.from_orm(policy)
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        logger.error("Failed to update DLP policy", policy_id=policy_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to update DLP policy")
+@router.get("/dlp/incidents")
+async def get_dlp_incidents():
+    """Get DLP incidents"""
+    return {
+        "incidents": [
+            {
+                "id": "dlp_incident_001",
+                "rule_id": "dlp_001",
+                "rule_name": "Credit Card Detection",
+                "severity": "high",
+                "action_taken": "blocked",
+                "timestamp": "2024-01-01T12:00:00Z",
+                "source": "user@company.com",
+                "destination": "external@example.com",
+                "data_type": "credit_card",
+                "status": "resolved"
+            },
+            {
+                "id": "dlp_incident_002",
+                "rule_id": "dlp_002",
+                "rule_name": "SSN Detection",
+                "severity": "high",
+                "action_taken": "alerted",
+                "timestamp": "2024-01-01T11:30:00Z",
+                "source": "internal_document.pdf",
+                "destination": "cloud_storage",
+                "data_type": "ssn",
+                "status": "investigating"
+            }
+        ],
+        "total_incidents": 2,
+        "high_severity": 2,
+        "resolved": 1,
+        "investigating": 1
+    }
 
-@router.get("/dlp/incidents", response_model=DLPIncidentListResponse)
-async def get_dlp_incidents(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    status: Optional[str] = Query(None),
-    severity: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get list of DLP incidents"""
-    try:
-        query = select(DLPIncident)
-        
-        if status:
-            query = query.where(DLPIncident.status == status)
-        if severity:
-            query = query.where(DLPIncident.severity == severity)
-        
-        total = await db.scalar(select(func.count()).select_from(query.subquery()))
-        
-        query = query.offset(skip).limit(limit)
-        result = await db.execute(query)
-        incidents = result.scalars().all()
-        
-        return DLPIncidentListResponse(
-            incidents=[DLPIncidentResponse.from_orm(incident) for incident in incidents],
-            total=total or 0,
-            page=skip // limit + 1,
-            size=limit
-        )
-    except Exception as e:
-        logger.error("Failed to get DLP incidents", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get DLP incidents")
+@router.get("/privacy/overview")
+async def get_privacy_overview():
+    """Get privacy management overview"""
+    return {
+        "privacy_status": "active",
+        "data_subjects": 5000,
+        "consent_management": {
+            "total_consents": 15000,
+            "active_consents": 12000,
+            "expired_consents": 3000,
+            "consent_rate": 80.0
+        },
+        "data_processing": {
+            "lawful_basis": {
+                "consent": 60,
+                "legitimate_interest": 25,
+                "contract": 10,
+                "legal_obligation": 5
+            },
+            "data_retention": {
+                "within_limits": 95,
+                "exceeding_limits": 5
+            }
+        },
+        "compliance": {
+            "GDPR": "compliant",
+            "CCPA": "compliant",
+            "LGPD": "compliant"
+        }
+    }
 
-@router.put("/dlp/incidents/{incident_id}", response_model=DLPIncidentResponse)
-async def update_dlp_incident(
-    incident_id: int,
-    incident_data: DLPIncidentUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_analyst)
-):
-    """Update a DLP incident"""
-    try:
-        result = await db.execute(select(DLPIncident).where(DLPIncident.incident_id == incident_id))
-        incident = result.scalar_one_or_none()
-        
-        if not incident:
-            raise HTTPException(status_code=404, detail="DLP incident not found")
-        
-        update_data = incident_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(incident, field, value)
-        
-        await db.commit()
-        await db.refresh(incident)
-        
-        return DLPIncidentResponse.from_orm(incident)
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        logger.error("Failed to update DLP incident", incident_id=incident_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to update DLP incident")
-
-@router.post("/dlp/content/evaluate")
-async def evaluate_content(
-    content: str = Form(...),
-    policy_ids: List[int] = Form(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Evaluate content against DLP policies"""
-    try:
-        violations = await data_security_service.dlp_service.evaluate_content(
-            db, content, policy_ids
-        )
-        return {"violations": violations, "total_violations": len(violations)}
-    except Exception as e:
-        logger.error("Failed to evaluate content", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to evaluate content")
-
-# ============================================================================
-# DATABASE SECURITY ENDPOINTS
-# ============================================================================
-
-@router.post("/database/connections", response_model=DatabaseConnectionResponse)
-async def add_database_connection(
-    connection_data: DatabaseConnectionCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Add a database for monitoring"""
-    try:
-        connection = await data_security_service.database_security_service.add_database_connection(
-            db, connection_data.dict()
-        )
-        return DatabaseConnectionResponse.from_orm(connection)
-    except Exception as e:
-        logger.error("Failed to add database connection", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to add database connection")
-
-@router.get("/database/connections", response_model=DatabaseConnectionListResponse)
-async def get_database_connections(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    db_type: Optional[str] = Query(None),
-    is_monitored: Optional[bool] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get list of database connections"""
-    try:
-        query = select(DatabaseConnection)
-        
-        if db_type:
-            query = query.where(DatabaseConnection.db_type == db_type)
-        if is_monitored is not None:
-            query = query.where(DatabaseConnection.is_monitored == is_monitored)
-        
-        total = await db.scalar(select(func.count()).select_from(query.subquery()))
-        
-        query = query.offset(skip).limit(limit)
-        result = await db.execute(query)
-        connections = result.scalars().all()
-        
-        return DatabaseConnectionListResponse(
-            connections=[DatabaseConnectionResponse.from_orm(conn) for conn in connections],
-            total=total or 0,
-            page=skip // limit + 1,
-            size=limit
-        )
-    except Exception as e:
-        logger.error("Failed to get database connections", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get database connections")
-
-@router.get("/database/activity", response_model=DatabaseAuditLogListResponse)
-async def get_database_activity(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    connection_id: Optional[int] = Query(None),
-    user_id: Optional[str] = Query(None),
-    is_anomalous: Optional[bool] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get database activity logs"""
-    try:
-        query = select(DatabaseAuditLog)
-        
-        if connection_id:
-            query = query.where(DatabaseAuditLog.connection_id == connection_id)
-        if user_id:
-            query = query.where(DatabaseAuditLog.user_id == user_id)
-        if is_anomalous is not None:
-            query = query.where(DatabaseAuditLog.is_anomalous == is_anomalous)
-        
-        total = await db.scalar(select(func.count()).select_from(query.subquery()))
-        
-        query = query.order_by(DatabaseAuditLog.timestamp.desc()).offset(skip).limit(limit)
-        result = await db.execute(query)
-        logs = result.scalars().all()
-        
-        return DatabaseAuditLogListResponse(
-            logs=[DatabaseAuditLogResponse.from_orm(log) for log in logs],
-            total=total or 0,
-            page=skip // limit + 1,
-            size=limit
-        )
-    except Exception as e:
-        logger.error("Failed to get database activity", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get database activity")
-
-@router.post("/database/access/request", response_model=DatabaseAccessRequestResponse)
-async def request_database_access(
-    request_data: DatabaseAccessRequestCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Request database access"""
-    try:
-        request = await data_security_service.database_security_service.request_database_access(
-            db, request_data.dict()
-        )
-        return DatabaseAccessRequestResponse.from_orm(request)
-    except Exception as e:
-        logger.error("Failed to request database access", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to request database access")
-
-@router.get("/database/access/requests", response_model=DatabaseAccessRequestListResponse)
-async def get_database_access_requests(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    status: Optional[str] = Query(None),
-    user_id: Optional[int] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get database access requests"""
-    try:
-        query = select(DatabaseAccessRequest)
-        
-        if status:
-            query = query.where(DatabaseAccessRequest.status == status)
-        if user_id:
-            query = query.where(DatabaseAccessRequest.user_id == user_id)
-        
-        total = await db.scalar(select(func.count()).select_from(query.subquery()))
-        
-        query = query.order_by(DatabaseAccessRequest.created_at.desc()).offset(skip).limit(limit)
-        result = await db.execute(query)
-        requests = result.scalars().all()
-        
-        return DatabaseAccessRequestListResponse(
-            requests=[DatabaseAccessRequestResponse.from_orm(req) for req in requests],
-            total=total or 0,
-            page=skip // limit + 1,
-            size=limit
-        )
-    except Exception as e:
-        logger.error("Failed to get database access requests", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get database access requests")
-
-@router.put("/database/access/requests/{request_id}/approve")
-async def approve_database_access(
-    request_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(require_admin)
-):
-    """Approve a database access request"""
-    try:
-        success = await data_security_service.database_security_service.approve_access_request(
-            db, request_id, current_user.id
-        )
-        if success:
-            return {"message": "Access request approved successfully"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to approve access request")
-    except Exception as e:
-        logger.error("Failed to approve database access", request_id=request_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to approve database access")
-
-# ============================================================================
-# DASHBOARD AND STATISTICS ENDPOINTS
-# ============================================================================
-
-@router.get("/dashboard/stats", response_model=DataSecurityStats)
-async def get_data_security_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get comprehensive data security dashboard statistics"""
-    try:
-        stats = await data_security_service.get_dashboard_stats(db)
-        return DataSecurityStats(**stats)
-    except Exception as e:
-        logger.error("Failed to get data security stats", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get data security stats")
-
-@router.get("/encryption/stats", response_model=EncryptionStats)
-async def get_encryption_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get encryption statistics"""
-    try:
-        # Get encryption stats from dashboard stats
-        stats = await data_security_service.get_dashboard_stats(db)
-        encryption_stats = stats["encryption"]
-        
-        # Calculate additional stats
-        key_rotation_due = await db.scalar(
-            select(func.count(EncryptionKey.key_id)).where(
-                and_(
-                    EncryptionKey.is_active == True,
-                    EncryptionKey.expires_at < func.now() + timedelta(days=30)
-                )
-            )
-        )
-        
-        return EncryptionStats(
-            total_keys=encryption_stats["total_keys"],
-            active_keys=encryption_stats["active_keys"],
-            encrypted_files=encryption_stats["encrypted_assets"],
-            encrypted_databases=0,  # TODO: Implement database encryption count
-            key_rotation_due=key_rotation_due or 0
-        )
-    except Exception as e:
-        logger.error("Failed to get encryption stats", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get encryption stats")
-
-@router.get("/dlp/stats", response_model=DLPStats)
-async def get_dlp_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get DLP statistics"""
-    try:
-        # Get DLP stats from dashboard stats
-        stats = await data_security_service.get_dashboard_stats(db)
-        dlp_stats = stats["dlp"]
-        
-        # Calculate additional stats
-        resolved_incidents = await db.scalar(
-            select(func.count(DLPIncident.incident_id)).where(DLPIncident.status == "resolved")
-        )
-        false_positives = await db.scalar(
-            select(func.count(DLPIncident.incident_id)).where(DLPIncident.status == "false_positive")
-        )
-        
-        return DLPStats(
-            total_policies=dlp_stats["total_policies"],
-            active_policies=dlp_stats["active_policies"],
-            open_incidents=dlp_stats["open_incidents"],
-            resolved_incidents=resolved_incidents or 0,
-            false_positives=false_positives or 0
-        )
-    except Exception as e:
-        logger.error("Failed to get DLP stats", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get DLP stats")
-
-@router.get("/database/security/stats", response_model=DatabaseSecurityStats)
-async def get_database_security_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: IAMUser = Depends(get_current_active_user)
-):
-    """Get database security statistics"""
-    try:
-        # Get database security stats from dashboard stats
-        stats = await data_security_service.get_dashboard_stats(db)
-        db_stats = stats["database_security"]
-        
-        return DatabaseSecurityStats(
-            monitored_connections=db_stats["monitored_databases"],
-            total_audit_logs=db_stats["total_audit_logs"],
-            anomalous_activities=db_stats["anomalous_activities"],
-            open_vulnerabilities=0,  # TODO: Implement vulnerability count
-            pending_requests=db_stats["pending_requests"]
-        )
-    except Exception as e:
-        logger.error("Failed to get database security stats", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get database security stats")
-
-# ============================================================================
-# HEALTH CHECK ENDPOINT
-# ============================================================================
-
-@router.get("/health", response_model=DataSecurityHealthCheck)
-async def health_check(db: AsyncSession = Depends(get_db)):
-    """Health check for data security services"""
-    try:
-        # Test database connection
-        await db.execute(select(1))
-        db_status = "healthy"
-    except Exception:
-        db_status = "unhealthy"
+@router.get("/privacy/consents")
+async def get_data_consents(subject_id: Optional[str] = None):
+    """Get data consent information"""
+    consents = [
+        {
+            "id": "consent_001",
+            "subject_id": "subject_001",
+            "purpose": "Marketing communications",
+            "data_types": ["email", "name", "preferences"],
+            "consent_given": True,
+            "consent_date": "2024-01-01T00:00:00Z",
+            "expiry_date": "2025-01-01T00:00:00Z",
+            "status": "active"
+        },
+        {
+            "id": "consent_002",
+            "subject_id": "subject_001",
+            "purpose": "Service improvement",
+            "data_types": ["usage_data", "performance_metrics"],
+            "consent_given": True,
+            "consent_date": "2024-01-01T00:00:00Z",
+            "expiry_date": "2025-01-01T00:00:00Z",
+            "status": "active"
+        }
+    ]
     
-    # Test encryption service
+    if subject_id:
+        consents = [c for c in consents if c["subject_id"] == subject_id]
+    
+    return {"consents": consents}
+
+@router.post("/privacy/consent")
+async def manage_consent(subject_id: str, purpose: str, data_types: List[str], consent_given: bool):
+    """Manage data consent"""
     try:
-        # Simple test of encryption service
-        test_key = data_security_service.encryption_service.generate_key_material("AES", 256)
-        encryption_status = "healthy"
-    except Exception:
-        encryption_status = "unhealthy"
-    
-    # Test DLP service
-    try:
-        # Simple test of DLP service
-        test_content = "test@example.com"
-        findings = data_security_service.dlp_service.scan_content_for_pii(test_content)
-        dlp_status = "healthy"
-    except Exception:
-        dlp_status = "unhealthy"
-    
-    # Test database security service
-    try:
-        # Simple test - just check if service is accessible
-        db_security_status = "healthy"
-    except Exception:
-        db_security_status = "unhealthy"
-    
-    overall_status = "healthy" if all([
-        db_status == "healthy",
-        encryption_status == "healthy",
-        dlp_status == "healthy",
-        db_security_status == "healthy"
-    ]) else "unhealthy"
-    
-    return DataSecurityHealthCheck(
-        status=overall_status,
-        encryption_service=encryption_status,
-        dlp_service=dlp_status,
-        database_security_service=db_security_status,
-        database_connection=db_status,
-        last_check=datetime.utcnow()
-    ) 
+        # Simulate consent management
+        await asyncio.sleep(0.5)
+        
+        consent = {
+            "id": f"consent_{hash(subject_id + purpose)}",
+            "subject_id": subject_id,
+            "purpose": purpose,
+            "data_types": data_types,
+            "consent_given": consent_given,
+            "consent_date": datetime.utcnow().isoformat(),
+            "expiry_date": (datetime.utcnow() + timedelta(days=365)).isoformat(),
+            "status": "active" if consent_given else "withdrawn"
+        }
+        
+        return consent
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Consent management failed: {str(e)}"
+        )
+
+@router.get("/audit/data-access")
+async def get_data_access_audit_logs():
+    """Get data access audit logs"""
+    return {
+        "audit_logs": [
+            {
+                "id": "audit_001",
+                "timestamp": "2024-01-01T12:00:00Z",
+                "user_id": "user_001",
+                "action": "read",
+                "data_type": "customer_profile",
+                "data_id": "profile_001",
+                "classification": "confidential",
+                "ip_address": "192.168.1.100",
+                "user_agent": "Mozilla/5.0...",
+                "result": "success"
+            },
+            {
+                "id": "audit_002",
+                "timestamp": "2024-01-01T11:45:00Z",
+                "user_id": "user_002",
+                "action": "update",
+                "data_type": "financial_record",
+                "data_id": "finance_001",
+                "classification": "restricted",
+                "ip_address": "192.168.1.101",
+                "user_agent": "Mozilla/5.0...",
+                "result": "success"
+            }
+        ],
+        "total_logs": 2,
+        "time_range": "24h",
+        "access_patterns": {
+            "read_operations": 1,
+            "write_operations": 1,
+            "delete_operations": 0
+        }
+    }
+
+@router.get("/compliance/data-protection")
+async def get_data_protection_compliance():
+    """Get data protection compliance status"""
+    return {
+        "compliance_status": "compliant",
+        "frameworks": {
+            "GDPR": {
+                "status": "compliant",
+                "score": 92,
+                "last_assessment": "2024-01-01T00:00:00Z",
+                "next_assessment": "2024-07-01T00:00:00Z"
+            },
+            "CCPA": {
+                "status": "compliant",
+                "score": 89,
+                "last_assessment": "2024-01-01T00:00:00Z",
+                "next_assessment": "2024-07-01T00:00:00Z"
+            },
+            "LGPD": {
+                "status": "compliant",
+                "score": 87,
+                "last_assessment": "2024-01-01T00:00:00Z",
+                "next_assessment": "2024-07-01T00:00:00Z"
+            }
+        },
+        "key_requirements": {
+            "data_minimization": "implemented",
+            "purpose_limitation": "implemented",
+            "storage_limitation": "implemented",
+            "accuracy": "implemented",
+            "integrity_confidentiality": "implemented",
+            "accountability": "implemented"
+        },
+        "recommendations": [
+            "Implement automated data discovery",
+            "Enhance consent management system",
+            "Improve data retention policies"
+        ]
+    } 

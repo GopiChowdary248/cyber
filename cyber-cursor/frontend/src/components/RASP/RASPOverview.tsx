@@ -127,7 +127,7 @@ const RASPOverview: React.FC = () => {
       const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       
       // Fetch metrics
-      const metricsResponse = await fetch(`${API_URL}/api/rasp/dashboard/overview`, {
+      const metricsResponse = await fetch(`${API_URL}/api/v1/rasp/dashboard/overview`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
@@ -140,7 +140,7 @@ const RASPOverview: React.FC = () => {
       }
 
       // Fetch projects
-      const projectsResponse = await fetch(`${API_URL}/api/rasp/projects`, {
+      const projectsResponse = await fetch(`${API_URL}/api/v1/rasp/projects`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
@@ -153,7 +153,7 @@ const RASPOverview: React.FC = () => {
       }
 
       // Fetch recent scans
-      const scansResponse = await fetch(`${API_URL}/api/rasp/scans/recent`, {
+      const scansResponse = await fetch(`${API_URL}/api/v1/rasp/scans/recent`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
@@ -166,7 +166,7 @@ const RASPOverview: React.FC = () => {
       }
 
       // Fetch recent attacks
-      const attacksResponse = await fetch(`${API_URL}/api/rasp/attacks/recent`, {
+      const attacksResponse = await fetch(`${API_URL}/api/v1/rasp/attacks/recent`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
@@ -197,7 +197,7 @@ const RASPOverview: React.FC = () => {
   const startScan = async (projectId: string) => {
     try {
       const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/api/rasp/projects/${projectId}/scans`, {
+      const response = await fetch(`${API_URL}/api/v1/rasp/projects/${projectId}/scans`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,

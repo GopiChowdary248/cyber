@@ -21,6 +21,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import QualityImprovementDashboard from '../../components/SAST/QualityImprovementDashboard';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import EnhancedCodeBrowser from '../../components/SAST/EnhancedCodeBrowser';
 
 interface SASTProject {
   id: number;
@@ -150,6 +152,43 @@ const SASTProjects: React.FC = () => {
   type SavedView = { name: string; state: any };
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [selectedView, setSelectedView] = useState<string>('');
+
+  // Keyboard shortcuts for projects page
+  const shortcuts = useKeyboardShortcuts([
+    {
+      key: 'n',
+      description: 'New Project',
+      action: () => setShowCreateModal(true)
+    },
+    {
+      key: 's',
+      description: 'Search Projects',
+      action: () => {
+        const searchInput = document.getElementById('project-search-input');
+        searchInput?.focus();
+      }
+    },
+    {
+      key: 'f',
+      description: 'Toggle Favorites',
+      action: () => setFavoriteOnly(!favoriteOnly)
+    },
+    {
+      key: 'c',
+      description: 'Cards View',
+      action: () => setViewMode('cards')
+    },
+    {
+      key: 'l',
+      description: 'List View',
+      action: () => setViewMode('list')
+    },
+    {
+      key: 'Escape',
+      description: 'Clear Search',
+      action: () => setSearchTerm('')
+    }
+  ]);
 
   const fetchProjects = async () => {
     try {
@@ -788,6 +827,14 @@ const SASTProjects: React.FC = () => {
         </div>
       </div>
 
+      {/* Keyboard Shortcuts Help */}
+      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+        <div className="text-sm text-blue-800">
+          <span className="font-medium">Keyboard Shortcuts:</span> 
+          <span className="ml-2">N (new project), S (search), F (favorites), C (cards view), L (list view), Esc (clear search)</span>
+        </div>
+      </div>
+
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -808,6 +855,7 @@ const SASTProjects: React.FC = () => {
             <div className="relative">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
+                id="project-search-input"
                 type="text"
                 placeholder="Search projects..."
                 value={searchTerm}

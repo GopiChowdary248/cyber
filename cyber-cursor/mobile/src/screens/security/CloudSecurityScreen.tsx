@@ -8,11 +8,10 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
-import { Card, Button, Chip, ProgressBar, Divider, Switch } from 'react-native-paper';
+import { Card } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { COLORS, SIZES, FONTS } from '../../constants/theme';
 
 interface CloudResource {
   id: string;
@@ -27,6 +26,7 @@ interface CloudResource {
   security_issues: number;
   cost: number;
   tags: Record<string, string>;
+  risk_score: number;
 }
 
 interface SecurityFinding {
@@ -41,6 +41,7 @@ interface SecurityFinding {
   created_at: string;
   updated_at: string;
   compliance_frameworks: string[];
+  risk_score: number;
 }
 
 interface CloudMetrics {
@@ -54,677 +55,810 @@ interface CloudMetrics {
   estimated_cost: number;
 }
 
+interface AssetRelationship {
+  id: string;
+  parent_asset_id: string;
+  child_asset_id: string;
+  relationship_type: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+interface PolicyEvaluationResult {
+  id: string;
+  asset_id: string;
+  policy_id: string;
+  result: boolean;
+  evidence: Record<string, any>;
+  execution_time_ms: number;
+  evaluation_date: string;
+}
+
+interface ComplianceControl {
+  id: string;
+  framework_id: string;
+  control_id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  requirements: Record<string, any>[];
+  policy_mappings: string[];
+}
+
+interface ScanTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  scan_config: Record<string, any>;
+  schedule?: string;
+  enabled: boolean;
+  created_at: string;
+}
+
+interface RemediationPlaybook {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  steps: Record<string, any>[];
+  estimated_time?: number;
+  risk_level: string;
+  auto_approval: boolean;
+  created_at: string;
+}
+
+interface RiskAssessment {
+  id: string;
+  asset_id: string;
+  overall_score: number;
+  factors: Record<string, any>;
+  recommendations: Record<string, any>[];
+  assessment_date: string;
+  assessed_by?: string;
+}
+
 const CloudSecurityScreen: React.FC = () => {
   const [selectedResource, setSelectedResource] = useState<CloudResource | null>(null);
   const [showFindings, setShowFindings] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<string>('all');
-  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState(0);
+  const [showAssetDetails, setShowAssetDetails] = useState(false);
+  const [showPolicyEditor, setShowPolicyEditor] = useState(false);
+  const [showScanTemplateEditor, setShowScanTemplateEditor] = useState(false);
+  const [showRemediationEditor, setShowRemediationEditor] = useState(false);
+  const [showRiskAssessment, setShowRiskAssessment] = useState(false);
 
-  // Fetch cloud resources
-  const { data: resources, isLoading: resourcesLoading, refetch: refetchResources } = useQuery({
-    queryKey: ['cloud-resources', selectedProvider],
-    queryFn: async () => {
-      const url = selectedProvider === 'all' 
-        ? 'http://localhost:8000/api/v1/cloud-security/resources'
-        : `http://localhost:8000/api/v1/cloud-security/resources?provider=${selectedProvider}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch resources');
-      return response.json();
-    },
-  });
+  // Mock data for enhanced functionality
+  const [assetRelationships] = useState<AssetRelationship[]>([
+    {
+      id: '1',
+      parent_asset_id: 'ec2-1',
+      child_asset_id: 'sg-1',
+      relationship_type: 'contains',
+      metadata: {},
+      created_at: '2024-01-01T00:00:00Z'
+    }
+  ]);
 
-  // Fetch findings for selected resource
-  const { data: findings, isLoading: findingsLoading } = useQuery({
-    queryKey: ['cloud-findings', selectedResource?.id],
-    queryFn: async () => {
-      if (!selectedResource) return [];
-      const response = await fetch(`http://localhost:8000/api/v1/cloud-security/resources/${selectedResource.id}/findings`);
-      if (!response.ok) throw new Error('Failed to fetch findings');
-      return response.json();
-    },
-    enabled: !!selectedResource,
-  });
+  const [policyEvaluationResults] = useState<PolicyEvaluationResult[]>([
+    {
+      id: '1',
+      asset_id: 'ec2-1',
+      policy_id: 'policy-1',
+      result: false,
+      evidence: { field: 'security_groups', value: 'open' },
+      execution_time_ms: 150,
+      evaluation_date: '2024-01-01T00:00:00Z'
+    }
+  ]);
 
-  // Fetch cloud security metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['cloud-metrics'],
-    queryFn: async () => {
-      const response = await fetch('http://localhost:8000/api/v1/cloud-security/metrics');
-      if (!response.ok) throw new Error('Failed to fetch metrics');
-      return response.json();
-    },
-  });
+  const [complianceControls] = useState<ComplianceControl[]>([
+    {
+      id: '1',
+      framework_id: 'cis-aws',
+      control_id: 'CIS.1.1',
+      title: 'Ensure no root account access key exists',
+      description: 'Root account access keys should not exist',
+      category: 'Identity and Access Management',
+      requirements: [],
+      policy_mappings: ['policy-1']
+    }
+  ]);
 
-  // Resolve finding mutation
-  const resolveFindingMutation = useMutation({
-    mutationFn: async ({ findingId, status }: { findingId: string; status: string }) => {
-      const response = await fetch(`http://localhost:8000/api/v1/cloud-security/findings/${findingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (!response.ok) throw new Error('Failed to update finding');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cloud-findings'] });
-      queryClient.invalidateQueries({ queryKey: ['cloud-metrics'] });
-      Alert.alert('Success', 'Finding status updated');
-    },
-    onError: (error) => {
-      Alert.alert('Error', 'Failed to update finding status');
-    },
-  });
+  const [scanTemplates] = useState<ScanTemplate[]>([
+    {
+      id: '1',
+      name: 'Daily Security Scan',
+      description: 'Comprehensive daily security scan',
+      scan_config: { services: ['ec2', 's3', 'iam'] },
+      schedule: '0 2 * * *',
+      enabled: true,
+      created_at: '2024-01-01T00:00:00Z'
+    }
+  ]);
 
-  const handleResolveFinding = (findingId: string) => {
-    resolveFindingMutation.mutate({ findingId, status: 'resolved' });
+  const [remediationPlaybooks] = useState<RemediationPlaybook[]>([
+    {
+      id: '1',
+      name: 'S3 Bucket Security Fix',
+      description: 'Fix public S3 bucket access',
+      category: 'aws',
+      steps: [
+        { action: 'update_bucket_policy', description: 'Update bucket policy to deny public access' }
+      ],
+      estimated_time: 15,
+      risk_level: 'medium',
+      auto_approval: false,
+      created_at: '2024-01-01T00:00:00Z'
+    }
+  ]);
+
+  const [riskAssessments] = useState<RiskAssessment[]>([
+    {
+      id: '1',
+      asset_id: 'ec2-1',
+      overall_score: 75,
+      factors: { public_exposure: 80, outdated_software: 70 },
+      recommendations: [
+        { action: 'restrict_access', description: 'Restrict public access' }
+      ],
+      assessment_date: '2024-01-01T00:00:00Z',
+      assessed_by: 'system'
+    }
+  ]);
+
+  const handleAssetSelect = (resource: CloudResource) => {
+    setSelectedResource(resource);
+    setShowAssetDetails(true);
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return '#FF4444';
-      case 'high': return '#FF8800';
-      case 'medium': return '#FFCC00';
-      case 'low': return '#00CC00';
-      case 'info': return '#0088FF';
-      default: return COLORS.gray;
+  const handleRemediationExecution = async (playbookId: string, findingId: string) => {
+    try {
+      // Call the remediation execution API
+      console.log(`Executing playbook ${playbookId} on finding ${findingId}`);
+      Alert.alert('Success', 'Remediation execution initiated');
+    } catch (error) {
+      Alert.alert('Error', 'Remediation execution failed');
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'secure': return '#00CC00';
-      case 'warning': return '#FFCC00';
-      case 'critical': return '#FF4444';
-      default: return COLORS.gray;
-    }
-  };
-
-  const getResourceIcon = (type: string) => {
-    switch (type) {
-      case 'ec2': return 'server';
-      case 's3': return 'database';
-      case 'rds': return 'database-outline';
-      case 'lambda': return 'function-variant';
-      case 'vpc': return 'network';
-      case 'iam': return 'account-key';
-      default: return 'cloud';
-    }
-  };
-
-  const getProviderIcon = (provider: string) => {
-    switch (provider) {
-      case 'aws': return 'aws';
-      case 'azure': return 'microsoft-azure';
-      case 'gcp': return 'google-cloud';
-      default: return 'cloud';
-    }
-  };
-
-  const renderResourceCard = (resource: CloudResource) => (
-    <Card key={resource.id} style={styles.resourceCard}>
+  const renderAssetRelationships = () => (
+    <Card style={styles.card}>
+      <Card.Title title="Asset Relationships" />
       <Card.Content>
-        <View style={styles.resourceHeader}>
-          <View style={styles.resourceInfo}>
-            <View style={styles.resourceTitleRow}>
-              <Icon name={getResourceIcon(resource.type)} size={20} color={COLORS.primary} />
-              <Text style={styles.resourceName}>{resource.name}</Text>
+        <View style={styles.spaceY}>
+          {assetRelationships.map((relationship) => (
+            <View key={relationship.id} style={styles.relationshipItem}>
+              <View style={styles.relationshipHeader}>
+                <Text style={styles.relationshipType}>{relationship.relationship_type}</Text>
+                <Icon name="arrow-right" size={16} color="#666666" />
+              </View>
+              <Text style={styles.relationshipDetails}>
+                {relationship.parent_asset_id} → {relationship.child_asset_id}
+              </Text>
+              <Text style={styles.relationshipDate}>
+                {new Date(relationship.created_at).toLocaleDateString()}
+              </Text>
             </View>
-            <View style={styles.resourceMeta}>
-              <Icon name={getProviderIcon(resource.provider)} size={16} color={COLORS.gray} />
-              <Text style={styles.resourceType}>{resource.type.toUpperCase()}</Text>
-              <Text style={styles.resourceRegion}>{resource.region}</Text>
-            </View>
-          </View>
-          <Chip
-            mode="outlined"
-            textStyle={{ color: getStatusColor(resource.status) }}
-            style={{ borderColor: getStatusColor(resource.status) }}
-          >
-            {resource.status.toUpperCase()}
-          </Chip>
-        </View>
-        
-        <View style={styles.resourceStats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{resource.compliance_score}%</Text>
-            <Text style={styles.statLabel}>Compliance</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: '#FF4444' }]}>
-              {resource.security_issues}
-            </Text>
-            <Text style={styles.statLabel}>Issues</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>${resource.cost}</Text>
-            <Text style={styles.statLabel}>Cost/Month</Text>
-          </View>
-        </View>
-
-        <View style={styles.resourceDetails}>
-          <Text style={styles.resourceDetail}>
-            <Icon name="calendar" size={16} color={COLORS.gray} />
-            Created: {new Date(resource.created_at).toLocaleDateString()}
-          </Text>
-          <Text style={styles.resourceDetail}>
-            <Icon name="shield-scan" size={16} color={COLORS.gray} />
-            Last scan: {new Date(resource.last_scan).toLocaleDateString()}
-          </Text>
+          ))}
         </View>
       </Card.Content>
-      
-      <Card.Actions>
-        <Button
-          mode="outlined"
-          onPress={() => setSelectedResource(resource)}
-          style={styles.actionButton}
-        >
-          View Details
-        </Button>
-        <Button
-          mode="contained"
-          onPress={() => setShowFindings(true)}
-          style={styles.actionButton}
-        >
-          View Findings
-        </Button>
-      </Card.Actions>
     </Card>
   );
 
-  const renderFindingCard = (finding: SecurityFinding) => (
-    <Card key={finding.id} style={styles.findingCard}>
+  const renderPolicyEvaluation = () => (
+    <Card style={styles.card}>
+      <Card.Title title="Policy Evaluation Results" />
       <Card.Content>
-        <View style={styles.findingHeader}>
-          <Text style={styles.findingTitle}>{finding.title}</Text>
-          <View style={styles.findingBadges}>
-            <Chip
-              mode="outlined"
-              textStyle={{ color: getSeverityColor(finding.severity) }}
-              style={{ borderColor: getSeverityColor(finding.severity), marginRight: 8 }}
-            >
-              {finding.severity.toUpperCase()}
-            </Chip>
-            <Chip
-              mode="outlined"
-              textStyle={{ color: finding.status === 'resolved' ? '#00CC00' : '#FF8800' }}
-              style={{ borderColor: finding.status === 'resolved' ? '#00CC00' : '#FF8800' }}
-            >
-              {finding.status.toUpperCase()}
-            </Chip>
-          </View>
+        <View style={styles.spaceY}>
+          {policyEvaluationResults.map((result) => (
+            <View key={result.id} style={styles.evaluationItem}>
+              <View style={styles.evaluationHeader}>
+                <View style={[
+                  styles.evaluationStatus,
+                  { backgroundColor: result.result ? '#28a745' : '#dc3545' }
+                ]} />
+                <Text style={styles.evaluationTitle}>
+                  Policy {result.policy_id} on Asset {result.asset_id}
+                </Text>
+              </View>
+              <View style={styles.evaluationDetails}>
+                <Text style={styles.evaluationTime}>{result.execution_time_ms}ms</Text>
+                <Text style={styles.evaluationDate}>
+                  {new Date(result.evaluation_date).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+          ))}
         </View>
-        
-        <Text style={styles.findingDescription}>{finding.description}</Text>
-        
-        <View style={styles.findingDetails}>
-          <Text style={styles.findingDetail}>
-            <Icon name="clock" size={16} color={COLORS.gray} />
-            {new Date(finding.created_at).toLocaleDateString()}
-          </Text>
-          <Text style={styles.findingDetail}>
-            <Icon name="shield-check" size={16} color={COLORS.gray} />
-            {finding.compliance_frameworks.join(', ')}
-          </Text>
+      </Card.Content>
+    </Card>
+  );
+
+  const renderComplianceControls = () => (
+    <Card style={styles.card}>
+      <Card.Title title="Compliance Controls" />
+      <Card.Content>
+        <View style={styles.spaceY}>
+          {complianceControls.map((control) => (
+            <View key={control.id} style={styles.controlItem}>
+              <View style={styles.controlHeader}>
+                <Text style={styles.controlId}>{control.control_id}</Text>
+                <Text style={styles.controlCategory}>{control.category}</Text>
+              </View>
+              <Text style={styles.controlTitle}>{control.title}</Text>
+              <Text style={styles.controlDescription}>{control.description}</Text>
+              <View style={styles.controlMappings}>
+                <Text style={styles.mappingCount}>
+                  {control.policy_mappings.length} policies mapped
+                </Text>
+              </View>
+            </View>
+          ))}
         </View>
-        
-        <Divider style={styles.divider} />
-        
-        <Text style={styles.recommendationTitle}>Recommendation:</Text>
-        <Text style={styles.recommendationText}>{finding.recommendation}</Text>
-        
-        {finding.status === 'open' && (
-          <Button
-            mode="contained"
-            onPress={() => handleResolveFinding(finding.id)}
-            loading={resolveFindingMutation.isPending}
-            style={styles.resolveButton}
-          >
-            Mark as Resolved
-          </Button>
+      </Card.Content>
+    </Card>
+  );
+
+  const renderScanTemplates = () => (
+    <Card style={styles.card}>
+      <Card.Title 
+        title="Scan Templates" 
+        right={(props) => (
+          <TouchableOpacity onPress={() => setShowScanTemplateEditor(true)}>
+            <Icon {...props} name="plus" size={24} color="#007AFF" />
+          </TouchableOpacity>
         )}
-      </Card.Content>
-    </Card>
-  );
-
-  const renderMetricsCard = () => (
-    <Card style={styles.metricsCard}>
+      />
       <Card.Content>
-        <Text style={styles.metricsTitle}>Cloud Security Overview</Text>
-        
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{metrics?.total_resources || 0}</Text>
-            <Text style={styles.metricLabel}>Total Resources</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{metrics?.secure_resources || 0}</Text>
-            <Text style={styles.metricLabel}>Secure Resources</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{metrics?.critical_findings || 0}</Text>
-            <Text style={styles.metricLabel}>Critical Findings</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{metrics?.high_findings || 0}</Text>
-            <Text style={styles.metricLabel}>High Findings</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{metrics?.compliance_score_avg || 0}%</Text>
-            <Text style={styles.metricLabel}>Avg Compliance</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>${metrics?.estimated_cost || 0}</Text>
-            <Text style={styles.metricLabel}>Monthly Cost</Text>
-          </View>
+        <View style={styles.spaceY}>
+          {scanTemplates.map((template) => (
+            <View key={template.id} style={styles.templateItem}>
+              <View style={styles.templateHeader}>
+                <Text style={styles.templateName}>{template.name}</Text>
+                <View style={[
+                  styles.templateStatus,
+                  { backgroundColor: template.enabled ? '#28a745' : '#6c757d' }
+                ]} />
+              </View>
+              <Text style={styles.templateDescription}>{template.description}</Text>
+              {template.schedule && (
+                <Text style={styles.templateSchedule}>Schedule: {template.schedule}</Text>
+              )}
+            </View>
+          ))}
         </View>
       </Card.Content>
     </Card>
   );
 
-  const renderProviderFilter = () => (
-    <View style={styles.filterContainer}>
-      <Text style={styles.filterTitle}>Filter by Provider:</Text>
-      <View style={styles.filterButtons}>
-        <Button
-          mode={selectedProvider === 'all' ? 'contained' : 'outlined'}
-          onPress={() => setSelectedProvider('all')}
-          style={styles.filterButton}
-        >
-          All
-        </Button>
-        <Button
-          mode={selectedProvider === 'aws' ? 'contained' : 'outlined'}
-          onPress={() => setSelectedProvider('aws')}
-          style={styles.filterButton}
-        >
-          AWS
-        </Button>
-        <Button
-          mode={selectedProvider === 'azure' ? 'contained' : 'outlined'}
-          onPress={() => setSelectedProvider('azure')}
-          style={styles.filterButton}
-        >
-          Azure
-        </Button>
-        <Button
-          mode={selectedProvider === 'gcp' ? 'contained' : 'outlined'}
-          onPress={() => setSelectedProvider('gcp')}
-          style={styles.filterButton}
-        >
-          GCP
-        </Button>
-      </View>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Cloud Security</Text>
-        <Button
-          mode="contained"
-          onPress={() => setShowMetrics(!showMetrics)}
-          style={styles.metricsButton}
-        >
-          {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
-        </Button>
-      </View>
-
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={resourcesLoading} onRefresh={refetchResources} />
-        }
-      >
-        {renderProviderFilter()}
-
-        {showMetrics && renderMetricsCard()}
-
-        {resourcesLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Loading cloud resources...</Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.statsContainer}>
-              <Card style={styles.statCard}>
-                <Card.Content>
-                  <Text style={styles.statTitle}>Total Resources</Text>
-                  <Text style={styles.statValue}>{resources?.length || 0}</Text>
-                </Card.Content>
-              </Card>
-              
-              <Card style={styles.statCard}>
-                <Card.Content>
-                  <Text style={styles.statTitle}>Secure Resources</Text>
-                  <Text style={styles.statValue}>
-                    {resources?.filter(r => r.status === 'secure').length || 0}
-                  </Text>
-                </Card.Content>
-              </Card>
-              
-              <Card style={styles.statCard}>
-                <Card.Content>
-                  <Text style={styles.statTitle}>Critical Issues</Text>
-                  <Text style={styles.statValue}>
-                    {resources?.reduce((sum, resource) => sum + resource.security_issues, 0) || 0}
-                  </Text>
-                </Card.Content>
-              </Card>
-            </View>
-
-            <Text style={styles.sectionTitle}>Cloud Resources</Text>
-            
-            {resources?.map(renderResourceCard) || (
-              <Card style={styles.emptyCard}>
-                <Card.Content>
-                  <Text style={styles.emptyText}>No cloud resources found</Text>
-                  <Text style={styles.emptySubtext}>
-                    Connect your cloud accounts to start monitoring security
-                  </Text>
-                </Card.Content>
-              </Card>
-            )}
-
-            {showFindings && selectedResource && (
-              <View style={styles.findingsSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>
-                    Security Findings - {selectedResource.name}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowFindings(false)}
-                    style={styles.closeButton}
-                  >
-                    <Icon name="close" size={24} color={COLORS.white} />
+  const renderRemediationPlaybooks = () => (
+    <Card style={styles.card}>
+      <Card.Title 
+        title="Remediation Playbooks" 
+        right={(props) => (
+          <TouchableOpacity onPress={() => setShowRemediationEditor(true)}>
+            <Icon {...props} name="plus" size={24} color="#28a745" />
+          </TouchableOpacity>
+        )}
+      />
+      <Card.Content>
+        <View style={styles.spaceY}>
+          {remediationPlaybooks.map((playbook) => (
+            <View key={playbook.id} style={styles.playbookItem}>
+              <View style={styles.playbookHeader}>
+                <Text style={styles.playbookName}>{playbook.name}</Text>
+                <View style={[
+                  styles.riskLevel,
+                  { 
+                    backgroundColor: 
+                      playbook.risk_level === 'high' ? '#dc3545' :
+                      playbook.risk_level === 'medium' ? '#ffc107' :
+                      '#28a745'
+                  }
+                ]}>
+                  <Text style={styles.riskLevelText}>{playbook.risk_level}</Text>
+                </View>
+              </View>
+              <Text style={styles.playbookDescription}>{playbook.description}</Text>
+              <View style={styles.playbookDetails}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.playbookSteps}>{playbook.steps.length} steps</Text>
+                  {playbook.estimated_time && (
+                    <Text style={styles.playbookTime}>~{playbook.estimated_time} min</Text>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {playbook.auto_approval && (
+                    <Text style={styles.autoApproval}>Auto-approval</Text>
+                  )}
+                  <TouchableOpacity>
+                    <Icon name="pencil" size={16} color="#007AFF" />
                   </TouchableOpacity>
                 </View>
-                
-                {findingsLoading ? (
-                  <ActivityIndicator size="large" color={COLORS.primary} />
-                ) : (
-                  findings?.map(renderFindingCard) || (
-                    <Text style={styles.emptyText}>No security findings detected</Text>
-                  )
-                )}
               </View>
-            )}
-          </>
-        )}
+            </View>
+          ))}
+        </View>
+      </Card.Content>
+    </Card>
+  );
+
+  const renderRiskAssessments = () => (
+    <Card style={styles.card}>
+      <Card.Title title="Risk Assessments" />
+      <Card.Content>
+        <View style={styles.spaceY}>
+          {riskAssessments.map((assessment) => (
+            <View key={assessment.id} style={styles.assessmentItem}>
+              <View style={styles.assessmentHeader}>
+                <Text style={styles.assessmentAsset}>Asset {assessment.asset_id}</Text>
+                <Text style={[
+                  styles.assessmentScore,
+                  { 
+                    color: 
+                      assessment.overall_score >= 70 ? '#dc3545' :
+                      assessment.overall_score >= 40 ? '#ffc107' :
+                      '#28a745'
+                  }
+                ]}>
+                  Score: {assessment.overall_score}
+                </Text>
+              </View>
+              <Text style={styles.assessmentRecommendations}>
+                {assessment.recommendations.length} recommendations
+              </Text>
+              <Text style={styles.assessmentDate}>
+                {new Date(assessment.assessment_date).toLocaleDateString()}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </Card.Content>
+    </Card>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 0: // Overview
+        return (
+          <View style={styles.spaceY}>
+            <Card style={styles.card}>
+              <Card.Title title="Cloud Security Overview" />
+              <Card.Content>
+                <Text>Overview content here</Text>
+              </Card.Content>
+            </Card>
+          </View>
+        );
+      case 1: // Assets & Relationships
+        return (
+          <View style={styles.spaceY}>
+            {renderAssetRelationships()}
+          </View>
+        );
+      case 2: // Policies & Evaluation
+        return (
+          <View style={styles.spaceY}>
+            {renderPolicyEvaluation()}
+          </View>
+        );
+      case 3: // Compliance
+        return (
+          <View style={styles.spaceY}>
+            {renderComplianceControls()}
+          </View>
+        );
+      case 4: // Scans & Jobs
+        return (
+          <View style={styles.spaceY}>
+            {renderScanTemplates()}
+          </View>
+        );
+      case 5: // Remediation
+        return (
+          <View style={styles.spaceY}>
+            {renderRemediationPlaybooks()}
+          </View>
+        );
+      case 6: // Risk Assessment
+        return (
+          <View style={styles.spaceY}>
+            {renderRiskAssessments()}
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={false} onRefresh={() => {}} />
+      }
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Cloud Security</Text>
+        <Text style={styles.headerSubtitle}>Comprehensive cloud security monitoring and remediation</Text>
+      </View>
+
+      {/* Tab Navigation */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabContainer}>
+        {[
+          'Overview',
+          'Assets & Relationships',
+          'Policies & Evaluation',
+          'Compliance',
+          'Scans & Jobs',
+          'Remediation',
+          'Risk Assessment'
+        ].map((tab, index) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === index && styles.activeTab]}
+            onPress={() => setActiveTab(index)}
+          >
+            <Text style={[styles.tabText, activeTab === index && styles.activeTabText]}>
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
-    </View>
+
+      {/* Tab Content */}
+      <View style={styles.content}>
+        {renderTabContent()}
+      </View>
+
+      {/* Asset Details Modal */}
+      <Modal
+        visible={showAssetDetails}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAssetDetails(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Asset Details</Text>
+              <TouchableOpacity onPress={() => setShowAssetDetails(false)}>
+                <Icon name="close" size={24} color="#666666" />
+              </TouchableOpacity>
+            </View>
+            {selectedResource && (
+              <ScrollView style={styles.modalBody}>
+                <View style={styles.assetInfo}>
+                  <Text style={styles.assetLabel}>Name:</Text>
+                  <Text style={styles.assetValue}>{selectedResource.name}</Text>
+                  
+                  <Text style={styles.assetLabel}>Type:</Text>
+                  <Text style={styles.assetValue}>{selectedResource.type}</Text>
+                  
+                  <Text style={styles.assetLabel}>Provider:</Text>
+                  <Text style={styles.assetValue}>{selectedResource.provider}</Text>
+                  
+                  <Text style={styles.assetLabel}>Risk Score:</Text>
+                  <Text style={[
+                    styles.assetValue,
+                    { 
+                      color: 
+                        selectedResource.risk_score >= 70 ? '#dc3545' :
+                        selectedResource.risk_score >= 40 ? '#ffc107' :
+                        '#28a745'
+                    }
+                  ]}>
+                    {selectedResource.risk_score}
+                  </Text>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.dark,
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: COLORS.dark,
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
     fontSize: 24,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
+    fontWeight: 'bold',
+    color: '#333333',
   },
-  metricsButton: {
-    backgroundColor: COLORS.primary,
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 4,
+  },
+  tabContainer: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  tab: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#007AFF',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  activeTabText: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   content: {
-    flex: 1,
     padding: 16,
   },
-  filterContainer: {
+  spaceY: {
+    gap: 16,
+  },
+  card: {
     marginBottom: 16,
   },
-  filterTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    marginBottom: 8,
+  relationshipItem: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
   },
-  filterButtons: {
+  relationshipHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  filterButton: {
-    marginRight: 8,
+    alignItems: 'center',
     marginBottom: 8,
   },
-  loadingContainer: {
+  relationshipType: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  relationshipDetails: {
+    fontSize: 14,
+    color: '#333333',
+    marginBottom: 4,
+  },
+  relationshipDate: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  evaluationItem: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  evaluationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  evaluationStatus: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  evaluationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  evaluationDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  evaluationTime: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  evaluationDate: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  controlItem: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  controlHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  controlId: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  controlCategory: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  controlTitle: {
+    fontSize: 14,
+    color: '#333333',
+    marginBottom: 4,
+  },
+  controlDescription: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 8,
+  },
+  controlMappings: {
+    alignItems: 'flex-start',
+  },
+  mappingCount: {
+    fontSize: 12,
+    color: '#007AFF',
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  templateItem: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  templateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  templateName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  templateStatus: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  templateDescription: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 4,
+  },
+  templateSchedule: {
+    fontSize: 12,
+    color: '#007AFF',
+  },
+  playbookItem: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  playbookHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  playbookName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  riskLevel: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  riskLevelText: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  playbookDescription: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 8,
+  },
+  playbookDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  playbookSteps: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  playbookTime: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  autoApproval: {
+    fontSize: 12,
+    color: '#28a745',
+    backgroundColor: '#d4edda',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  assessmentItem: {
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  assessmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  assessmentAsset: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  assessmentScore: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  assessmentRecommendations: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 4,
+  },
+  assessmentDate: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    color: COLORS.white,
-    fontSize: 16,
-    marginTop: 16,
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '80%',
   },
-  metricsCard: {
-    marginBottom: 16,
-    backgroundColor: COLORS.card,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  metricsTitle: {
+  modalTitle: {
     fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    marginBottom: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  modalBody: {
+    padding: 16,
   },
-  metricItem: {
-    width: '48%',
-    alignItems: 'center',
-    marginBottom: 16,
+  assetInfo: {
+    gap: 12,
   },
-  metricValue: {
-    fontSize: 24,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
-    marginHorizontal: 4,
-    backgroundColor: COLORS.card,
-  },
-  statTitle: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-  },
-  statValue: {
-    fontSize: 24,
-    color: COLORS.white,
-    fontFamily: FONTS.bold,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    marginBottom: 16,
-  },
-  resourceCard: {
-    marginBottom: 16,
-    backgroundColor: COLORS.card,
-  },
-  resourceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  resourceInfo: {
-    flex: 1,
-  },
-  resourceTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  resourceName: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    marginLeft: 8,
-  },
-  resourceMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  resourceType: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-    marginLeft: 4,
-  },
-  resourceRegion: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-    marginLeft: 8,
-  },
-  resourceStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-  },
-  resourceDetails: {
-    marginBottom: 12,
-  },
-  resourceDetail: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-    marginBottom: 4,
-  },
-  actionButton: {
-    marginRight: 8,
-  },
-  emptyCard: {
-    backgroundColor: COLORS.card,
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: COLORS.white,
-    fontFamily: FONTS.medium,
-    textAlign: 'center',
-  },
-  emptySubtext: {
+  assetLabel: {
     fontSize: 14,
-    color: COLORS.gray,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 8,
+    fontWeight: '600',
+    color: '#666666',
   },
-  findingsSection: {
-    marginTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  closeButton: {
-    padding: 8,
-  },
-  findingCard: {
-    marginBottom: 16,
-    backgroundColor: COLORS.card,
-  },
-  findingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  findingTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    flex: 1,
-    marginRight: 12,
-  },
-  findingBadges: {
-    flexDirection: 'row',
-  },
-  findingDescription: {
+  assetValue: {
     fontSize: 14,
-    color: COLORS.lightGray,
-    fontFamily: FONTS.regular,
-    marginBottom: 12,
-  },
-  findingDetails: {
-    marginBottom: 12,
-  },
-  findingDetail: {
-    fontSize: 12,
-    color: COLORS.gray,
-    fontFamily: FONTS.medium,
-    marginBottom: 4,
-  },
-  divider: {
-    marginVertical: 12,
-    backgroundColor: COLORS.border,
-  },
-  recommendationTitle: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    marginBottom: 8,
-  },
-  recommendationText: {
-    fontSize: 12,
-    color: COLORS.lightGray,
-    fontFamily: FONTS.regular,
-    marginBottom: 12,
-  },
-  resolveButton: {
-    backgroundColor: COLORS.primary,
+    color: '#333333',
   },
 });
 

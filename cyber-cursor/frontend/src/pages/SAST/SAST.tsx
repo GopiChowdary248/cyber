@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChartBarIcon,
   ExclamationTriangleIcon,
@@ -15,7 +16,10 @@ import {
   ShieldExclamationIcon,
   QueueListIcon,
   SwatchIcon,
-  AdjustmentsHorizontalIcon
+  AdjustmentsHorizontalIcon,
+  PlusIcon,
+  MagnifyingGlassIcon,
+  CodeBracketIcon
 } from '@heroicons/react/24/outline';
 import { Target } from 'lucide-react';
 import SASTProjects from './SASTProjects';
@@ -25,6 +29,8 @@ import QualityRules from '../../components/SAST/QualityRules';
 import QualityProfiles from '../../components/SAST/QualityProfiles';
 import SASTQualityGates from './SASTQualityGates';
 import SASTHotspots from './SASTHotspots';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import BreadcrumbNavigation from '../../components/SAST/BreadcrumbNavigation';
 
 interface SASTData {
   overview: {
@@ -58,9 +64,48 @@ interface SASTData {
 }
 
 const SAST: React.FC = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<SASTData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('projects');
+
+  // Keyboard shortcuts for main SAST page
+  const shortcuts = useKeyboardShortcuts([
+    {
+      key: 'n',
+      description: 'New Project',
+      action: () => navigate('/sast/new-project')
+    },
+    {
+      key: 's',
+      description: 'Search Projects',
+      action: () => {
+        const searchInput = document.getElementById('project-search-input');
+        searchInput?.focus();
+      }
+    },
+    {
+      key: 'd',
+      description: 'Dashboard',
+      action: () => navigate('/sast/dashboard')
+    },
+    {
+      key: 'r',
+      description: 'Reports',
+      action: () => navigate('/sast/reports')
+    },
+    {
+      key: 'Escape',
+      description: 'Clear Search',
+      action: () => {
+        // Clear any active search or focus
+        const searchInput = document.getElementById('project-search-input');
+        if (searchInput) {
+          (searchInput as HTMLInputElement).value = '';
+        }
+      }
+    }
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -201,6 +246,14 @@ const SAST: React.FC = () => {
           <ShieldCheckIcon className="w-8 h-8 text-blue-600" />
         </div>
       </div>
+
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNavigation 
+        items={[
+          { label: 'SAST', path: '/sast' }
+        ]} 
+        className="mb-4"
+      />
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

@@ -1,244 +1,268 @@
-# 🛡️ CyberShield - Comprehensive Cybersecurity Platform
+# Cyber Cursor DAST
 
-A modern, containerized cybersecurity platform built with React, FastAPI, PostgreSQL, and Redis.
+A comprehensive Dynamic Application Security Testing (DAST) platform built with FastAPI and React, featuring Burp Suite-like functionality for web application security testing.
 
-## 🚀 Quick Start
+## Features
+
+### Phase 1 (High Priority) - ✅ Completed
+- **HTTP History Tab**: Complete traffic analysis with filtering and search
+- **Repeater Tool**: Manual request manipulation and testing
+- **Tabbed Interface**: Unified navigation across all tools
+- **Context Menus**: Right-click actions for enhanced workflow
+
+### Phase 2 (Medium Priority) - ✅ Completed
+- **Intruder Tool**: Automated testing with multiple attack types
+- **Scanner Integration**: Active and passive scanning capabilities
+- **Virtual Scrolling**: Performance optimization for large datasets
+- **WebSocket Updates**: Real-time traffic and status updates
+
+### Phase 3 (Low Priority) - 🔄 Foundation Ready
+- **Macro System**: Automation and workflow orchestration
+- **Session Management**: State persistence and configuration
+- **Collaboration Features**: Team workflow and sharing
+- **Mobile Optimization**: Touch interface and responsive design
+
+## Architecture
+
+```
+cyber-cursor/
+├── frontend/                 # React frontend application
+│   ├── src/
+│   │   ├── components/DAST/ # DAST-specific components
+│   │   │   ├── Scanner/     # Vulnerability scanner
+│   │   │   ├── Crawler/     # Web crawler
+│   │   │   ├── Rules/       # Match/replace rules
+│   │   │   ├── Proxy/       # HTTP proxy engine
+│   │   │   ├── Intruder/    # Automated testing tool
+│   │   │   └── Repeater/    # Manual request tool
+│   │   └── services/        # API service layer
+├── backend/                  # FastAPI backend application
+│   ├── app/
+│   │   ├── api/v1/          # API endpoints
+│   │   ├── models/          # SQLAlchemy models
+│   │   ├── schemas/         # Pydantic schemas
+│   │   ├── services/        # Business logic layer
+│   │   └── core/            # Core functionality
+│   └── main.py              # FastAPI application entry point
+└── docker-compose.yml       # PostgreSQL database setup
+```
+
+## Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
-- Chrome browser (recommended)
+- Python 3.8+
+- Node.js 16+
+- PostgreSQL 15+
 
-### Running the Application
+### 1. Start Database
+```bash
+# Start PostgreSQL database
+docker-compose up -d postgres
 
-1. **Start all services:**
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Access the application:**
-   - **Frontend:** http://localhost:3000
-   - **Backend API:** http://localhost:8000
-   - **API Documentation:** http://localhost:8000/docs
-
-3. **Check service status:**
-   ```bash
-   docker-compose ps
-   ```
-
-## 🔐 Demo Accounts
-
-The application includes pre-configured demo accounts for testing:
-
-| Role | Email | Password | Permissions |
-|------|-------|----------|-------------|
-| **Admin** | `admin@cybershield.com` | `password` | Full access to all features |
-| **Analyst** | `analyst@cybershield.com` | `password` | Read all, write incidents |
-| **User** | `user@cybershield.com` | `password` | Read/write own data |
-
-## 🏗️ Architecture
-
-### Frontend (React)
-- **Port:** 3000
-- **Features:**
-  - Modern React with TypeScript
-  - Enhanced UI components
-  - Responsive design with dark theme
-  - Real-time dashboard updates
-
-### Backend (FastAPI)
-- **Port:** 8000
-- **Features:**
-  - RESTful API with automatic documentation
-  - Mock authentication system
-  - Structured logging
-  - CORS support
-
-### Database (PostgreSQL)
-- **Port:** 5432
-- **Features:**
-  - Persistent data storage
-  - Initialized with security schemas
-  - Health monitoring
-
-### Cache (Redis)
-- **Port:** 6379
-- **Features:**
-  - Session storage
-  - Background task queue
-  - Performance optimization
-
-## 📊 Available Features
-
-### 1. **Dashboard**
-- Security metrics overview
-- Real-time threat monitoring
-- Incident tracking
-- Performance analytics
-
-### 2. **Application Security** 🆕
-- **SAST**: Static code analysis for vulnerability detection
-- **DAST**: Dynamic application security testing
-- **RASP**: Runtime application self-protection
-- Comprehensive security scanning and monitoring
-
-### 3. **Threat Intelligence**
-- Threat indicator management
-- Campaign tracking
-- Hunting queries
-- Intelligence feeds
-
-### 4. **Data Protection**
-- Data classification
-- Privacy management
-- Compliance monitoring
-- Breach detection
-
-### 5. **Endpoint Security**
-- Device management
-- Antivirus scanning
-- EDR alerts
-- Application whitelisting
-
-### 6. **Cloud Security**
-- Cloud configuration monitoring
-- Security posture assessment
-- Compliance reporting
-- Risk management
-
-## 🔧 Development
-
-### Project Structure
-```
-cyber-cursor/
-├── frontend/                 # React application
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   ├── pages/          # Page components
-│   │   ├── contexts/       # React contexts
-│   │   └── utils/          # Utility functions
-│   └── public/             # Static assets
-├── backend/                 # FastAPI application
-│   ├── app/
-│   │   ├── api/           # API routes
-│   │   ├── core/          # Core configuration
-│   │   ├── models/        # Database models
-│   │   └── schemas/       # Pydantic schemas
-│   └── main_simple.py     # Simplified entry point
-├── scripts/                # Database initialization
-├── docker-compose.yml      # Container orchestration
-└── README.md              # This file
+# Wait for database to be ready (check with docker-compose ps)
 ```
 
-### Making Changes
+### 2. Backend Setup
+```bash
+cd backend
 
-1. **Frontend changes:**
-   ```bash
-   docker-compose up frontend --build -d
-   ```
+# Install dependencies
+pip install -r requirements.txt
 
-2. **Backend changes:**
-   ```bash
-   docker-compose up backend --build -d
-   ```
+# Set environment variables
+export DATABASE_URL="postgresql://postgres:password@localhost:5432/cyber_cursor_dast"
+export SECRET_KEY="your-secret-key-change-in-production"
 
-3. **Database changes:**
-   ```bash
-   docker-compose down
-   docker volume rm cyber-cursor_postgres_data
-   docker-compose up -d
-   ```
+# Run the backend
+python main.py
+```
 
-## 🐛 Troubleshooting
+The backend will be available at `http://localhost:8000`
+- API Documentation: `http://localhost:8000/docs`
+- Health Check: `http://localhost:8000/health`
 
-### Common Issues
+### 3. Frontend Setup
+```bash
+cd frontend
 
-1. **Port conflicts:**
-   - Ensure ports 3000, 8000, 5432, and 6379 are available
-   - Stop other services using these ports
+# Install dependencies
+npm install
 
-2. **Docker issues:**
-   - Make sure Docker Desktop is running
-   - Check Docker logs: `docker-compose logs [service-name]`
+# Start development server
+npm start
+```
 
-3. **Authentication errors:**
-   - Clear browser cache and local storage
-   - Use demo accounts with correct credentials
+The frontend will be available at `http://localhost:3000`
 
-4. **Build failures:**
-   - Clean Docker cache: `docker system prune -a`
-   - Rebuild containers: `docker-compose up --build -d`
+## Database Schema
 
-### Logs and Debugging
+The system uses PostgreSQL with the following main tables:
+
+- **dast_projects**: Main project container
+- **dast_scans**: Security scan instances
+- **dast_scan_issues**: Vulnerability findings
+- **dast_http_entries**: HTTP traffic history
+- **dast_crawl_results**: Web crawler results
+- **dast_match_replace_rules**: Traffic modification rules
+- **dast_intruder_attacks**: Automated testing attacks
+- **dast_repeater_requests**: Manual request history
+
+## API Endpoints
+
+### Core DAST Endpoints
+- `GET /api/v1/dast/projects/{project_id}/status` - Project status
+- `GET /api/v1/dast/projects/{project_id}/http-history` - HTTP traffic history
+- `POST /api/v1/dast/projects/{project_id}/scanner/scans` - Create security scan
+- `POST /api/v1/dast/projects/{project_id}/crawler/start` - Start web crawler
+- `GET /api/v1/dast/projects/{project_id}/rules` - Get match/replace rules
+
+### Tool-Specific Endpoints
+- **Scanner**: `/api/v1/dast/projects/{project_id}/scanner/*`
+- **Crawler**: `/api/v1/dast/projects/{project_id}/crawler/*`
+- **Intruder**: `/api/v1/dast/projects/{project_id}/intruder/*`
+- **Repeater**: `/api/v1/dast/projects/{project_id}/repeater/*`
+- **Proxy**: `/api/v1/dast/projects/{project_id}/proxy/*`
+
+### WebSocket Endpoints
+- `WS /api/v1/dast/projects/{project_id}/ws` - Real-time updates
+
+## Configuration
+
+### Environment Variables
+```bash
+# Database
+DATABASE_URL=postgresql://postgres:password@localhost:5432/cyber_cursor_dast
+
+# Security
+SECRET_KEY=your-secret-key-change-in-production
+
+# Debug
+SQL_DEBUG=false
+```
+
+### Database Configuration
+The system automatically creates all necessary tables on startup. You can also use Alembic for migrations:
 
 ```bash
-# View all logs
-docker-compose logs
+# Initialize Alembic
+alembic init alembic
 
-# View specific service logs
-docker-compose logs frontend
-docker-compose logs backend
-docker-compose logs postgres
+# Create migration
+alembic revision --autogenerate -m "Initial migration"
 
-# Follow logs in real-time
-docker-compose logs -f [service-name]
+# Apply migration
+alembic upgrade head
 ```
 
-## 🔒 Security Notes
+## Development
 
-⚠️ **Important:** This is a demo application with mock authentication. In production:
+### Backend Development
+```bash
+cd backend
 
-- Implement proper JWT token validation
-- Use secure password hashing
-- Enable HTTPS
-- Configure proper CORS policies
-- Implement rate limiting
-- Add input validation and sanitization
+# Install development dependencies
+pip install -r requirements.txt
 
-## 📈 Performance
+# Run with auto-reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-### Optimization Tips
+# Run tests
+pytest
+```
 
-1. **Development:**
-   - Use React DevTools for component profiling
-   - Monitor API response times
-   - Check database query performance
+### Frontend Development
+```bash
+cd frontend
 
-2. **Production:**
-   - Enable gzip compression
-   - Use CDN for static assets
-   - Implement caching strategies
-   - Monitor resource usage
+# Install dependencies
+npm install
 
-## 🤝 Contributing
+# Start development server
+npm start
+
+# Run tests
+npm test
+
+# Build for production
+npm run build
+```
+
+### Database Development
+```bash
+# Access PostgreSQL
+docker exec -it cyber_cursor_postgres psql -U postgres -d cyber_cursor_dast
+
+# Access PgAdmin
+# Open http://localhost:5050
+# Login: admin@cybercursor.com / admin
+```
+
+## Testing
+
+### API Testing
+```bash
+# Test health endpoint
+curl http://localhost:8000/health
+
+# Test with authentication (mock token)
+curl -H "Authorization: Bearer mock_token" http://localhost:8000/api/v1/dast/projects/test/status
+```
+
+### WebSocket Testing
+```bash
+# Test WebSocket connection
+wscat -c "ws://localhost:8000/api/v1/dast/projects/test/ws?token=mock_token"
+```
+
+## Security Features
+
+- **Authentication**: JWT-based authentication system
+- **Authorization**: Role-based access control
+- **Input Validation**: Pydantic schema validation
+- **SQL Injection Protection**: SQLAlchemy ORM with parameterized queries
+- **CORS Configuration**: Configurable cross-origin resource sharing
+- **Rate Limiting**: Built-in request throttling (configurable)
+
+## Performance Features
+
+- **Virtual Scrolling**: Efficient handling of large datasets
+- **Database Indexing**: Optimized PostgreSQL queries
+- **Connection Pooling**: SQLAlchemy connection management
+- **Async Operations**: Non-blocking I/O operations
+- **WebSocket Management**: Efficient real-time communication
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
 
-## 📄 License
+## License
 
-This project is for educational and demonstration purposes.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
----
+## Support
 
-## 🎯 Next Steps
+For support and questions:
+- Create an issue in the GitHub repository
+- Check the API documentation at `/docs`
+- Review the code examples in the frontend components
 
-The application is now fully functional with:
-- ✅ Containerized deployment
-- ✅ Mock authentication system
-- ✅ Modern React frontend
-- ✅ FastAPI backend
-- ✅ PostgreSQL database
-- ✅ Redis caching
-- ✅ Health monitoring
+## Roadmap
 
-You can now:
-1. **Explore the dashboard** at http://localhost:3000
-2. **Test different user roles** using the demo accounts
-3. **View API documentation** at http://localhost:8000/docs
-4. **Customize features** by modifying the source code
-5. **Deploy to production** using the containerized setup
+### Upcoming Features
+- **Advanced Scanning**: Machine learning-based vulnerability detection
+- **Integration APIs**: CI/CD pipeline integration
+- **Reporting Engine**: Advanced report generation
+- **Team Collaboration**: Multi-user project management
+- **Cloud Deployment**: Kubernetes and cloud-native deployment
 
-Happy hacking! 🛡️ 
+### Performance Improvements
+- **Caching Layer**: Redis-based caching system
+- **Background Tasks**: Celery-based task queue
+- **Database Optimization**: Advanced query optimization
+- **Load Balancing**: Horizontal scaling support 

@@ -1,383 +1,701 @@
-# 🚀 Application Deployment Guide
+# 🚀 Cyber Cursor Security Platform - Deployment Guide
 
-## Overview
-This guide provides step-by-step instructions for deploying the cleaned and enhanced CyberShield application with all duplicate code removed and enhanced DAST/SAST features retained.
+## 📋 Table of Contents
 
-## 🎯 Pre-Deployment Checklist
+1. [Prerequisites](#prerequisites)
+2. [Quick Start](#quick-start)
+3. [Database Setup](#database-setup)
+4. [Backend Deployment](#backend-deployment)
+5. [Frontend Deployment](#frontend-deployment)
+6. [Production Deployment](#production-deployment)
+7. [Docker Deployment](#docker-deployment)
+8. [Monitoring & Maintenance](#monitoring--maintenance)
+9. [Troubleshooting](#troubleshooting)
+10. [Security Considerations](#security-considerations)
 
-### ✅ Cleanup Verification
-- [x] All duplicate files removed
-- [x] Enhanced features retained
-- [x] Navigation properly configured
-- [x] API endpoints cleaned up
-- [x] Database models updated
+## 🎯 Prerequisites
 
-### 🔧 System Requirements
-- Docker and Docker Compose
-- PostgreSQL 15+ (or use containerized version)
-- Redis 7+ (or use containerized version)
-- Node.js 18+ (for local development)
-- Python 3.9+ (for local development)
+### System Requirements
 
-## 🐳 Containerized Deployment
+- **Operating System**: Linux (Ubuntu 20.04+), macOS 10.15+, or Windows 10+
+- **CPU**: 4+ cores recommended
+- **Memory**: 8GB+ RAM recommended
+- **Storage**: 50GB+ available disk space
+- **Network**: Internet access for package installation
 
-### 1. Start the Application
+### Software Requirements
+
+- **Python**: 3.8+ with pip
+- **Node.js**: 16+ with npm
+- **PostgreSQL**: 12+ (recommended) or 10+
+- **Redis**: 6+ (optional, for caching)
+- **Docker**: 20+ (optional, for containerized deployment)
+- **Git**: Latest version
+
+### Development Tools
+
+- **Code Editor**: VS Code, PyCharm, or similar
+- **Database Client**: pgAdmin, DBeaver, or psql
+- **API Testing**: Postman, Insomnia, or curl
+
+## 🚀 Quick Start
+
+### 1. Clone the Repository
+
 ```bash
-# Start all services
-docker-compose up -d
-
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
+git clone <repository-url>
+cd cyber-cursor
 ```
 
-### 2. Verify Services
+### 2. Install Dependencies
+
 ```bash
-# Check backend health
-curl http://localhost:8000/health
-
-# Check database connection
-curl http://localhost:8000/health/database
-
-# Check frontend
-curl http://localhost:3000
-```
-
-### 3. Access Points
-- **Frontend Application**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **Database**: localhost:5432 (cybershield/cybershield_user)
-- **Redis**: localhost:6379
-
-## 🔧 Local Development Setup
-
-### 1. Backend Setup
-```bash
+# Backend dependencies
 cd backend
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Set environment variables
-export DATABASE_URL="postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield"
-export REDIS_URL="redis://:redis_password@localhost:6379/0"
-export SECRET_KEY="your-super-secret-key-change-in-production"
-
-# Run database migrations
-alembic upgrade head
-
-# Start backend server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Frontend dependencies
+cd ../frontend
+npm install
 ```
 
-### 2. Frontend Setup
+### 3. Start Services
+
 ```bash
+# Terminal 1: Start Backend
+cd backend
+python main.py
+
+# Terminal 2: Start Frontend
 cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
 npm start
 ```
 
-### 3. Mobile App Setup
-```bash
-cd mobile
+### 4. Access the Platform
 
-# Install dependencies
-npm install
-
-# Start Expo development server
-npx expo start
-```
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
 
 ## 🗄️ Database Setup
 
-### 1. PostgreSQL Configuration
-```sql
--- Create database (if not using Docker)
-CREATE DATABASE cybershield;
-CREATE USER cybershield_user WITH PASSWORD 'cybershield_password';
-GRANT ALL PRIVILEGES ON DATABASE cybershield TO cybershield_user;
+### PostgreSQL Installation
+
+#### Ubuntu/Debian
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
 ```
 
-### 2. Run Migrations
+#### macOS
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+#### Windows
+Download and install from [PostgreSQL official website](https://www.postgresql.org/download/windows/)
+
+### Database Configuration
+
+#### 1. Create Database and User
+
+```bash
+# Connect to PostgreSQL as superuser
+sudo -u postgres psql
+
+# Create database and user
+CREATE DATABASE cyber_cursor;
+CREATE USER cyber_user WITH PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE cyber_cursor TO cyber_user;
+ALTER USER cyber_user CREATEDB;
+\q
+```
+
+#### 2. Environment Configuration
+
+Create `.env` file in the backend directory:
+
+```env
+# Database Configuration
+DATABASE_URL=postgresql://cyber_user:secure_password@localhost:5432/cyber_cursor
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=cyber_cursor
+DB_USER=cyber_user
+DB_PASSWORD=secure_password
+
+# Security Configuration
+SECRET_KEY=your-super-secret-key-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+DEBUG=false
+ENVIRONMENT=production
+
+# External APIs (optional)
+OPENAI_API_KEY=your-openai-key
+VIRUSTOTAL_API_KEY=your-virustotal-key
+SHODAN_API_KEY=your-shodan-key
+```
+
+#### 3. Initialize Database
+
 ```bash
 cd backend
-alembic upgrade head
+python scripts/setup_database.py
 ```
 
-### 3. Initialize Data
-```bash
-# Create admin user
-python scripts/create-admin-user.py
+## 🔧 Backend Deployment
 
-# Create test data (optional)
-python scripts/create-test-data.py
+### Development Mode
+
+```bash
+cd backend
+python main.py
 ```
 
-## 🔐 Security Configuration
+### Production Mode
 
-### 1. Environment Variables
+#### Using Uvicorn
+
 ```bash
-# Required environment variables
-SECRET_KEY=your-super-secret-key-change-in-production
-DATABASE_URL=postgresql+asyncpg://user:password@host:port/database
-REDIS_URL=redis://:password@host:port/database
-ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:3001"]
-ALLOWED_HOSTS=["localhost","127.0.0.1"]
+cd backend
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-### 2. SSL/TLS Configuration (Production)
-```bash
-# Generate SSL certificates
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+#### Using Gunicorn
 
-# Update nginx configuration
-# See nginx/nginx.conf for SSL configuration
+```bash
+cd backend
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
-## 📊 Monitoring and Health Checks
+#### Using Systemd Service
 
-### 1. Health Endpoints
-```bash
-# Overall health
-curl http://localhost:8000/health
+Create `/etc/systemd/system/cyber-cursor.service`:
 
-# Database health
-curl http://localhost:8000/health/database
+```ini
+[Unit]
+Description=Cyber Cursor Security Platform
+After=network.target postgresql.service
 
-# Redis health
-curl http://localhost:8000/health/redis
+[Service]
+Type=exec
+User=cyber
+Group=cyber
+WorkingDirectory=/opt/cyber-cursor/backend
+Environment=PATH=/opt/cyber-cursor/backend/venv/bin
+ExecStart=/opt/cyber-cursor/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### 2. Log Monitoring
+Enable and start the service:
+
 ```bash
-# View all logs
+sudo systemctl daemon-reload
+sudo systemctl enable cyber-cursor
+sudo systemctl start cyber-cursor
+sudo systemctl status cyber-cursor
+```
+
+## 🎨 Frontend Deployment
+
+### Development Mode
+
+```bash
+cd frontend
+npm start
+```
+
+### Production Build
+
+```bash
+cd frontend
+npm run build
+```
+
+### Serve Production Build
+
+#### Using nginx
+
+Install nginx:
+
+```bash
+# Ubuntu/Debian
+sudo apt install nginx
+
+# macOS
+brew install nginx
+```
+
+Configure nginx (`/etc/nginx/sites-available/cyber-cursor`):
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /opt/cyber-cursor/frontend/build;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /ws {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+```
+
+Enable the site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/cyber-cursor /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### Using Node.js serve
+
+```bash
+npm install -g serve
+cd frontend/build
+serve -s . -l 3000
+```
+
+## 🏭 Production Deployment
+
+### 1. Production Environment Setup
+
+```bash
+# Create production user
+sudo useradd -m -s /bin/bash cyber
+sudo passwd cyber
+
+# Create application directory
+sudo mkdir -p /opt/cyber-cursor
+sudo chown cyber:cyber /opt/cyber-cursor
+
+# Switch to cyber user
+sudo su - cyber
+```
+
+### 2. Application Deployment
+
+```bash
+# Clone repository
+git clone <repository-url> /opt/cyber-cursor
+cd /opt/cyber-cursor
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+cd backend
+pip install -r requirements.txt
+
+# Build frontend
+cd ../frontend
+npm install
+npm run build
+```
+
+### 3. Environment Configuration
+
+```bash
+# Production environment variables
+export ENVIRONMENT=production
+export DEBUG=false
+export LOG_LEVEL=warning
+export DATABASE_URL=postgresql://cyber_user:secure_password@localhost:5432/cyber_cursor
+export SECRET_KEY=your-production-secret-key
+```
+
+### 4. SSL/TLS Configuration
+
+#### Using Let's Encrypt
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Obtain SSL certificate
+sudo certbot --nginx -d your-domain.com
+
+# Auto-renewal
+sudo crontab -e
+# Add: 0 12 * * * /usr/bin/certbot renew --quiet
+```
+
+#### Using Self-Signed Certificate
+
+```bash
+# Generate self-signed certificate
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/ssl/private/cyber-cursor.key \
+    -out /etc/ssl/certs/cyber-cursor.crt
+```
+
+### 5. Firewall Configuration
+
+```bash
+# Ubuntu/Debian (ufw)
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+
+# CentOS/RHEL (firewalld)
+sudo firewall-cmd --permanent --add-service=ssh
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+```
+
+## 🐳 Docker Deployment
+
+### 1. Docker Compose Setup
+
+Create `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: cyber_cursor
+      POSTGRES_USER: cyber_user
+      POSTGRES_PASSWORD: secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql://cyber_user:secure_password@postgres:5432/cyber_cursor
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-docker-secret-key
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+### 2. Docker Backend
+
+Create `backend/Dockerfile`:
+
+```dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### 3. Docker Frontend
+
+Create `frontend/Dockerfile`:
+
+```dockerfile
+FROM node:16-alpine as build
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/build /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### 4. Deploy with Docker
+
+```bash
+# Build and start services
+docker-compose up -d
+
+# View logs
 docker-compose logs -f
 
-# View specific service logs
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f postgres
+# Stop services
+docker-compose down
 ```
 
-### 3. Performance Monitoring
+## 📊 Monitoring & Maintenance
+
+### 1. Health Monitoring
+
 ```bash
-# Check resource usage
-docker stats
+# Health check endpoint
+curl http://localhost:8000/health
 
-# Monitor database performance
-docker exec -it cybershield-postgres psql -U cybershield_user -d cybershield -c "SELECT * FROM pg_stat_activity;"
+# API status
+curl http://localhost:8000/api/status
+
+# System metrics
+curl http://localhost:8000/metrics
 ```
 
-## 🧪 Testing
+### 2. Log Management
 
-### 1. Run Verification Tests
 ```bash
-# Run cleanup verification
-python test_cleanup_verification.py
+# Backend logs
+sudo journalctl -u cyber-cursor -f
 
-# Run enhanced DAST tests
-python test_enhanced_dast.py
+# nginx logs
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
 
-# Run comprehensive tests
-python test-backend-comprehensive.py
+# PostgreSQL logs
+sudo tail -f /var/log/postgresql/postgresql-*.log
 ```
 
-### 2. API Testing
+### 3. Database Maintenance
+
 ```bash
-# Test DAST endpoints
-curl -X GET http://localhost:8000/dast/scans
-curl -X GET http://localhost:8000/dast/vulnerabilities
+# Connect to database
+psql -h localhost -U cyber_user -d cyber_cursor
 
-# Test SAST endpoints
-curl -X GET http://localhost:8000/sast/projects
-curl -X GET http://localhost:8000/sast/scans
+# Check table sizes
+SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
+FROM pg_tables
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
-# Test authentication
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+# Vacuum database
+VACUUM ANALYZE;
 ```
 
-## 🔄 Backup and Recovery
+### 4. Backup Strategy
 
-### 1. Database Backup
 ```bash
-# Create backup
-docker exec cybershield-postgres pg_dump -U cybershield_user cybershield > backup_$(date +%Y%m%d_%H%M%S).sql
+# Create backup script
+cat > /opt/cyber-cursor/backup.sh << 'EOF'
+#!/bin/bash
+BACKUP_DIR="/opt/backups/cyber-cursor"
+DATE=$(date +%Y%m%d_%H%M%S)
 
-# Restore backup
-docker exec -i cybershield-postgres psql -U cybershield_user cybershield < backup_file.sql
+# Create backup directory
+mkdir -p $BACKUP_DIR
+
+# Database backup
+pg_dump -h localhost -U cyber_user cyber_cursor > $BACKUP_DIR/db_backup_$DATE.sql
+
+# Application backup
+tar -czf $BACKUP_DIR/app_backup_$DATE.tar.gz /opt/cyber-cursor
+
+# Clean old backups (keep last 7 days)
+find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
+EOF
+
+# Make executable and add to cron
+chmod +x /opt/cyber-cursor/backup.sh
+crontab -e
+# Add: 0 2 * * * /opt/cyber-cursor/backup.sh
 ```
 
-### 2. Application Backup
-```bash
-# Backup application data
-tar -czf app_backup_$(date +%Y%m%d_%H%M%S).tar.gz \
-  --exclude=node_modules \
-  --exclude=__pycache__ \
-  --exclude=.git \
-  .
-```
-
-## 🚨 Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
 #### 1. Database Connection Issues
+
 ```bash
-# Check if PostgreSQL is running
-docker-compose ps postgres
+# Check PostgreSQL status
+sudo systemctl status postgresql
 
-# Check database logs
-docker-compose logs postgres
+# Check connection
+psql -h localhost -U cyber_user -d cyber_cursor
 
-# Restart database
-docker-compose restart postgres
+# Check logs
+sudo tail -f /var/log/postgresql/postgresql-*.log
 ```
 
-#### 2. Backend Startup Issues
-```bash
-# Check backend logs
-docker-compose logs backend
+#### 2. Port Conflicts
 
-# Check environment variables
-docker-compose exec backend env | grep -E "(DATABASE|REDIS|SECRET)"
-
-# Restart backend
-docker-compose restart backend
-```
-
-#### 3. Frontend Issues
-```bash
-# Check frontend logs
-docker-compose logs frontend
-
-# Rebuild frontend
-docker-compose build frontend
-docker-compose up -d frontend
-```
-
-#### 4. Port Conflicts
 ```bash
 # Check port usage
-netstat -tulpn | grep -E "(3000|8000|5432|6379)"
+sudo netstat -tlnp | grep :8000
+sudo lsof -i :8000
 
-# Change ports in docker-compose.yml if needed
+# Kill process using port
+sudo kill -9 <PID>
 ```
 
-## 📈 Performance Optimization
+#### 3. Permission Issues
 
-### 1. Database Optimization
-```sql
--- Create indexes for better performance
-CREATE INDEX idx_dast_scans_created_at ON dast_scans(created_at);
-CREATE INDEX idx_sast_projects_name ON sast_projects(name);
-CREATE INDEX idx_vulnerabilities_severity ON vulnerabilities(severity);
-```
-
-### 2. Redis Optimization
 ```bash
-# Configure Redis for better performance
-# See redis.conf for optimization settings
+# Fix file permissions
+sudo chown -R cyber:cyber /opt/cyber-cursor
+sudo chmod -R 755 /opt/cyber-cursor
+
+# Fix database permissions
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cyber_cursor TO cyber_user;"
 ```
 
-### 3. Application Optimization
+#### 4. Service Won't Start
+
 ```bash
-# Enable gzip compression
-# Configure nginx for static file serving
-# Use CDN for static assets in production
+# Check service status
+sudo systemctl status cyber-cursor
+
+# Check logs
+sudo journalctl -u cyber-cursor -n 50
+
+# Test configuration
+sudo systemctl daemon-reload
+sudo systemctl restart cyber-cursor
 ```
 
-## 🔄 Updates and Maintenance
+### Performance Issues
 
-### 1. Application Updates
+#### 1. Slow Response Times
+
 ```bash
-# Pull latest changes
-git pull origin main
+# Check database performance
+psql -h localhost -U cyber_user -d cyber_cursor -c "SELECT * FROM pg_stat_activity;"
 
-# Rebuild containers
-docker-compose build
-
-# Restart services
-docker-compose up -d
+# Check system resources
+htop
+iostat -x 1
 ```
 
-### 2. Database Migrations
+#### 2. High Memory Usage
+
 ```bash
-# Run new migrations
-docker-compose exec backend alembic upgrade head
+# Check memory usage
+free -h
+ps aux --sort=-%mem | head -10
 
-# Rollback if needed
-docker-compose exec backend alembic downgrade -1
+# Restart services if needed
+sudo systemctl restart cyber-cursor
+sudo systemctl restart postgresql
 ```
 
-### 3. Security Updates
+## 🔒 Security Considerations
+
+### 1. Network Security
+
+- Use firewalls to restrict access
+- Implement VPN for remote access
+- Use HTTPS/TLS for all communications
+- Regular security updates
+
+### 2. Application Security
+
+- Change default passwords
+- Use strong secret keys
+- Implement rate limiting
+- Regular security audits
+
+### 3. Data Security
+
+- Encrypt sensitive data
+- Regular backups
+- Access control and logging
+- Compliance with regulations
+
+### 4. Monitoring and Alerting
+
 ```bash
-# Update base images
-docker-compose pull
+# Set up monitoring alerts
+# Example: Monitor disk space
+df -h | awk '$5 > "80%" {print "WARNING: Disk space low on " $1}'
 
-# Rebuild with security patches
-docker-compose build --no-cache
+# Monitor service status
+systemctl is-active cyber-cursor || echo "ALERT: Cyber Cursor service is down"
 ```
 
-## 🎯 Production Deployment
+## 📚 Additional Resources
 
-### 1. Production Environment Variables
-```bash
-# Create production .env file
-SECRET_KEY=your-production-secret-key
-DATABASE_URL=postgresql+asyncpg://prod_user:prod_password@prod_host:5432/prod_db
-REDIS_URL=redis://:prod_redis_password@prod_redis_host:6379/0
-DEBUG=false
-ALLOWED_ORIGINS=["https://yourdomain.com"]
-ALLOWED_HOSTS=["yourdomain.com"]
-```
+### Documentation
 
-### 2. Production Docker Compose
-```bash
-# Use production profile
-docker-compose --profile production up -d
-```
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [React Documentation](https://reactjs.org/docs/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Nginx Documentation](https://nginx.org/en/docs/)
 
-### 3. SSL/TLS Setup
-```bash
-# Configure SSL certificates
-# Update nginx configuration
-# Enable HTTPS redirects
-```
+### Support
 
-## 📞 Support
+- GitHub Issues: [Repository Issues](https://github.com/your-repo/issues)
+- Documentation: `/docs` endpoint when platform is running
+- Community: [Discussions](https://github.com/your-repo/discussions)
 
-### Logs and Debugging
-- Application logs: `docker-compose logs -f`
-- Database logs: `docker-compose logs postgres`
-- Nginx logs: `docker-compose logs nginx`
+---
 
-### Health Monitoring
-- Health endpoint: `curl http://localhost:8000/health`
-- Database status: `curl http://localhost:8000/health/database`
-- API documentation: http://localhost:8000/docs
+**🎉 Congratulations!** You have successfully deployed the Cyber Cursor Security Platform.
 
-### Contact
-For issues and support, check the application logs and health endpoints first. The application includes comprehensive error handling and logging for troubleshooting.
-
-## 🎉 Deployment Complete
-
-Once all steps are completed, your enhanced CyberShield application will be running with:
-
-- ✅ Clean codebase with no duplicates
-- ✅ Enhanced DAST and SAST features
-- ✅ Seamless frontend-backend-database communication
-- ✅ Containerized deployment
-- ✅ Comprehensive monitoring and health checks
-- ✅ Security features enabled
-- ✅ Performance optimizations in place
-
-The application is now ready for production use with enhanced security testing capabilities! 
+For additional support or questions, please refer to the documentation or create an issue in the repository. 

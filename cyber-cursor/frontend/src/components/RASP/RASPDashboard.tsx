@@ -45,7 +45,7 @@ interface RASPSummary {
   security_score: number;
 }
 
-const API_BASE_URL = '/api/rasp';
+const API_BASE_URL = '/api/v1/rasp';
 
 const RASPDashboard: React.FC = () => {
   const [summary, setSummary] = useState<RASPSummary | null>(null);

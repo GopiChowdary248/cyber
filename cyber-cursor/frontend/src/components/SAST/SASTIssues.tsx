@@ -137,7 +137,7 @@ const SASTIssues: React.FC<SASTIssuesProps> = ({ projectId, scanId }) => {
   const fetchIssues = async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       
       let url = `${API_URL}/api/v1/sast/vulnerabilities`;
       const params = new URLSearchParams();
@@ -235,11 +235,11 @@ const SASTIssues: React.FC<SASTIssuesProps> = ({ projectId, scanId }) => {
     }));
   };
 
-  const handleBulkAction = async (action: string) => {
+  const performBulkAction = async (action: string) => {
     if (selectedIssues.length === 0) return;
 
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       
       const response = await fetch(`${API_URL}/api/v1/sast/issues/bulk-action`, {
         method: 'POST',
@@ -264,7 +264,7 @@ const SASTIssues: React.FC<SASTIssuesProps> = ({ projectId, scanId }) => {
 
   const updateIssueStatus = async (issueId: string, status: string) => {
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       
       const response = await fetch(`${API_URL}/api/v1/sast/issues/${issueId}`, {
         method: 'PATCH',
@@ -285,9 +285,9 @@ const SASTIssues: React.FC<SASTIssuesProps> = ({ projectId, scanId }) => {
 
   const exportIssues = async (format: 'csv' | 'json' | 'pdf') => {
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       
-              let url = `${API_URL}/api/v1/sast/issues/export?format=${format}`;
+      let url = `${API_URL}/api/v1/sast/issues/export?format=${format}`;
       const params = new URLSearchParams();
       
       if (projectId) params.append('project_id', projectId);
@@ -370,25 +370,25 @@ const SASTIssues: React.FC<SASTIssuesProps> = ({ projectId, scanId }) => {
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10">
                   <div className="py-1">
                     <button
-                      onClick={() => handleBulkAction('confirm')}
+                      onClick={() => performBulkAction('confirm')}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
                       Confirm Selected
                     </button>
                     <button
-                      onClick={() => handleBulkAction('resolve')}
+                      onClick={() => performBulkAction('resolve')}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
                       Resolve Selected
                     </button>
                     <button
-                      onClick={() => handleBulkAction('false_positive')}
+                      onClick={() => performBulkAction('false_positive')}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
                       Mark as False Positive
                     </button>
                     <button
-                      onClick={() => handleBulkAction('wont_fix')}
+                      onClick={() => performBulkAction('wont_fix')}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
                       Won't Fix

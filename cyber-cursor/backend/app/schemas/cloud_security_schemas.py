@@ -334,6 +334,16 @@ class CloudSecurityOverview(BaseModel):
     high_issues: int
     medium_issues: int
     low_issues: int
+    # Enhanced Cloud Security fields
+    total_containers: int = 0
+    container_vulnerabilities: int = 0
+    container_security_score: float = 0.0
+    total_functions: int = 0
+    function_vulnerabilities: int = 0
+    function_security_score: float = 0.0
+    total_clusters: int = 0
+    total_pods: int = 0
+    kubernetes_security_score: float = 0.0
 
 class CloudSecurityMetrics(BaseModel):
     provider_distribution: Dict[str, int]

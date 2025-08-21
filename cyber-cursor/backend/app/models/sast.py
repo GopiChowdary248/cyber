@@ -4,7 +4,7 @@ Database models for SAST (Static Application Security Testing)
 Enhanced with SonarQube-like comprehensive functionality
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Enum, JSON, Date
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, Enum, JSON, Date, Index
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql import func
@@ -215,6 +215,13 @@ class SASTScan(Base):
     branch = Column(String(100), nullable=False)
     status = Column(Enum(ScanStatus), default=ScanStatus.PENDING)
     
+    # Incremental analysis
+    is_incremental = Column(Boolean, default=False)
+    base_scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=True)
+    changed_files = Column(JSON, nullable=True)  # List of changed file paths
+    new_files = Column(JSON, nullable=True)     # List of new file paths
+    deleted_files = Column(JSON, nullable=True)  # List of deleted file paths
+    
     # Progress
     progress = Column(Float, default=0.0)  # 0-100
     total_files = Column(Integer, default=0)
@@ -254,6 +261,8 @@ class SASTScan(Base):
     # Relationships
     project = relationship("SASTProject", back_populates="scans")
     issues = relationship("SASTIssue", back_populates="scan")
+    base_scan = relationship("SASTScan", remote_side=[id])
+    incremental_scans = relationship("SASTScan", back_populates="base_scan")
     
     @classmethod
     async def get_recent_scans(cls, db: AsyncSession, project_id: int, limit: int = 10) -> List["SASTScan"]:
@@ -299,10 +308,21 @@ class SASTSecurityHotspot(Base):
     owasp_category = Column(String(100), nullable=True)
     tags = Column(JSON, nullable=True)  # JSON array of tags
     
+    # Risk assessment
+    risk_level = Column(String(20), default="MEDIUM")  # LOW, MEDIUM, HIGH, CRITICAL
+    probability = Column(Float, default=0.5)  # 0.0 - 1.0
+    impact = Column(Float, default=0.5)      # 0.0 - 1.0
+    risk_score = Column(Float, default=0.0)  # Calculated risk score
+    
     # Review information
     reviewed_by = Column(String(100), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     review_comment = Column(Text, nullable=True)
+    review_priority = Column(Integer, default=5)  # 1-10, higher is more urgent
+    
+    # Assignment
+    assigned_to = Column(String(100), nullable=True)
+    assigned_at = Column(DateTime, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime, default=func.now())
@@ -311,6 +331,38 @@ class SASTSecurityHotspot(Base):
     # Relationships
     project = relationship("SASTProject", back_populates="security_hotspots")
     scan = relationship("SASTScan")
+    reviews = relationship("SASTHotspotReview", back_populates="hotspot", cascade="all, delete-orphan")
+
+class SASTHotspotReview(Base):
+    """Security hotspot review history and comments"""
+    __tablename__ = "sast_hotspot_reviews"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    hotspot_id = Column(Integer, ForeignKey("sast_security_hotspots.id"), nullable=False)
+    
+    # Review details
+    reviewer = Column(String(100), nullable=False)
+    review_action = Column(String(50), nullable=False)  # 'REVIEWED', 'ASSIGNED', 'COMMENTED'
+    review_status = Column(Enum(SecurityHotspotStatus), nullable=True)
+    review_resolution = Column(Enum(SecurityHotspotResolution), nullable=True)
+    
+    # Review content
+    comment = Column(Text, nullable=True)
+    risk_assessment = Column(JSON, nullable=True)  # Risk assessment details
+    
+    # Metadata
+    review_date = Column(DateTime, default=func.now())
+    review_duration = Column(Integer, nullable=True)  # Time spent reviewing in minutes
+    
+    # Relationships
+    hotspot = relationship("SASTSecurityHotspot", back_populates="reviews")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_hotspot_reviews_hotspot', 'hotspot_id'),
+        Index('idx_hotspot_reviews_reviewer', 'reviewer'),
+        Index('idx_hotspot_reviews_date', 'review_date'),
+    )
 
 # ============================================================================
 # Code Coverage
@@ -340,6 +392,9 @@ class SASTCodeCoverage(Base):
     # Overall coverage
     overall_coverage = Column(Float, default=0.0)
     
+    # Detailed coverage data (JSON)
+    detailed_coverage = Column(JSON, nullable=True)  # Store line-by-line coverage data
+    
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -347,6 +402,63 @@ class SASTCodeCoverage(Base):
     # Relationships
     project = relationship("SASTProject", back_populates="code_coverages")
     scan = relationship("SASTScan")
+    line_details = relationship("SASTLineCoverage", back_populates="coverage", cascade="all, delete-orphan")
+
+class SASTLineCoverage(Base):
+    """Detailed line-by-line coverage data"""
+    __tablename__ = "sast_line_coverage"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    coverage_id = Column(Integer, ForeignKey("sast_code_coverage.id"), nullable=False)
+    
+    # Line information
+    line_number = Column(Integer, nullable=False)
+    hits = Column(Integer, default=0)  # Number of times this line was executed
+    covered = Column(Boolean, default=False)
+    
+    # Branch coverage (if applicable)
+    branches = Column(JSON, nullable=True)  # Store branch coverage data
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    coverage = relationship("SASTCodeCoverage", back_populates="line_details")
+    
+    # Composite index for efficient queries
+    __table_args__ = (
+        Index('idx_coverage_line', 'coverage_id', 'line_number'),
+    )
+
+class SASTSavedFilter(Base):
+    """Saved filters for issues, hotspots, etc."""
+    __tablename__ = "sast_saved_filters"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=True)  # null for global filters
+    
+    # Filter metadata
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    filter_type = Column(String(50), nullable=False)  # 'issues', 'hotspots', 'coverage', etc.
+    
+    # Filter criteria (JSON)
+    filter_criteria = Column(JSON, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User")
+    project = relationship("SASTProject")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_saved_filter_user_type', 'user_id', 'filter_type'),
+        Index('idx_saved_filter_project', 'project_id'),
+    )
 
 # ============================================================================
 # Code Duplications
@@ -444,6 +556,25 @@ class SASTReliabilityReport(Base):
     major_bugs = Column(Integer, nullable=False)
     minor_bugs = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# ============================================================================
+# Issues Comments (workflow notes)
+# ============================================================================
+
+class SASTIssueComment(Base):
+    __tablename__ = "sast_issue_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    issue_id = Column(Integer, ForeignKey("sast_issues.id"), nullable=False, index=True)
+    author = Column(String(100), nullable=True)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    @classmethod
+    async def list_for_issue(cls, db: AsyncSession, issue_id: int) -> List["SASTIssueComment"]:
+        result = await db.execute(select(cls).where(cls.issue_id == issue_id).order_by(cls.created_at.asc()))
+        return result.scalars().all()
+    
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class SASTBugCategory(Base):
@@ -580,6 +711,91 @@ class SASTProjectMetadata(Base):
     tags = Column(JSON, nullable=True)  # array of strings
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SASTFileChange(Base):
+    """Track file changes for incremental analysis"""
+    __tablename__ = "sast_file_changes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    scan_id = Column(Integer, ForeignKey("sast_scans.id"), nullable=True)
+    
+    # File information
+    file_path = Column(String(500), nullable=False)
+    change_type = Column(String(20), nullable=False)  # 'added', 'modified', 'deleted'
+    
+    # Change details
+    old_hash = Column(String(64), nullable=True)  # SHA-256 hash of previous version
+    new_hash = Column(String(64), nullable=True)  # SHA-256 hash of current version
+    lines_added = Column(Integer, default=0)
+    lines_removed = Column(Integer, default=0)
+    
+    # Git information
+    commit_hash = Column(String(40), nullable=True)
+    commit_message = Column(Text, nullable=True)
+    author = Column(String(100), nullable=True)
+    
+    # Timestamps
+    detected_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    project = relationship("SASTProject")
+    scan = relationship("SASTScan")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_file_changes_project_scan', 'project_id', 'scan_id'),
+        Index('idx_file_changes_path', 'file_path'),
+        Index('idx_file_changes_type', 'change_type'),
+    )
+
+class SASTBackgroundJob(Base):
+    """Background jobs for long-running SAST operations"""
+    __tablename__ = "sast_background_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False)
+    
+    # Job details
+    job_type = Column(String(50), nullable=False)  # 'scan', 'analysis', 'coverage', etc.
+    status = Column(String(20), default='pending')  # 'pending', 'running', 'completed', 'failed'
+    priority = Column(Integer, default=5)  # 1-10, higher is more important
+    
+    # Job parameters
+    parameters = Column(JSON, nullable=True)  # Job-specific parameters
+    result = Column(JSON, nullable=True)     # Job result/output
+    
+    # Progress tracking
+    progress = Column(Float, default=0.0)  # 0-100
+    current_step = Column(String(100), nullable=True)
+    total_steps = Column(Integer, default=0)
+    
+    # Error handling
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    
+    # Timing
+    created_at = Column(DateTime, default=func.now())
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    scheduled_at = Column(DateTime, nullable=True)
+    
+    # Worker information
+    worker_id = Column(String(100), nullable=True)
+    worker_pid = Column(Integer, nullable=True)
+    
+    # Relationships
+    project = relationship("SASTProject")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_background_jobs_project_status', 'project_id', 'status'),
+        Index('idx_background_jobs_priority', 'priority'),
+        Index('idx_background_jobs_type', 'job_type'),
+        Index('idx_background_jobs_scheduled', 'scheduled_at'),
+    )
 
 # ============================================================================
 # Metrics and Trends Models
@@ -817,3 +1033,47 @@ class SASTProjectConfiguration(Base):
         """Get configuration for a project"""
         result = await db.execute(select(cls).where(cls.project_id == project_id))
         return result.scalar_one_or_none() 
+
+# ============================================================================
+# Baseline (New Code definition)
+# ============================================================================
+
+class BaselineType(str, enum.Enum):
+    DATE = "DATE"          # Use a calendar date as baseline (leak period)
+    BRANCH = "BRANCH"      # Use another branch/ref as baseline
+
+
+class SASTBaseline(Base):
+    __tablename__ = "sast_baselines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("sast_projects.id"), nullable=False, index=True)
+    baseline_type = Column(Enum(BaselineType), nullable=False, default=BaselineType.DATE)
+    value = Column(String(255), nullable=False)  # ISO date string or branch/ref name
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    async def get_for_project(cls, db: AsyncSession, project_id: int) -> Optional["SASTBaseline"]:
+        result = await db.execute(select(cls).where(cls.project_id == project_id))
+        return result.scalars().first()
+
+    @classmethod
+    async def upsert_for_project(
+        cls,
+        db: AsyncSession,
+        *,
+        project_id: int,
+        baseline_type: BaselineType,
+        value: str,
+    ) -> "SASTBaseline":
+        row = await cls.get_for_project(db, project_id)
+        if row:
+            row.baseline_type = baseline_type
+            row.value = value
+        else:
+            row = cls(project_id=project_id, baseline_type=baseline_type, value=value)
+            db.add(row)
+        await db.commit()
+        await db.refresh(row)
+        return row 

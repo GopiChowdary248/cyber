@@ -18,8 +18,8 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline';
 import { Shield, Zap, Activity } from 'lucide-react';
-import RASPProjects from '../../components/RASP/RASPProjects';
-import RASPOverview from '../../components/RASP/RASPOverview';
+import RASPDashboard from './RASPDashboard';
+import RASPApplications from './RASPApplications';
 
 interface RASPData {
   overview: {
@@ -54,7 +54,7 @@ interface RASPData {
 const RASP: React.FC = () => {
   const [data, setData] = useState<RASPData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,8 +118,14 @@ const RASP: React.FC = () => {
   }, []);
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: <ChartBarIcon className="w-4 h-4" /> },
-    { id: 'projects', label: 'Projects', icon: <DocumentTextIcon className="w-4 h-4" /> }
+    { id: 'dashboard', label: 'Dashboard', icon: <ChartBarIcon className="w-4 h-4" /> },
+    { id: 'applications', label: 'Applications', icon: <DocumentTextIcon className="w-4 h-4" /> },
+    { id: 'agents', label: 'Agents', icon: <ServerIcon className="w-4 h-4" /> },
+    { id: 'incidents', label: 'Incidents', icon: <ExclamationTriangleIcon className="w-4 h-4" /> },
+    { id: 'policies', label: 'Policies', icon: <ShieldCheckIcon className="w-4 h-4" /> },
+    { id: 'vulnerabilities', label: 'Vulnerabilities', icon: <BugAntIcon className="w-4 h-4" /> },
+    { id: 'traces', label: 'Traces', icon: <DocumentMagnifyingGlassIcon className="w-4 h-4" /> },
+    { id: 'integrations', label: 'Integrations', icon: <CogIcon className="w-4 h-4" /> }
   ];
 
   const getStatusColor = (status: string) => {
@@ -172,6 +178,59 @@ const RASP: React.FC = () => {
     );
   }
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <RASPDashboard />;
+      case 'applications':
+        return <RASPApplications />;
+      case 'agents':
+        return (
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">RASP Agents</h2>
+            <p className="text-gray-600">Agent management interface coming soon...</p>
+          </div>
+        );
+      case 'incidents':
+        return (
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">RASP Incidents</h2>
+            <p className="text-gray-600">Incident management interface coming soon...</p>
+          </div>
+        );
+      case 'policies':
+        return (
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">RASP Policies</h2>
+            <p className="text-gray-600">Policy management interface coming soon...</p>
+          </div>
+        );
+      case 'vulnerabilities':
+        return (
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">RASP Vulnerabilities</h2>
+            <p className="text-gray-600">Vulnerability management interface coming soon...</p>
+          </div>
+        );
+      case 'traces':
+        return (
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">RASP Traces</h2>
+            <p className="text-gray-600">Trace management interface coming soon...</p>
+          </div>
+        );
+      case 'integrations':
+        return (
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">RASP Integrations</h2>
+            <p className="text-gray-600">Integration management interface coming soon...</p>
+          </div>
+        );
+      default:
+        return <RASPDashboard />;
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -213,9 +272,7 @@ const RASP: React.FC = () => {
         transition={{ duration: 0.3 }}
         className="space-y-6"
       >
-        {activeTab === 'overview' && <RASPOverview />}
-
-        {activeTab === 'projects' && <RASPProjects />}
+        {renderTabContent()}
       </motion.div>
     </div>
   );

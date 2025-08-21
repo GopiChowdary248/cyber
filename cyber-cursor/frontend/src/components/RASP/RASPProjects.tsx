@@ -107,7 +107,7 @@ const RASPProjects: React.FC = () => {
       if (selectedEnvironment !== 'all') params.append('environment', selectedEnvironment);
       if (selectedStatus !== 'all') params.append('status_filter', selectedStatus);
 
-      const response = await fetch(`${API_URL}/api/rasp/projects?${params}`, {
+      const response = await fetch(`${API_URL}/api/v1/rasp/projects?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ const RASPProjects: React.FC = () => {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/rasp/projects`, {
+      const response = await fetch(`${API_URL}/api/v1/rasp/projects`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
@@ -166,7 +166,7 @@ const RASPProjects: React.FC = () => {
     if (!selectedProject) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/rasp/projects/${selectedProject.id}/duplicate`, {
+      const response = await fetch(`${API_URL}/api/v1/rasp/projects/${selectedProject.id}/duplicate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
@@ -194,7 +194,7 @@ const RASPProjects: React.FC = () => {
     if (!window.confirm('Are you sure you want to delete this project?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/rasp/projects/${projectId}`, {
+      const response = await fetch(`${API_URL}/api/v1/rasp/projects/${projectId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
@@ -215,7 +215,7 @@ const RASPProjects: React.FC = () => {
 
   const handleStartScan = async (projectId: number) => {
     try {
-      const response = await fetch(`${API_URL}/api/rasp/projects/${projectId}/scans`, {
+      const response = await fetch(`${API_URL}/api/v1/rasp/projects/${projectId}/scans`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,

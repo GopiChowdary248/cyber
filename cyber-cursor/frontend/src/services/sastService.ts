@@ -78,7 +78,7 @@ class SASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.get(API_ENDPOINTS.SAST.PROJECTS)
       );
-      return response;
+      return response as SASTProject[];
     } catch (error) {
       console.error('Failed to fetch SAST projects:', error);
       throw error;
@@ -93,7 +93,7 @@ class SASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.post(API_ENDPOINTS.SAST.PROJECTS, projectData)
       );
-      return response;
+      return response as SASTProject;
     } catch (error) {
       console.error('Failed to create SAST project:', error);
       throw error;
@@ -108,7 +108,7 @@ class SASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.get(API_ENDPOINTS.SAST.PROJECT(projectId))
       );
-      return response;
+      return response as SASTProject;
     } catch (error) {
       console.error('Failed to fetch SAST project:', error);
       throw error;
@@ -123,7 +123,7 @@ class SASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.put(API_ENDPOINTS.SAST.PROJECT(projectId), projectData)
       );
-      return response;
+      return response as SASTProject;
     } catch (error) {
       console.error('Failed to update SAST project:', error);
       throw error;
@@ -156,7 +156,7 @@ class SASTService {
       const response = await apiCallWithRetry(() => 
         serviceRegistry.get(endpoint)
       );
-      return response;
+      return response as SASTScan[];
     } catch (error) {
       console.error('Failed to fetch SAST scans:', error);
       throw error;
@@ -193,6 +193,664 @@ class SASTService {
       return response;
     } catch (error) {
       console.error('Failed to fetch SAST vulnerabilities:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // NEW CODE ANALYSIS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get new code metrics for a project
+   */
+  async getNewCodeMetrics(projectId: string, mode: string, days?: number, since?: string): Promise<any> {
+    try {
+      const params = new URLSearchParams({ mode });
+      if (days) params.append('days', days.toString());
+      if (since) params.append('since', since);
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/new-code-metrics?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch new code metrics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get new code settings for a project
+   */
+  async getNewCodeSettings(projectId: string): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/new-code/settings`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch new code settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update new code settings for a project
+   */
+  async updateNewCodeSettings(projectId: string, settings: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.put(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/new-code/settings`, settings)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to update new code settings:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // BRANCH AND PR ANALYSIS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get project branches
+   */
+  async getProjectBranches(projectId: string): Promise<any[]> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/branches`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch project branches:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get project pull requests
+   */
+  async getProjectPRs(projectId: string, state: string = 'open'): Promise<any[]> {
+    try {
+      const params = new URLSearchParams({ state });
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/prs?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch project PRs:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // CODE BROWSING ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get repository tree structure
+   */
+  async getRepoTree(projectId: string, path: string = '', ref: string = ''): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (path) params.append('path', path);
+      if (ref) params.append('ref', ref);
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/repo/tree?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch repository tree:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get file content
+   */
+  async getFileContent(projectId: string, filePath: string, ref: string = ''): Promise<any> {
+    try {
+      const params = new URLSearchParams({ file_path: filePath });
+      if (ref) params.append('ref', ref);
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/repo/file?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch file content:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // QUALITY PROFILES ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get all quality profiles
+   */
+  async getQualityProfiles(language?: string): Promise<any[]> {
+    try {
+      const params = language ? new URLSearchParams({ language }) : '';
+      const endpoint = language ? `/rule-profiles?${params}` : '/rule-profiles';
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`/api/v1/sast${endpoint}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch quality profiles:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new quality profile
+   */
+  async createQualityProfile(profileData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`/api/v1/sast/rule-profiles`, profileData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to create quality profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update quality profile
+   */
+  async updateQualityProfile(profileId: string, profileData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.put(`${API_ENDPOINTS.SAST.BASE}/rule-profiles/${profileId}`, profileData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to update quality profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Assign quality profile to project
+   */
+  async assignQualityProfile(projectId: string, profileId: string): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/rule-profile/${profileId}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to assign quality profile:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // ISSUE MANAGEMENT ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get issues by file
+   */
+  async getIssuesByFile(projectId: string, filePath: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams({ file_path: filePath });
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/issues/by-file?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch issues by file:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get issue comments
+   */
+  async getIssueComments(issueId: string): Promise<any[]> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/issues/${issueId}/comments`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch issue comments:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add comment to issue
+   */
+  async addIssueComment(issueId: string, comment: string): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.BASE}/issues/${issueId}/comments`, { message: comment })
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to add issue comment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update issue
+   */
+  async updateIssue(issueId: string, updates: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.put(`${API_ENDPOINTS.SAST.BASE}/issues/${issueId}`, updates)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to update issue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Bulk update issues
+   */
+  async bulkUpdateIssues(issueIds: number[], updates: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.put(`${API_ENDPOINTS.SAST.BASE}/issues/bulk-update`, { issue_ids: issueIds, updates })
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to bulk update issues:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get issue history
+   */
+  async getIssueHistory(issueId: string): Promise<any[]> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/issues/${issueId}/history`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch issue history:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // QUALITY GATES ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get quality gates
+   */
+  async getQualityGates(): Promise<any[]> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/quality-gates`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch quality gates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get project quality gate
+   */
+  async getProjectQualityGate(projectId: string): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/quality-gate`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch project quality gate:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update project quality gate
+   */
+  async updateProjectQualityGate(projectId: string, gateData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.put(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/quality-gate`, gateData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to update project quality gate:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Evaluate quality gate for new code
+   */
+  async evaluateQualityGateNewCode(projectId: string): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/quality-gate/evaluate-new-code`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to evaluate quality gate for new code:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // CODE COVERAGE ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get code coverage
+   */
+  async getCodeCoverage(projectId?: string, scanId?: string, minCoverage?: number): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (projectId) params.append('project_id', projectId);
+      if (scanId) params.append('scan_id', scanId);
+      if (minCoverage) params.append('min_coverage', minCoverage.toString());
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/code-coverage?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch code coverage:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed code coverage for a project
+   */
+  async getDetailedCodeCoverage(projectId: string, filePath?: string): Promise<any> {
+    try {
+      const params = filePath ? new URLSearchParams({ file_path: filePath }) : '';
+      const endpoint = filePath ? `?${params}` : '';
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/code-coverage/${projectId}/detailed${endpoint}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch detailed code coverage:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Import code coverage data
+   */
+  async importCodeCoverage(projectId: string, coverageData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/coverage/import`, coverageData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to import code coverage:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // SECURITY HOTSPOTS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get security hotspots
+   */
+  async getSecurityHotspots(projectId?: string, filters?: any): Promise<any[]> {
+    try {
+      const endpoint = projectId 
+        ? `${API_ENDPOINTS.SAST.PROJECT(projectId)}/security-hotspots`
+        : `${API_ENDPOINTS.SAST.BASE}/security-hotspots`;
+      
+      const params = filters ? new URLSearchParams(filters) : '';
+      const fullEndpoint = params ? `${endpoint}?${params}` : endpoint;
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(fullEndpoint)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch security hotspots:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Review security hotspot
+   */
+  async reviewSecurityHotspot(hotspotId: string, reviewData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.BASE}/security-hotspots/${hotspotId}/review`, reviewData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to review security hotspot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get security hotspot reviews
+   */
+  async getSecurityHotspotReviews(hotspotId: string): Promise<any[]> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/security-hotspots/${hotspotId}/reviews`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch security hotspot reviews:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // MONTH 1 FEATURES ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Start incremental analysis
+   */
+  async startIncrementalAnalysis(projectId: string, analysisConfig: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/incremental-scan`, analysisConfig)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to start incremental analysis:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get file changes for incremental analysis
+   */
+  async getFileChanges(projectId: string, scanId?: string): Promise<any[]> {
+    try {
+      const params = scanId ? new URLSearchParams({ scan_id: scanId }) : '';
+      const endpoint = params ? `?${params}` : '';
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/file-changes${endpoint}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch file changes:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get background jobs
+   */
+  async getBackgroundJobs(): Promise<any[]> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/background-jobs`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch background jobs:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // SAVED FILTERS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Create saved filter
+   */
+  async createSavedFilter(filterData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.BASE}/saved-filters`, filterData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to create saved filter:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get saved filters
+   */
+  async getSavedFilters(filterType: string, projectId?: number): Promise<any> {
+    try {
+      const params = new URLSearchParams({ filter_type: filterType });
+      if (projectId) params.append('project_id', projectId.toString());
+      
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/saved-filters?${params}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch saved filters:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update saved filter
+   */
+  async updateSavedFilter(filterId: string, filterData: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.put(`${API_ENDPOINTS.SAST.BASE}/saved-filters/${filterId}`, filterData)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to update saved filter:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete saved filter
+   */
+  async deleteSavedFilter(filterId: string): Promise<void> {
+    try {
+      await apiCallWithRetry(() => 
+        serviceRegistry.delete(`${API_ENDPOINTS.SAST.BASE}/saved-filters/${filterId}`)
+      );
+    } catch (error) {
+      console.error('Failed to delete saved filter:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // ADVANCED ANALYSIS ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Start advanced analysis
+   */
+  async startAdvancedAnalysis(projectId: string, analysisTypes: string[], languages: string[], options?: any): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.BASE}/advanced-analysis/${projectId}`, {
+          analysis_types: analysisTypes,
+          languages,
+          options
+        })
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to start advanced analysis:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get advanced analysis results
+   */
+  async getAdvancedAnalysisResults(analysisId: string): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/advanced-analysis/${analysisId}`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch advanced analysis results:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // DASHBOARD AND OVERVIEW ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get SAST dashboard stats
+   */
+  async getDashboardStats(): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/dashboard`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get SAST overview
+   */
+  async getOverview(): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.get(`${API_ENDPOINTS.SAST.BASE}/overview`)
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch SAST overview:', error);
       throw error;
     }
   }
@@ -310,6 +968,19 @@ class SASTService {
     }
   }
 
+  async importCoverage(projectId: string | number, body: FormData | Blob, params?: { scan_id?: string|number; format?: 'lcov'|'cobertura'|'jacoco'; clear?: boolean }) {
+    const url = `/api/v1/sast/projects/${projectId}/coverage/import`;
+    const opts: any = { params };
+    // If Blob, wrap as FormData
+    let payload: any = body;
+    if (!(body instanceof FormData)) {
+      const fd = new FormData();
+      fd.append('file', body as any, 'coverage');
+      payload = fd;
+    }
+    return apiCallWithRetry(() => serviceRegistry.post(url, payload, opts));
+  }
+
   /**
    * Get SAST duplications
    */
@@ -344,6 +1015,22 @@ class SASTService {
     }
   }
 
+  // Baseline (New Code)
+  async getBaseline(projectId: string): Promise<{ baseline_type: 'DATE'|'BRANCH'; value: string; }>{
+    return apiCallWithRetry(() => serviceRegistry.get(`/api/v1/sast/projects/${projectId}/baseline`));
+  }
+  async setBaseline(projectId: string, baseline_type: 'DATE'|'BRANCH', value: string): Promise<any>{
+    return apiCallWithRetry(() => serviceRegistry.post(`/api/v1/sast/projects/${projectId}/baseline`, { baseline_type, value }));
+  }
+
+  // New-code issues and PR analysis
+  async getNewCodeIssues(projectId: string, params?: { branch?: string; severity?: string; issue_type?: string; skip?: number; limit?: number; }): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.get(`/api/v1/sast/projects/${projectId}/issues/new-code`, { params }));
+  }
+  async analyzePullRequest(payload: { project_id: number; base_ref: string; head_ref: string; pr_number?: number; repo_url?: string; scm?: string; }): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.post(`/api/v1/sast/pulls/analyze`, payload));
+  }
+
   /**
    * Get SAST rules
    */
@@ -357,6 +1044,28 @@ class SASTService {
       console.error('Failed to fetch SAST rules:', error);
       throw error;
     }
+  }
+
+  // Rule profiles
+  async listRuleProfiles(language?: string): Promise<any> {
+    const params = language ? { language } : undefined;
+    return apiCallWithRetry(() => serviceRegistry.get(`/api/v1/sast/rule-profiles`, { params }));
+  }
+
+  async createRuleProfile(payload: { name: string; language: string; description?: string }): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.post(`/api/v1/sast/rule-profiles`, payload));
+  }
+
+  async getProfileRules(profileId: number | string): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.get(`/api/v1/sast/rule-profiles/${profileId}/rules`));
+  }
+
+  async assignProjectRuleProfile(projectId: string | number, profileId: string | number): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.post(`/api/v1/sast/projects/${projectId}/rule-profile/${profileId}`));
+  }
+
+  async updateRule(ruleId: number | string, payload: { enabled?: boolean; severity?: 'BLOCKER'|'CRITICAL'|'MAJOR'|'MINOR'|'INFO' }): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.put(`/api/v1/sast/rules/${ruleId}`, payload));
   }
 
   /**
@@ -402,6 +1111,43 @@ class SASTService {
       console.error('Failed to update SAST configuration:', error);
       throw error;
     }
+  }
+
+  // Quality Gate
+  async updateQualityGate(projectId: string | number, payload: Partial<{
+    max_blocker_issues: number; max_critical_issues: number; max_major_issues: number; max_minor_issues: number; max_info_issues: number;
+    min_coverage: number; min_branch_coverage: number; max_debt_ratio: number; max_technical_debt: number; max_duplicated_lines: number; max_duplicated_blocks: number;
+  }>): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.put(`/api/v1/sast/projects/${projectId}/quality-gate`, payload));
+  }
+
+  // Issue workflow
+  async updateIssue(issueId: string | number, payload: Partial<{ status: string; resolution: string; assignee_id: number }>): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.put(`/api/v1/sast/issues/${issueId}`, payload));
+  }
+
+  async bulkUpdateIssues(issueIds: (string | number)[], payload: Partial<{ status: string; resolution: string; assignee_id: number }>): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.put(`/api/v1/sast/issues/bulk-update`, { issue_ids: issueIds, updates: payload }));
+  }
+
+  // Saved Filters
+  async createSavedFilter(filterData: { name: string; description?: string; filter_type: string; filter_criteria: any; project_id?: number }): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.post(`/api/v1/sast/saved-filters`, filterData));
+  }
+
+  async getSavedFilters(filterType?: string, projectId?: number): Promise<any> {
+    const params: any = {};
+    if (filterType) params.filter_type = filterType;
+    if (projectId) params.project_id = projectId;
+    return apiCallWithRetry(() => serviceRegistry.get(`/api/v1/sast/saved-filters`, { params }));
+  }
+
+  async updateSavedFilter(filterId: number, filterData: Partial<{ name: string; description: string; filter_criteria: any }>): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.put(`/api/v1/sast/saved-filters/${filterId}`, filterData));
+  }
+
+  async deleteSavedFilter(filterId: number): Promise<any> {
+    return apiCallWithRetry(() => serviceRegistry.delete(`/api/v1/sast/saved-filters/${filterId}`));
   }
 
   /**
@@ -508,6 +1254,30 @@ class SASTService {
       return response;
     } catch (error) {
       console.error('Failed to schedule SAST scan:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start advanced analysis for a project
+   */
+  async startAdvancedAnalysis(
+    projectId: string, 
+    analysisTypes: string[], 
+    languages: string[], 
+    options?: any
+  ): Promise<any> {
+    try {
+      const response = await apiCallWithRetry(() => 
+        serviceRegistry.post(`${API_ENDPOINTS.SAST.PROJECT(projectId)}/advanced-analysis`, {
+          analysis_types: analysisTypes,
+          languages,
+          options
+        })
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to start advanced analysis:', error);
       throw error;
     }
   }

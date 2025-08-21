@@ -1,262 +1,211 @@
-from pydantic_settings import BaseSettings
-from pydantic import validator
-from typing import List, Optional
-import os
+"""
+Configuration settings for Cyber Cursor Security Platform
+"""
 
-class SecuritySettings(BaseSettings):
-    """Security configuration settings"""
+import os
+from typing import List, Optional
+from pydantic import validator
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # Application
+    APP_NAME: str = "Cyber Cursor Security Platform"
+    APP_VERSION: str = "2.0.0"
+    DEBUG: bool = False
+    ENVIRONMENT: str = "development"
     
-    # JWT Settings
-    SECRET_KEY: str = "your-super-secret-key-change-in-production"
+    # Server
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    WORKERS: int = 1
+    
+    # Logging
+    LOG_LEVEL: str = "info"
+    LOG_FORMAT: str = "json"
+    
+    # Security
+    SECRET_KEY: str = "your-secret-key-here-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
-    # Rate Limiting
-    RATE_LIMIT_WINDOW: int = 60
-    RATE_LIMIT_MAX_REQUESTS: int = 100
-    RATE_LIMIT_BURST: int = 10
+    # CORS
+    ALLOWED_HOSTS: List[str] = ["*"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000",  # React dev server
+        "http://localhost:3001",  # Alternative React port
+        "http://127.0.0.1:3000", # Alternative localhost
+        "http://127.0.0.1:3001", # Alternative localhost port
+        "*"  # Allow all origins in development
+    ]
+    ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    ALLOWED_HEADERS: List[str] = [
+        "Accept", "Accept-Language", "Content-Language", "Content-Type",
+        "Authorization", "X-Requested-With", "Origin", "Cache-Control",
+        "X-CSRF-Token", "X-API-Key"
+    ]
     
-    # Password Policy
-    MIN_PASSWORD_LENGTH: int = 12
-    REQUIRE_UPPERCASE: bool = True
-    REQUIRE_LOWERCASE: bool = True
-    REQUIRE_NUMBERS: bool = True
-    REQUIRE_SPECIAL_CHARS: bool = True
-    PASSWORD_HISTORY_COUNT: int = 5
+    # Database
+    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/cyber_cursor"
+    DATABASE_POOL_SIZE: int = 10
+    DATABASE_MAX_OVERFLOW: int = 20
+    DATABASE_POOL_TIMEOUT: int = 30
     
-    # Session Management
-    SESSION_TIMEOUT_MINUTES: int = 30
-    MAX_CONCURRENT_SESSIONS: int = 3
-    SESSION_INACTIVITY_TIMEOUT: int = 15
-    
-    # 2FA Settings
-    REQUIRE_2FA: bool = True
-    TOTP_ISSUER: str = "CyberShield"
-    BACKUP_CODES_COUNT: int = 10
-    
-    # API Security
-    API_KEY_HEADER: str = "X-API-Key"
-    API_KEY_LENGTH: int = 32
-    
-    # CORS Settings
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://localhost:3000", "https://yourdomain.com"]
-    ALLOWED_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    ALLOWED_HEADERS: List[str] = ["*"]
-    
-    # Trusted Hosts
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "yourdomain.com"]
-    
-    # Security Headers
-    ENABLE_HSTS: bool = True
-    HSTS_MAX_AGE: int = 31536000
-    ENABLE_CSP: bool = True
-    CSP_POLICY: str = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
-    
-    # Audit Logging
-    AUDIT_LOG_ENABLED: bool = True
-    AUDIT_LOG_RETENTION_DAYS: int = 90
-    AUDIT_LOG_LEVEL: str = "INFO"
-    
-    # Encryption
-    ENCRYPTION_KEY: str = "your-encryption-key-change-in-production"
-    ENCRYPTION_ALGORITHM: str = "AES-256-GCM"
-    
-    # Database Security
-    DB_CONNECTION_POOL_SIZE: int = 10
-    DB_CONNECTION_TIMEOUT: int = 30
-    DB_SSL_MODE: str = "require"
-    
-    # Redis Security
-    REDIS_SSL: bool = True
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_PASSWORD: Optional[str] = None
     REDIS_DB: int = 0
     
-    # File Upload Security
-    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
-    ALLOWED_FILE_TYPES: List[str] = [".pdf", ".txt", ".csv", ".json", ".xml"]
-    UPLOAD_PATH: str = "./uploads"
-    SCAN_UPLOADS: bool = True
+    # WebSocket
+    WEBSOCKET_PING_INTERVAL: int = 25
+    WEBSOCKET_PING_TIMEOUT: int = 10
+    WEBSOCKET_CLOSE_TIMEOUT: int = 10
     
-    # Network Security
-    ENABLE_IP_WHITELIST: bool = False
-    IP_WHITELIST: List[str] = []
-    ENABLE_GEO_BLOCKING: bool = False
-    BLOCKED_COUNTRIES: List[str] = []
+    # File Upload
+    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    UPLOAD_DIR: str = "uploads"
+    ALLOWED_FILE_TYPES: List[str] = [
+        "txt", "pdf", "doc", "docx", "xls", "xlsx", "csv", "json", "xml", "yaml", "yml",
+        "py", "js", "ts", "java", "cpp", "c", "cs", "php", "rb", "go", "rs", "swift",
+        "html", "css", "scss", "sass", "less", "vue", "jsx", "tsx"
+    ]
+    
+    # Email
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_TLS: bool = True
+    SMTP_SSL: bool = False
+    
+    # External APIs
+    OPENAI_API_KEY: Optional[str] = None
+    VIRUSTOTAL_API_KEY: Optional[str] = None
+    SHODAN_API_KEY: Optional[str] = None
+    CENSYS_API_ID: Optional[str] = None
+    CENSYS_API_SECRET: Optional[str] = None
+    
+    # Cloud Providers
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    AWS_S3_BUCKET: Optional[str] = None
+    
+    AZURE_TENANT_ID: Optional[str] = None
+    AZURE_CLIENT_ID: Optional[str] = None
+    AZURE_CLIENT_SECRET: Optional[str] = None
+    AZURE_SUBSCRIPTION_ID: Optional[str] = None
+    
+    GCP_PROJECT_ID: Optional[str] = None
+    GCP_SERVICE_ACCOUNT_KEY: Optional[str] = None
     
     # Monitoring
-    ENABLE_SECURITY_MONITORING: bool = True
-    ALERT_ON_FAILED_LOGIN: bool = True
-    ALERT_ON_SUSPICIOUS_ACTIVITY: bool = True
-    ALERT_EMAIL: Optional[str] = None
+    ENABLE_METRICS: bool = True
+    METRICS_PORT: int = 9090
+    ENABLE_HEALTH_CHECKS: bool = True
+    HEALTH_CHECK_INTERVAL: int = 30
     
-    @validator('SECRET_KEY')
-    def validate_secret_key(cls, v):
-        if len(v) < 32:
-            raise ValueError('SECRET_KEY must be at least 32 characters long')
-        return v
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_REQUESTS: int = 100
+    RATE_LIMIT_WINDOW: int = 60  # seconds
     
-    @validator('ENCRYPTION_KEY')
-    def validate_encryption_key(cls, v):
-        if len(v) < 32:
-            raise ValueError('ENCRYPTION_KEY must be at least 32 characters long')
-        return v
+    # Session Management
+    SESSION_TIMEOUT: int = 3600  # 1 hour
+    MAX_SESSIONS_PER_USER: int = 5
     
-    @validator('ALLOWED_ORIGINS')
-    def validate_allowed_origins(cls, v):
-        if not v:
-            raise ValueError('At least one allowed origin must be specified')
-        return v
-
-class DatabaseSettings(BaseSettings):
-    """Database configuration settings"""
+    # Backup
+    BACKUP_ENABLED: bool = False
+    BACKUP_INTERVAL: int = 24  # hours
+    BACKUP_RETENTION_DAYS: int = 30
     
-    # Use environment variable or default to PostgreSQL container
-    DATABASE_URL: str = "postgresql+asyncpg://cybershield_user:cybershield_password@localhost:5432/cybershield"
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
-    DB_POOL_TIMEOUT: int = 30
-    DB_POOL_RECYCLE: int = 3600
+    # Integration
+    SLACK_WEBHOOK_URL: Optional[str] = None
+    TEAMS_WEBHOOK_URL: Optional[str] = None
+    JIRA_URL: Optional[str] = None
+    JIRA_USERNAME: Optional[str] = None
+    JIRA_API_TOKEN: Optional[str] = None
     
-    # SSL Configuration (for PostgreSQL)
-    DB_SSL_MODE: str = "disable"  # Disable SSL for local development
-    DB_SSL_CERT: Optional[str] = None
-    DB_SSL_KEY: Optional[str] = None
-    DB_SSL_CA: Optional[str] = None
+    # AI/ML
+    AI_MODEL_PATH: str = "models/"
+    AI_ENABLE_GPU: bool = False
+    AI_BATCH_SIZE: int = 32
+    AI_MAX_SEQUENCE_LENGTH: int = 512
     
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    # Compliance
+    COMPLIANCE_FRAMEWORKS: List[str] = [
+        "ISO27001", "SOC2", "PCI-DSS", "GDPR", "HIPAA", "NIST", "OWASP"
+    ]
+    
+    # Threat Intelligence
+    THREAT_INTEL_SOURCES: List[str] = [
+        "virustotal", "abuseipdb", "shodan", "censys", "alienvault", "misp"
+    ]
+    THREAT_INTEL_UPDATE_INTERVAL: int = 3600  # 1 hour
+    
+    # Incident Management
+    INCIDENT_SEVERITY_LEVELS: List[str] = [
+        "Critical", "High", "Medium", "Low", "Info"
+    ]
+    INCIDENT_STATUSES: List[str] = [
+        "New", "Assigned", "In Progress", "Resolved", "Closed"
+    ]
+    
+    # Reporting
+    REPORT_FORMATS: List[str] = ["pdf", "html", "json", "csv", "xml"]
+    REPORT_TEMPLATES_DIR: str = "templates/reports/"
+    
+    # Development
+    ENABLE_SWAGGER: bool = True
+    ENABLE_REDOC: bool = True
+    ENABLE_OPENAPI: bool = True
+    
+    @validator("DATABASE_URL", pre=True)
+    def assemble_db_url(cls, v: Optional[str], values: dict) -> str:
+        if isinstance(v, str):
+            return v
         
-        # Override with environment variable if present
-        if os.getenv("DATABASE_URL"):
-            self.DATABASE_URL = os.getenv("DATABASE_URL")
+        # Build from components if not provided
+        user = values.get("DB_USER", "postgres")
+        password = values.get("DB_PASSWORD", "password")
+        host = values.get("DB_HOST", "localhost")
+        port = values.get("DB_PORT", "5432")
+        name = values.get("DB_NAME", "cyber_cursor")
         
-        # Only use SQLite if explicitly requested
-        if os.getenv("USE_SQLITE", "false").lower() == "true":
-            self.DATABASE_URL = "sqlite+aiosqlite:///./cybershield.db"
+        return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+    
+    @validator("ALLOWED_HOSTS", pre=True)
+    def assemble_allowed_hosts(cls, v: str) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        elif isinstance(v, (list, tuple)):
+            return v
+        raise ValueError(v)
+    
+    @validator("ALLOWED_ORIGINS", pre=True)
+    def assemble_allowed_origins(cls, v: str) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        elif isinstance(v, (list, tuple)):
+            return v
+        raise ValueError(v)
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
+        extra = "allow"
 
-class RedisSettings(BaseSettings):
-    """Redis configuration settings"""
-    
-    REDIS_URL: str = "redis://:redis_password@localhost:6380/0"
-    REDIS_PASSWORD: Optional[str] = "redis_password"
-    REDIS_DB: int = 0
-    REDIS_SSL: bool = False
-    REDIS_MAX_CONNECTIONS: int = 20
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Override with environment variable if present
-        if os.getenv("REDIS_URL"):
-            self.REDIS_URL = os.getenv("REDIS_URL")
-
-class APISettings(BaseSettings):
-    """API configuration settings"""
-    
-    API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "CyberShield API"
-    VERSION: str = "1.0.0"
-    DESCRIPTION: str = "Comprehensive cybersecurity platform API"
-    
-    # Server Settings
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
-    DEBUG: bool = False  # Set to False for production
-    
-    # Pagination
-    DEFAULT_PAGE_SIZE: int = 20
-    MAX_PAGE_SIZE: int = 100
-    
-    # Response Caching
-    ENABLE_CACHING: bool = True
-    CACHE_TTL: int = 300  # 5 minutes
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Override with environment variables if present
-        if os.getenv("DEBUG"):
-            self.DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-        if os.getenv("HOST"):
-            self.HOST = os.getenv("HOST")
-        if os.getenv("PORT"):
-            self.PORT = int(os.getenv("PORT"))
-
-class AISettings(BaseSettings):
-    """AI configuration settings"""
-    
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_MODEL: str = "gpt-3.5-turbo"
-    OPENAI_BASE_URL: Optional[str] = None
-    AI_ENABLED: bool = False
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Override with environment variables if present
-        if os.getenv("OPENAI_API_KEY"):
-            self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-        if os.getenv("OPENAI_MODEL"):
-            self.OPENAI_MODEL = os.getenv("OPENAI_MODEL")
-
-class LoggingSettings(BaseSettings):
-    """Logging configuration settings"""
-    
-    LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    LOG_FILE: Optional[str] = None
-    LOG_MAX_SIZE: int = 10 * 1024 * 1024  # 10MB
-    LOG_BACKUP_COUNT: int = 5
-    
-    # Security Logging
-    SECURITY_LOG_LEVEL: str = "WARNING"
-    SECURITY_LOG_FILE: Optional[str] = None
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Override with environment variables if present
-        if os.getenv("LOG_LEVEL"):
-            self.LOG_LEVEL = os.getenv("LOG_LEVEL")
-
-# Create settings instances
-security_settings = SecuritySettings()
-database_settings = DatabaseSettings()
-redis_settings = RedisSettings()
-api_settings = APISettings()
-ai_settings = AISettings()
-logging_settings = LoggingSettings()
-
-# Combined settings for easy access
-class Settings:
-    """Combined settings class"""
-    
-    def __init__(self):
-        self.security = security_settings
-        self.database = database_settings
-        self.redis = redis_settings
-        self.api = api_settings
-        self.ai = ai_settings
-        self.logging = logging_settings
-    
-    @property
-    def is_production(self) -> bool:
-        """Check if running in production"""
-        return os.getenv("ENVIRONMENT", "development").lower() == "production"
-    
-    @property
-    def is_development(self) -> bool:
-        """Check if running in development"""
-        return os.getenv("ENVIRONMENT", "development").lower() == "testing"
-    
-    @property
-    def is_testing(self) -> bool:
-        """Check if running in testing"""
-        return os.getenv("ENVIRONMENT", "development").lower() == "testing"
-
-# Global settings instance
+# Create settings instance
 settings = Settings()
 
-# Ensure upload directory exists
-os.makedirs(settings.security.UPLOAD_PATH, exist_ok=True) 
+# Environment-specific overrides
+if settings.ENVIRONMENT == "production":
+    settings.DEBUG = False
+    settings.LOG_LEVEL = "warning"
+    settings.ENABLE_SWAGGER = False
+    settings.ENABLE_REDOC = False
+elif settings.ENVIRONMENT == "testing":
+    settings.DEBUG = True
+    settings.LOG_LEVEL = "debug"
+    settings.DATABASE_URL = "postgresql://postgres:password@localhost:5432/cyber_cursor_test" 

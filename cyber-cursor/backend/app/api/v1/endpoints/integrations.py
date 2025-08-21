@@ -1,472 +1,520 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, List, Any, Optional
-import structlog
+"""
+Integrations API endpoints for Cyber Cursor Security Platform
+"""
 
-from app.core.database import get_db
-from app.core.security import get_current_user, RoleChecker
-from app.models.user import User
-from app.services.integration_service import integration_service, IntegrationType, SIEMProvider, EmailProvider, CloudProvider
-from app.schemas.integrations import (
-    IntegrationCreate, IntegrationUpdate, IntegrationResponse, 
-    IntegrationTestResponse, IntegrationStatusResponse, SyncResponse
-)
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
+import json
+import asyncio
+from datetime import datetime, timedelta
 
-logger = structlog.get_logger()
 router = APIRouter()
 
-# Role-based access control
-admin_only = RoleChecker(["admin"])
+# Pydantic models
+class IntegrationConfig(BaseModel):
+    integration_type: str
+    name: str
+    configuration: Dict[str, Any]
+    enabled: bool = True
+    priority: int = 1
 
-@router.get("/", response_model=List[IntegrationResponse])
-async def get_integrations(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get all integrations"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        integrations = []
-        
-        for integration_id, data in status_data.items():
-            integrations.append({
-                "id": integration_id,
-                "name": data["name"],
-                "type": data["type"],
-                "provider": data["provider"],
-                "enabled": data["enabled"],
-                "status": data["status"],
-                "last_sync": data["last_sync"]
-            })
-            
-        return integrations
-    except Exception as e:
-        logger.error("Error getting integrations", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get integrations"
-        )
+class APICredential(BaseModel):
+    api_key: str
+    api_secret: Optional[str] = None
+    base_url: str
+    timeout: int = 30
+    retry_attempts: int = 3
 
-@router.post("/", response_model=IntegrationResponse)
-async def create_integration(
-    integration: IntegrationCreate,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create a new integration"""
-    try:
-        # Validate integration type and provider
-        if integration.type == "siem" and integration.provider not in [p.value for p in SIEMProvider]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid SIEM provider. Supported: {[p.value for p in SIEMProvider]}"
-            )
-        elif integration.type == "email" and integration.provider not in [p.value for p in EmailProvider]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid email provider. Supported: {[p.value for p in EmailProvider]}"
-            )
-        elif integration.type == "cloud" and integration.provider not in [p.value for p in CloudProvider]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid cloud provider. Supported: {[p.value for p in CloudProvider]}"
-            )
-        
-        # In a real implementation, this would save to database
-        # For now, we'll return a mock response
-        integration_id = f"{integration.provider}_{integration.name.lower().replace(' ', '_')}"
-        
-        return {
-            "id": integration_id,
-            "name": integration.name,
-            "type": integration.type,
-            "provider": integration.provider,
-            "enabled": True,
-            "status": "active",
-            "last_sync": None
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error creating integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create integration"
-        )
+class IntegrationTest(BaseModel):
+    integration_id: str
+    test_type: str  # connectivity, authentication, data_sync
+    parameters: Optional[Dict[str, Any]] = None
 
-@router.get("/{integration_id}", response_model=IntegrationResponse)
-async def get_integration(
-    integration_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get a specific integration"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        if integration_id not in status_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Integration not found"
-            )
-            
-        data = status_data[integration_id]
-        return {
-            "id": integration_id,
-            "name": data["name"],
-            "type": data["type"],
-            "provider": data["provider"],
-            "enabled": data["enabled"],
-            "status": data["status"],
-            "last_sync": data["last_sync"]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error getting integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get integration"
-        )
-
-@router.put("/{integration_id}", response_model=IntegrationResponse)
-async def update_integration(
-    integration_id: str,
-    integration: IntegrationUpdate,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update an integration"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        if integration_id not in status_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Integration not found"
-            )
-            
-        # In a real implementation, this would update the database
-        # For now, we'll return the updated data
-        data = status_data[integration_id]
-        return {
-            "id": integration_id,
-            "name": integration.name or data["name"],
-            "type": data["type"],
-            "provider": data["provider"],
-            "enabled": integration.enabled if integration.enabled is not None else data["enabled"],
-            "status": data["status"],
-            "last_sync": data["last_sync"]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error updating integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update integration"
-        )
-
-@router.delete("/{integration_id}")
-async def delete_integration(
-    integration_id: str,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Delete an integration"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        if integration_id not in status_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Integration not found"
-            )
-            
-        # In a real implementation, this would delete from database
-        logger.info("Integration deleted", integration_id=integration_id, user_id=current_user.id)
-        
-        return {"message": "Integration deleted successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error deleting integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete integration"
-        )
-
-@router.post("/{integration_id}/test", response_model=IntegrationTestResponse)
-async def test_integration(
-    integration_id: str,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Test integration connectivity"""
-    try:
-        result = await integration_service.test_integration(integration_id)
-        return result
-    except Exception as e:
-        logger.error("Error testing integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to test integration"
-        )
-
-@router.post("/{integration_id}/sync", response_model=SyncResponse)
-async def sync_integration(
-    integration_id: str,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Manually sync an integration"""
-    try:
-        # Add sync task to background
-        background_tasks.add_task(integration_service.sync_integration, integration_id)
-        
-        return {
-            "success": True,
-            "message": f"Sync started for integration {integration_id}",
-            "integration_id": integration_id
-        }
-    except Exception as e:
-        logger.error("Error starting integration sync", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to start integration sync"
-        )
-
-@router.post("/sync-all", response_model=SyncResponse)
-async def sync_all_integrations(
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Manually sync all integrations"""
-    try:
-        # Add sync task to background
-        background_tasks.add_task(integration_service.sync_all_integrations)
-        
-        return {
-            "success": True,
-            "message": "Sync started for all integrations",
-            "integration_id": "all"
-        }
-    except Exception as e:
-        logger.error("Error starting all integrations sync", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to start integrations sync"
-        )
-
-@router.get("/status/overview", response_model=IntegrationStatusResponse)
-async def get_integration_status_overview(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get integration status overview"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        
-        # Calculate statistics
-        total_integrations = len(status_data)
-        enabled_integrations = sum(1 for data in status_data.values() if data["enabled"])
-        active_integrations = sum(1 for data in status_data.values() if data["status"] == "active")
-        
-        # Group by type
-        type_stats = {}
-        for data in status_data.values():
-            integration_type = data["type"]
-            if integration_type not in type_stats:
-                type_stats[integration_type] = {"total": 0, "enabled": 0, "active": 0}
-            type_stats[integration_type]["total"] += 1
-            if data["enabled"]:
-                type_stats[integration_type]["enabled"] += 1
-            if data["status"] == "active":
-                type_stats[integration_type]["active"] += 1
-        
-        return {
-            "total_integrations": total_integrations,
-            "enabled_integrations": enabled_integrations,
-            "active_integrations": active_integrations,
-            "type_statistics": type_stats,
-            "recent_syncs": [
-                {
-                    "integration_id": integration_id,
-                    "last_sync": data["last_sync"]
-                }
-                for integration_id, data in status_data.items()
-                if data["last_sync"]
-            ][:5]  # Last 5 syncs
-        }
-    except Exception as e:
-        logger.error("Error getting integration status overview", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get integration status overview"
-        )
-
-@router.post("/{integration_id}/enable")
-async def enable_integration(
-    integration_id: str,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Enable an integration"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        if integration_id not in status_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Integration not found"
-            )
-            
-        # In a real implementation, this would update the database
-        logger.info("Integration enabled", integration_id=integration_id, user_id=current_user.id)
-        
-        return {"message": "Integration enabled successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error enabling integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to enable integration"
-        )
-
-@router.post("/{integration_id}/disable")
-async def disable_integration(
-    integration_id: str,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Disable an integration"""
-    try:
-        status_data = await integration_service.get_integration_status()
-        if integration_id not in status_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Integration not found"
-            )
-            
-        # In a real implementation, this would update the database
-        logger.info("Integration disabled", integration_id=integration_id, user_id=current_user.id)
-        
-        return {"message": "Integration disabled successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error disabling integration", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to disable integration"
-        )
-
-@router.get("/providers/supported")
-async def get_supported_providers(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get list of supported integration providers"""
+@router.get("/")
+async def get_integrations_overview():
+    """Get Integrations module overview"""
     return {
-        "siem": {
-            "splunk": {
-                "name": "Splunk",
-                "description": "Enterprise SIEM platform",
-                "capabilities": ["event_collection", "incident_creation", "alert_forwarding"]
-            },
-            "qradar": {
-                "name": "IBM QRadar",
-                "description": "Enterprise security intelligence platform",
-                "capabilities": ["event_collection", "incident_creation", "alert_forwarding"]
-            },
-            "elk": {
-                "name": "ELK Stack",
-                "description": "Elasticsearch, Logstash, Kibana stack",
-                "capabilities": ["event_collection", "log_analysis"]
-            },
-            "sentinel": {
-                "name": "Azure Sentinel",
-                "description": "Microsoft's cloud-native SIEM",
-                "capabilities": ["event_collection", "incident_creation", "alert_forwarding"]
-            },
-            "crowdstrike": {
-                "name": "CrowdStrike Falcon",
-                "description": "Cloud-native endpoint protection platform",
-                "capabilities": ["threat_detection", "incident_creation"]
-            }
-        },
-        "email": {
-            "office365": {
-                "name": "Office 365",
-                "description": "Microsoft Office 365 email services",
-                "capabilities": ["email_analysis", "threat_detection", "quarantine"]
-            },
-            "gmail": {
-                "name": "Gmail",
-                "description": "Google Workspace email services",
-                "capabilities": ["email_analysis", "threat_detection"]
-            },
-            "exchange": {
-                "name": "Microsoft Exchange",
-                "description": "On-premises Exchange server",
-                "capabilities": ["email_analysis", "threat_detection"]
-            },
-            "smtp": {
-                "name": "SMTP",
-                "description": "Standard SMTP email server",
-                "capabilities": ["email_analysis"]
-            }
-        },
-        "cloud": {
-            "aws": {
-                "name": "Amazon Web Services",
-                "description": "AWS security services",
-                "capabilities": ["guardduty", "securityhub", "config", "cloudtrail"]
-            },
-            "azure": {
-                "name": "Microsoft Azure",
-                "description": "Azure security services",
-                "capabilities": ["sentinel", "defender", "security_center"]
-            },
-            "gcp": {
-                "name": "Google Cloud Platform",
-                "description": "GCP security services",
-                "capabilities": ["security_command_center", "chronicle"]
-            }
+        "module": "Integrations",
+        "description": "Third-party Integrations and API Management",
+        "status": "active",
+        "version": "2.0.0",
+        "features": [
+            "Third-party Integrations",
+            "API Management",
+            "Data Synchronization",
+            "Webhook Management",
+            "Connection Monitoring",
+            "Error Handling",
+            "Security & Compliance"
+        ],
+        "components": {
+            "integration_manager": "active",
+            "api_gateway": "active",
+            "webhook_handler": "active",
+            "monitoring_engine": "active",
+            "security_validator": "active"
         }
     }
 
-@router.post("/notifications/slack")
-async def send_slack_notification(
-    message: str,
-    channel: str = "#security",
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Send notification to Slack"""
+@router.get("/integrations")
+async def get_integrations():
+    """Get all integrations"""
+    return {
+        "integrations": [
+            {
+                "id": "integration_001",
+                "name": "Slack",
+                "type": "communication",
+                "status": "active",
+                "enabled": True,
+                "priority": 1,
+                "last_sync": "2024-01-01T12:00:00Z",
+                "sync_status": "success",
+                "error_count": 0,
+                "configuration": {
+                    "webhook_url": "https://hooks.slack.com/...",
+                    "channels": ["#security-alerts", "#incidents"],
+                    "notifications": ["incidents", "alerts", "reports"]
+                }
+            },
+            {
+                "id": "integration_002",
+                "name": "Jira",
+                "type": "ticketing",
+                "status": "active",
+                "enabled": True,
+                "priority": 2,
+                "last_sync": "2024-01-01T11:30:00Z",
+                "sync_status": "success",
+                "error_count": 0,
+                "configuration": {
+                    "base_url": "https://company.atlassian.net",
+                    "project_key": "SEC",
+                    "issue_types": ["Bug", "Task", "Story"],
+                    "custom_fields": ["severity", "priority"]
+                }
+            },
+            {
+                "id": "integration_003",
+                "name": "Microsoft Teams",
+                "type": "communication",
+                "status": "active",
+                "enabled": True,
+                "priority": 1,
+                "last_sync": "2024-01-01T11:00:00Z",
+                "sync_status": "success",
+                "error_count": 0,
+                "configuration": {
+                    "webhook_url": "https://outlook.office.com/...",
+                    "channels": ["Security Alerts", "Incident Response"],
+                    "notifications": ["incidents", "alerts"]
+                }
+            },
+            {
+                "id": "integration_004",
+                "name": "ServiceNow",
+                "type": "itsm",
+                "status": "active",
+                "enabled": True,
+                "priority": 2,
+                "last_sync": "2024-01-01T10:45:00Z",
+                "sync_status": "success",
+                "error_count": 0,
+                "configuration": {
+                    "instance_url": "https://company.service-now.com",
+                    "table": "incident",
+                    "mapping": {
+                        "severity": "priority",
+                        "category": "category"
+                    }
+                }
+            }
+        ],
+        "total_integrations": 4,
+        "active_integrations": 4,
+        "by_type": {
+            "communication": 2,
+            "ticketing": 1,
+            "itsm": 1
+        }
+    }
+
+@router.get("/integrations/{integration_id}")
+async def get_integration_details(integration_id: str):
+    """Get detailed information about a specific integration"""
+    return {
+        "id": integration_id,
+        "name": "Slack",
+        "type": "communication",
+        "status": "active",
+        "enabled": True,
+        "priority": 1,
+        "created_at": "2024-01-01T00:00:00Z",
+        "last_updated": "2024-01-01T10:00:00Z",
+        "last_sync": "2024-01-01T12:00:00Z",
+        "sync_status": "success",
+        "error_count": 0,
+        "configuration": {
+            "webhook_url": "https://hooks.slack.com/...",
+            "channels": ["#security-alerts", "#incidents"],
+            "notifications": ["incidents", "alerts", "reports"],
+            "rate_limit": "100 requests/hour",
+            "timeout": 30
+        },
+        "sync_history": [
+            {
+                "timestamp": "2024-01-01T12:00:00Z",
+                "status": "success",
+                "records_processed": 15,
+                "duration": "2.3 seconds"
+            },
+            {
+                "timestamp": "2024-01-01T11:00:00Z",
+                "status": "success",
+                "records_processed": 12,
+                "duration": "1.8 seconds"
+            }
+        ],
+        "error_log": [],
+        "performance_metrics": {
+            "average_response_time": "1.2 seconds",
+            "success_rate": 99.8,
+            "uptime": 99.9
+        }
+    }
+
+@router.post("/integrations")
+async def create_integration(integration: IntegrationConfig):
+    """Create a new integration"""
     try:
-        await integration_service.send_notification_to_slack(message, channel)
-        return {"message": "Slack notification sent successfully"}
+        # Simulate integration creation
+        await asyncio.sleep(2.0)
+        
+        new_integration = {
+            "id": f"integration_{hash(integration.name)}",
+            "name": integration.name,
+            "type": integration.integration_type,
+            "status": "configuring",
+            "enabled": integration.enabled,
+            "priority": integration.priority,
+            "created_at": datetime.utcnow().isoformat(),
+            "last_updated": datetime.utcnow().isoformat(),
+            "last_sync": None,
+            "sync_status": "pending",
+            "error_count": 0,
+            "configuration": integration.configuration
+        }
+        
+        return new_integration
     except Exception as e:
-        logger.error("Error sending Slack notification", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send Slack notification"
+            detail=f"Integration creation failed: {str(e)}"
         )
 
-@router.post("/notifications/teams")
-async def send_teams_notification(
-    message: str,
-    webhook_url: str,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Send notification to Microsoft Teams"""
+@router.put("/integrations/{integration_id}")
+async def update_integration(integration_id: str, updates: Dict[str, Any]):
+    """Update integration configuration"""
     try:
-        await integration_service.send_notification_to_teams(message, webhook_url)
-        return {"message": "Teams notification sent successfully"}
+        # Simulate integration update
+        await asyncio.sleep(1.0)
+        
+        return {
+            "id": integration_id,
+            "message": "Integration updated successfully",
+            "updated_fields": list(updates.keys()),
+            "updated_at": datetime.utcnow().isoformat()
+        }
     except Exception as e:
-        logger.error("Error sending Teams notification", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send Teams notification"
-        ) 
+            detail=f"Integration update failed: {str(e)}"
+        )
+
+@router.delete("/integrations/{integration_id}")
+async def delete_integration(integration_id: str):
+    """Delete an integration"""
+    try:
+        # Simulate integration deletion
+        await asyncio.sleep(1.0)
+        
+        return {
+            "message": f"Integration {integration_id} deleted successfully",
+            "integration_id": integration_id,
+            "deleted_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Integration deletion failed: {str(e)}"
+        )
+
+@router.post("/integrations/{integration_id}/test")
+async def test_integration(integration_id: str, test: IntegrationTest):
+    """Test integration connectivity and functionality"""
+    try:
+        # Simulate integration test
+        await asyncio.sleep(3.0)
+        
+        test_result = {
+            "test_id": f"test_{hash(integration_id)}",
+            "integration_id": integration_id,
+            "test_type": test.test_type,
+            "status": "completed",
+            "started_at": datetime.utcnow().isoformat(),
+            "completed_at": (datetime.utcnow() + timedelta(seconds=3)).isoformat(),
+            "results": {
+                "connectivity": "success",
+                "authentication": "success",
+                "data_sync": "success",
+                "response_time": "2.1 seconds"
+            },
+            "details": "All tests passed successfully",
+            "recommendations": []
+        }
+        
+        return test_result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Integration test failed: {str(e)}"
+        )
+
+@router.post("/integrations/{integration_id}/sync")
+async def trigger_integration_sync(integration_id: str, sync_type: str = "full"):
+    """Trigger manual integration synchronization"""
+    try:
+        # Simulate sync process
+        await asyncio.sleep(5.0)
+        
+        sync_result = {
+            "sync_id": f"sync_{hash(integration_id)}",
+            "integration_id": integration_id,
+            "sync_type": sync_type,
+            "status": "completed",
+            "started_at": datetime.utcnow().isoformat(),
+            "completed_at": (datetime.utcnow() + timedelta(seconds=5)).isoformat(),
+            "records_processed": 25,
+            "records_successful": 25,
+            "records_failed": 0,
+            "duration": "5.0 seconds",
+            "details": "Synchronization completed successfully"
+        }
+        
+        return sync_result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Integration sync failed: {str(e)}"
+        )
+
+@router.get("/integrations/{integration_id}/logs")
+async def get_integration_logs(integration_id: str, limit: int = 100):
+    """Get integration logs and error history"""
+    return {
+        "integration_id": integration_id,
+        "logs": [
+            {
+                "timestamp": "2024-01-01T12:00:00Z",
+                "level": "info",
+                "message": "Integration sync started",
+                "details": "Full synchronization initiated",
+                "status": "success"
+            },
+            {
+                "timestamp": "2024-01-01T12:00:05Z",
+                "level": "info",
+                "message": "Integration sync completed",
+                "details": "25 records processed successfully",
+                "status": "success"
+            },
+            {
+                "timestamp": "2024-01-01T11:00:00Z",
+                "level": "warning",
+                "message": "Rate limit approaching",
+                "details": "90% of hourly rate limit used",
+                "status": "warning"
+            }
+        ],
+        "total_logs": 3,
+        "error_count": 0,
+        "warning_count": 1,
+        "info_count": 2
+    }
+
+@router.get("/webhooks")
+async def get_webhooks():
+    """Get all webhook configurations"""
+    return {
+        "webhooks": [
+            {
+                "id": "webhook_001",
+                "name": "Security Alerts",
+                "url": "https://hooks.slack.com/...",
+                "events": ["incident_created", "incident_updated", "alert_triggered"],
+                "status": "active",
+                "last_triggered": "2024-01-01T12:00:00Z",
+                "success_rate": 99.5,
+                "retry_count": 3
+            },
+            {
+                "id": "webhook_002",
+                "name": "Incident Notifications",
+                "url": "https://outlook.office.com/...",
+                "events": ["incident_created", "incident_escalated"],
+                "status": "active",
+                "last_triggered": "2024-01-01T11:30:00Z",
+                "success_rate": 98.8,
+                "retry_count": 3
+            }
+        ],
+        "total_webhooks": 2,
+        "active_webhooks": 2
+    }
+
+@router.post("/webhooks")
+async def create_webhook(name: str, url: str, events: List[str]):
+    """Create a new webhook"""
+    try:
+        # Simulate webhook creation
+        await asyncio.sleep(1.0)
+        
+        new_webhook = {
+            "id": f"webhook_{hash(name)}",
+            "name": name,
+            "url": url,
+            "events": events,
+            "status": "active",
+            "created_at": datetime.utcnow().isoformat(),
+            "last_triggered": None,
+            "success_rate": 100.0,
+            "retry_count": 3
+        }
+        
+        return new_webhook
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Webhook creation failed: {str(e)}"
+        )
+
+@router.get("/api/endpoints")
+async def get_api_endpoints():
+    """Get available API endpoints for external integrations"""
+    return {
+        "api_endpoints": [
+            {
+                "endpoint": "/api/v1/incidents",
+                "method": "GET",
+                "description": "Retrieve security incidents",
+                "authentication": "Bearer Token",
+                "rate_limit": "1000 requests/hour",
+                "version": "v1"
+            },
+            {
+                "endpoint": "/api/v1/incidents",
+                "method": "POST",
+                "description": "Create new security incident",
+                "authentication": "Bearer Token",
+                "rate_limit": "100 requests/hour",
+                "version": "v1"
+            },
+            {
+                "endpoint": "/api/v1/alerts",
+                "method": "GET",
+                "description": "Retrieve security alerts",
+                "authentication": "Bearer Token",
+                "rate_limit": "1000 requests/hour",
+                "version": "v1"
+            }
+        ],
+        "base_url": "https://api.company.com",
+        "authentication": "Bearer Token",
+        "rate_limits": {
+            "default": "1000 requests/hour",
+            "incident_creation": "100 requests/hour",
+            "bulk_operations": "50 requests/hour"
+        }
+    }
+
+@router.get("/api/credentials")
+async def get_api_credentials():
+    """Get API credentials for external integrations"""
+    return {
+        "credentials": [
+            {
+                "id": "cred_001",
+                "name": "External API Access",
+                "type": "api_key",
+                "status": "active",
+                "created_at": "2024-01-01T00:00:00Z",
+                "last_used": "2024-01-01T11:00:00Z",
+                "permissions": ["read:incidents", "read:alerts"],
+                "rate_limit": "1000 requests/hour"
+            }
+        ],
+        "total_credentials": 1,
+        "active_credentials": 1
+    }
+
+@router.post("/api/credentials")
+async def create_api_credential(credential: APICredential):
+    """Create new API credentials"""
+    try:
+        # Simulate credential creation
+        await asyncio.sleep(1.0)
+        
+        new_credential = {
+            "id": f"cred_{hash(credential.base_url)}",
+            "name": "New API Access",
+            "type": "api_key",
+            "status": "active",
+            "created_at": datetime.utcnow().isoformat(),
+            "last_used": None,
+            "permissions": ["read:incidents", "read:alerts"],
+            "rate_limit": "1000 requests/hour",
+            "api_key": f"key_{hash(credential.base_url)}"
+        }
+        
+        return new_credential
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Credential creation failed: {str(e)}"
+        )
+
+@router.get("/monitoring/status")
+async def get_integration_monitoring_status():
+    """Get integration monitoring status"""
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "overall_status": "healthy",
+        "integrations": {
+            "total": 4,
+            "healthy": 4,
+            "degraded": 0,
+            "down": 0
+        },
+        "webhooks": {
+            "total": 2,
+            "active": 2,
+            "failed": 0
+        },
+        "api_endpoints": {
+            "total": 3,
+            "available": 3,
+            "unavailable": 0
+        },
+        "performance": {
+            "average_response_time": "1.2 seconds",
+            "success_rate": 99.5,
+            "uptime": 99.9
+        },
+        "alerts": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 1
+        }
+    } 

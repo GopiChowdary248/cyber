@@ -200,7 +200,7 @@ const QualityImprovementDashboard: React.FC = () => {
 
   const fetchQualityMetrics = async () => {
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
       const response = await fetch(`${API_URL}/api/v1/sast/dashboard`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
@@ -230,8 +230,8 @@ const QualityImprovementDashboard: React.FC = () => {
 
   const fetchQualityGoals = async () => {
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${API_URL}/quality-goals/goals`, {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/quality-goals/goals`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
           'Content-Type': 'application/json',
@@ -290,8 +290,8 @@ const QualityImprovementDashboard: React.FC = () => {
 
   const updateGoalProgress = async (goalId: string, progress: number) => {
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${API_URL}/quality-goals/goals/${goalId}/progress?progress=${progress}`, {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/quality-goals/goals/${goalId}/progress?progress=${progress}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
@@ -300,10 +300,7 @@ const QualityImprovementDashboard: React.FC = () => {
       });
 
       if (response.ok) {
-        const updatedGoal = await response.json();
-        setGoals(prev => prev.map(goal => 
-          goal.id === goalId ? updatedGoal : goal
-        ));
+        fetchQualityGoals();
       }
     } catch (error) {
       console.error('Error updating goal progress:', error);

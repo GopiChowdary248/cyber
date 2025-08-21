@@ -1,550 +1,417 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, List, Any, Optional
-import structlog
+"""
+Compliance API endpoints for Cyber Cursor Security Platform
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
+import json
+import asyncio
 from datetime import datetime, timedelta
 
-from app.core.database import get_db
-from app.core.security import get_current_user, RoleChecker
-from app.models.user import User
-from app.services.compliance_service import compliance_service, ComplianceFramework, ReportType, ReportFormat
-from app.schemas.compliance import (
-    SecurityReportRequest, SecurityReportResponse, ComplianceReportRequest,
-    ComplianceReportResponse, AuditReportRequest, AuditReportResponse,
-    AuditLogResponse, ComplianceRequirementRequest, ComplianceRequirementResponse
-)
-
-logger = structlog.get_logger()
 router = APIRouter()
 
-# Role-based access control
-admin_only = RoleChecker(["admin"])
+# Pydantic models
+class ComplianceFramework(BaseModel):
+    name: str
+    version: str
+    description: str
+    requirements: List[str]
+    controls: List[str]
 
-@router.post("/reports/security", response_model=SecurityReportResponse)
-async def generate_security_report(
-    request: SecurityReportRequest,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Generate a security report"""
-    try:
-        report = await compliance_service.generate_security_report(
-            report_type=request.report_type,
-            period_start=request.period_start,
-            period_end=request.period_end,
-            format=request.format
-        )
-        
-        return {
-            "success": True,
-            "report": {
-                "id": report.id,
-                "title": report.title,
-                "type": report.report_type.value,
-                "generated_at": report.generated_at.isoformat(),
-                "period_start": report.period_start.isoformat(),
-                "period_end": report.period_end.isoformat(),
-                "summary": report.summary,
-                "recommendations": report.recommendations,
-                "data": report.data
+class AuditRequest(BaseModel):
+    framework: str
+    scope: str
+    start_date: datetime
+    end_date: datetime
+    auditors: List[str]
+
+class ComplianceCheck(BaseModel):
+    control_id: str
+    control_name: str
+    status: str  # compliant, non-compliant, partial, not-applicable
+    evidence: str
+    risk_level: str  # low, medium, high, critical
+
+@router.get("/")
+async def get_compliance_overview():
+    """Get Compliance module overview"""
+    return {
+        "module": "Compliance & Governance",
+        "description": "Regulatory Compliance and Governance Management",
+        "status": "active",
+        "version": "2.0.0",
+        "features": [
+            "Framework Management",
+            "Audit Management",
+            "Compliance Monitoring",
+            "Risk Assessment",
+            "Policy Management",
+            "Reporting & Analytics",
+            "Automated Compliance"
+        ],
+        "supported_frameworks": [
+            "ISO 27001",
+            "NIST Cybersecurity Framework",
+            "SOC 2",
+            "PCI DSS",
+            "GDPR",
+            "HIPAA",
+            "OWASP Top 10"
+        ]
+    }
+
+@router.get("/frameworks")
+async def get_compliance_frameworks():
+    """Get all supported compliance frameworks"""
+    return {
+        "frameworks": [
+            {
+                "id": "iso27001",
+                "name": "ISO 27001",
+                "version": "2013",
+                "status": "implemented",
+                "compliance_score": 87,
+                "last_assessment": "2024-01-01T00:00:00Z",
+                "next_assessment": "2024-07-01T00:00:00Z",
+                "controls_count": 114,
+                "compliant_controls": 99
+            },
+            {
+                "id": "nist_csf",
+                "name": "NIST Cybersecurity Framework",
+                "version": "2.0",
+                "status": "implemented",
+                "compliance_score": 92,
+                "last_assessment": "2024-01-01T00:00:00Z",
+                "next_assessment": "2024-04-01T00:00:00Z",
+                "controls_count": 108,
+                "compliant_controls": 99
+            },
+            {
+                "id": "soc2",
+                "name": "SOC 2 Type II",
+                "version": "2017",
+                "status": "in_progress",
+                "compliance_score": 78,
+                "last_assessment": "2023-10-01T00:00:00Z",
+                "next_assessment": "2024-04-01T00:00:00Z",
+                "controls_count": 64,
+                "compliant_controls": 50
             }
-        }
-    except Exception as e:
-        logger.error("Error generating security report", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate security report"
-        )
+        ]
+    }
 
-@router.post("/reports/compliance", response_model=ComplianceReportResponse)
-async def generate_compliance_report(
-    request: ComplianceReportRequest,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Generate a compliance report"""
-    try:
-        report = await compliance_service.generate_compliance_report(
-            framework=request.framework,
-            format=request.format
-        )
-        
-        return {
-            "success": True,
-            "report": report
+@router.get("/frameworks/{framework_id}")
+async def get_framework_details(framework_id: str):
+    """Get detailed information about a specific framework"""
+    frameworks = {
+        "iso27001": {
+            "name": "ISO 27001 Information Security Management",
+            "version": "2013",
+            "description": "International standard for information security management systems",
+            "domains": [
+                "Information Security Policies",
+                "Organization of Information Security",
+                "Human Resource Security",
+                "Asset Management",
+                "Access Control",
+                "Cryptography",
+                "Physical and Environmental Security",
+                "Operations Security",
+                "Communications Security",
+                "System Acquisition, Development and Maintenance",
+                "Supplier Relationships",
+                "Information Security Incident Management",
+                "Information Security Aspects of Business Continuity Management",
+                "Compliance"
+            ],
+            "controls_count": 114,
+            "implementation_status": "implemented",
+            "certification_status": "certified",
+            "certification_date": "2023-06-01T00:00:00Z",
+            "next_certification": "2026-06-01T00:00:00Z"
         }
-    except Exception as e:
-        logger.error("Error generating compliance report", error=str(e))
+    }
+    
+    if framework_id not in frameworks:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate compliance report"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Framework {framework_id} not found"
         )
+    
+    return frameworks[framework_id]
 
-@router.post("/reports/audit", response_model=AuditReportResponse)
-async def generate_audit_report(
-    request: AuditReportRequest,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Generate an audit report"""
-    try:
-        report = await compliance_service.generate_audit_report(
-            audit_scope=request.audit_scope,
-            format=request.format
-        )
-        
-        return {
-            "success": True,
-            "report": report
-        }
-    except Exception as e:
-        logger.error("Error generating audit report", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate audit report"
-        )
-
-@router.get("/frameworks", response_model=Dict[str, Any])
-async def get_compliance_frameworks(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get available compliance frameworks"""
-    try:
-        frameworks = {}
-        for framework, info in compliance_service.compliance_frameworks.items():
-            frameworks[framework.value] = {
-                "name": info["name"],
-                "description": info["description"],
-                "controls": info["controls"]
+@router.get("/audits")
+async def get_compliance_audits():
+    """Get all compliance audits"""
+    return {
+        "audits": [
+            {
+                "id": "audit_001",
+                "framework": "ISO 27001",
+                "type": "internal",
+                "status": "completed",
+                "start_date": "2024-01-01T00:00:00Z",
+                "end_date": "2024-01-15T00:00:00Z",
+                "auditor": "Internal Security Team",
+                "compliance_score": 87,
+                "findings": 12,
+                "critical_findings": 0
+            },
+            {
+                "id": "audit_002",
+                "framework": "NIST CSF",
+                "type": "external",
+                "status": "in_progress",
+                "start_date": "2024-01-20T00:00:00Z",
+                "end_date": "2024-02-20T00:00Z",
+                "auditor": "External Auditor Inc.",
+                "compliance_score": None,
+                "findings": 0,
+                "critical_findings": 0
             }
-            
-        return {
-            "success": True,
-            "frameworks": frameworks
+        ]
+    }
+
+@router.post("/audits")
+async def create_compliance_audit(request: AuditRequest):
+    """Create a new compliance audit"""
+    try:
+        # Simulate audit creation
+        await asyncio.sleep(1.0)
+        
+        audit = {
+            "id": f"audit_{hash(request.framework)}",
+            "framework": request.framework,
+            "type": "internal",
+            "status": "scheduled",
+            "start_date": request.start_date.isoformat(),
+            "end_date": request.end_date.isoformat(),
+            "auditors": request.auditors,
+            "compliance_score": None,
+            "findings": 0,
+            "critical_findings": 0,
+            "created_at": datetime.utcnow().isoformat()
         }
+        
+        return audit
     except Exception as e:
-        logger.error("Error getting compliance frameworks", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get compliance frameworks"
+            detail=f"Audit creation failed: {str(e)}"
         )
 
-@router.get("/frameworks/{framework}/controls")
-async def get_framework_controls(
-    framework: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get controls for a specific framework"""
+@router.get("/audits/{audit_id}")
+async def get_audit_details(audit_id: str):
+    """Get detailed information about a specific audit"""
+    return {
+        "id": audit_id,
+        "framework": "ISO 27001",
+        "type": "internal",
+        "status": "completed",
+        "start_date": "2024-01-01T00:00:00Z",
+        "end_date": "2024-01-15T00:00:00Z",
+        "auditor": "Internal Security Team",
+        "compliance_score": 87,
+        "findings": 12,
+        "critical_findings": 0,
+        "controls_assessed": 114,
+        "compliant_controls": 99,
+        "non_compliant_controls": 15,
+        "risk_assessment": {
+            "overall_risk": "medium",
+            "high_risks": 2,
+            "medium_risks": 8,
+            "low_risks": 2
+        }
+    }
+
+@router.get("/controls")
+async def get_compliance_controls(framework: Optional[str] = None):
+    """Get compliance controls for frameworks"""
+    controls = [
+        {
+            "id": "ISO-27001-A.5.1.1",
+            "name": "Information Security Policy",
+            "framework": "ISO 27001",
+            "domain": "Information Security Policies",
+            "status": "compliant",
+            "last_assessed": "2024-01-01T00:00:00Z",
+            "risk_level": "low",
+            "description": "Establish and maintain information security policies"
+        },
+        {
+            "id": "ISO-27001-A.6.1.1",
+            "name": "Information Security Roles and Responsibilities",
+            "framework": "ISO 27001",
+            "domain": "Organization of Information Security",
+            "status": "compliant",
+            "last_assessed": "2024-01-01T00:00:00Z",
+            "risk_level": "medium",
+            "description": "Define and allocate information security responsibilities"
+        }
+    ]
+    
+    if framework:
+        controls = [c for c in controls if c["framework"] == framework]
+    
+    return {"controls": controls}
+
+@router.post("/controls/assess")
+async def assess_compliance_control(control_id: str, assessment: ComplianceCheck):
+    """Assess a compliance control"""
     try:
-        framework_enum = ComplianceFramework(framework)
-        framework_info = compliance_service.compliance_frameworks.get(framework_enum)
+        # Simulate control assessment
+        await asyncio.sleep(0.5)
         
-        if not framework_info:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Framework not found"
-            )
-            
-        return {
-            "success": True,
+        assessment_result = {
+            "control_id": control_id,
+            "assessment_id": f"assess_{hash(control_id)}",
+            "status": assessment.status,
+            "evidence": assessment.evidence,
+            "risk_level": assessment.risk_level,
+            "assessed_by": "security_team",
+            "assessed_at": datetime.utcnow().isoformat(),
+            "next_assessment": (datetime.utcnow() + timedelta(days=90)).isoformat()
+        }
+        
+        return assessment_result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Control assessment failed: {str(e)}"
+        )
+
+@router.get("/policies")
+async def get_compliance_policies():
+    """Get compliance policies"""
+    return {
+        "policies": [
+            {
+                "id": "policy_001",
+                "name": "Information Security Policy",
+                "version": "2.0",
+                "status": "active",
+                "last_updated": "2024-01-01T00:00:00Z",
+                "framework": "ISO 27001",
+                "review_frequency": "annual",
+                "next_review": "2025-01-01T00:00:00Z"
+            },
+            {
+                "id": "policy_002",
+                "name": "Data Protection Policy",
+                "version": "1.5",
+                "status": "active",
+                "last_updated": "2023-12-01T00:00:00Z",
+                "framework": "GDPR",
+                "review_frequency": "annual",
+                "next_review": "2024-12-01T00:00:00Z"
+            }
+        ]
+    }
+
+@router.get("/reports/compliance-summary")
+async def get_compliance_summary_report():
+    """Get compliance summary report"""
+    return {
+        "report_date": datetime.utcnow().isoformat(),
+        "overall_compliance": 85,
+        "frameworks": {
+            "ISO 27001": {"score": 87, "status": "compliant"},
+            "NIST CSF": {"score": 92, "status": "compliant"},
+            "SOC 2": {"score": 78, "status": "in_progress"}
+        },
+        "trends": {
+            "compliance_trend": "improving",
+            "risk_trend": "decreasing",
+            "audit_findings_trend": "decreasing"
+        },
+        "key_metrics": {
+            "total_controls": 286,
+            "compliant_controls": 248,
+            "non_compliant_controls": 38,
+            "critical_findings": 0,
+            "high_risks": 5
+        },
+        "recommendations": [
+            "Complete SOC 2 implementation",
+            "Address remaining non-compliant controls",
+            "Implement automated compliance monitoring"
+        ]
+    }
+
+@router.get("/reports/risk-assessment")
+async def get_risk_assessment_report():
+    """Get risk assessment report"""
+    return {
+        "report_date": datetime.utcnow().isoformat(),
+        "overall_risk_level": "medium",
+        "risk_categories": {
+            "technical_risks": {
+                "level": "medium",
+                "count": 8,
+                "high_risks": 2
+            },
+            "operational_risks": {
+                "level": "low",
+                "count": 5,
+                "high_risks": 0
+            },
+            "compliance_risks": {
+                "level": "medium",
+                "count": 6,
+                "high_risks": 3
+            }
+        },
+        "top_risks": [
+            {
+                "id": "risk_001",
+                "description": "Insufficient access controls",
+                "likelihood": "medium",
+                "impact": "high",
+                "risk_level": "high",
+                "mitigation_status": "in_progress"
+            }
+        ],
+        "risk_trends": {
+            "overall_trend": "decreasing",
+            "new_risks": 2,
+            "mitigated_risks": 5
+        }
+    }
+
+@router.post("/automation/compliance-check")
+async def run_automated_compliance_check(framework: str, scope: str = "full"):
+    """Run automated compliance checking"""
+    try:
+        # Simulate automated compliance check
+        await asyncio.sleep(3.0)
+        
+        check_result = {
+            "check_id": f"auto_check_{hash(framework)}",
             "framework": framework,
-            "controls": framework_info["controls"]
-        }
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid framework"
-        )
-    except Exception as e:
-        logger.error("Error getting framework controls", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get framework controls"
-        )
-
-@router.post("/requirements/assess", response_model=ComplianceRequirementResponse)
-async def assess_compliance_requirement(
-    request: ComplianceRequirementRequest,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Assess a compliance requirement"""
-    try:
-        framework_enum = ComplianceFramework(request.framework)
-        requirement = await compliance_service.assess_compliance_requirement(
-            framework=framework_enum,
-            control_id=request.control_id,
-            evidence=request.evidence
-        )
-        
-        return {
-            "success": True,
-            "requirement": {
-                "id": requirement.id,
-                "framework": requirement.framework.value,
-                "control_id": requirement.control_id,
-                "title": requirement.title,
-                "description": requirement.description,
-                "status": requirement.status,
-                "evidence": requirement.evidence,
-                "last_assessed": requirement.last_assessed.isoformat(),
-                "next_assessment": requirement.next_assessment.isoformat()
-            }
-        }
-    except Exception as e:
-        logger.error("Error assessing compliance requirement", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to assess compliance requirement"
-        )
-
-@router.get("/requirements", response_model=List[ComplianceRequirementResponse])
-async def get_compliance_requirements(
-    framework: Optional[str] = None,
-    status: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get compliance requirements with filters"""
-    try:
-        requirements = list(compliance_service.compliance_requirements.values())
-        
-        if framework:
-            framework_enum = ComplianceFramework(framework)
-            requirements = [r for r in requirements if r.framework == framework_enum]
-            
-        if status:
-            requirements = [r for r in requirements if r.status == status]
-            
-        return [
-            {
-                "success": True,
-                "requirement": {
-                    "id": req.id,
-                    "framework": req.framework.value,
-                    "control_id": req.control_id,
-                    "title": req.title,
-                    "description": req.description,
-                    "status": req.status,
-                    "evidence": req.evidence,
-                    "last_assessed": req.last_assessed.isoformat(),
-                    "next_assessment": req.next_assessment.isoformat()
-                }
-            }
-            for req in requirements
-        ]
-    except Exception as e:
-        logger.error("Error getting compliance requirements", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get compliance requirements"
-        )
-
-@router.post("/audit/log")
-async def log_audit_event(
-    action: str,
-    resource: str,
-    details: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Log an audit event"""
-    try:
-        await compliance_service.log_audit_event(
-            user_id=current_user.id,
-            action=action,
-            resource=resource,
-            details=details
-        )
-        
-        return {
-            "success": True,
-            "message": "Audit event logged successfully"
-        }
-    except Exception as e:
-        logger.error("Error logging audit event", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to log audit event"
-        )
-
-@router.get("/audit/logs", response_model=List[AuditLogResponse])
-async def get_audit_logs(
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    user_id: Optional[int] = None,
-    action: Optional[str] = None,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get audit logs with filters"""
-    try:
-        logs = await compliance_service.get_audit_logs(
-            start_date=start_date,
-            end_date=end_date,
-            user_id=user_id,
-            action=action
-        )
-        
-        return [
-            {
-                "id": log.id,
-                "timestamp": log.timestamp.isoformat(),
-                "user_id": log.user_id,
-                "action": log.action,
-                "resource": log.resource,
-                "details": log.details,
-                "ip_address": log.ip_address,
-                "user_agent": log.user_agent
-            }
-            for log in logs
-        ]
-    except Exception as e:
-        logger.error("Error getting audit logs", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get audit logs"
-        )
-
-@router.get("/reports/templates")
-async def get_report_templates(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get available report templates"""
-    try:
-        templates = {}
-        for report_type, template in compliance_service.report_templates.items():
-            templates[report_type.value] = {
-                "title": template["title"],
-                "sections": template["sections"]
-            }
-            
-        return {
-            "success": True,
-            "templates": templates
-        }
-    except Exception as e:
-        logger.error("Error getting report templates", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get report templates"
-        )
-
-@router.get("/reports/history")
-async def get_report_history(
-    report_type: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    current_user: User = Depends(admin_only),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get report generation history"""
-    try:
-        # Mock report history
-        history = [
-            {
-                "id": "report_001",
-                "type": "security_report",
-                "title": "Monthly Security Report - January 2024",
-                "generated_at": "2024-01-31T23:59:59Z",
-                "generated_by": "admin@company.com",
-                "status": "completed"
-            },
-            {
-                "id": "report_002",
-                "type": "compliance_report",
-                "title": "SOC 2 Compliance Report",
-                "generated_at": "2024-01-15T10:30:00Z",
-                "generated_by": "admin@company.com",
-                "status": "completed"
-            },
-            {
-                "id": "report_003",
-                "type": "audit_report",
-                "title": "Annual Security Audit Report",
-                "generated_at": "2024-01-01T09:00:00Z",
-                "generated_by": "admin@company.com",
-                "status": "completed"
-            }
-        ]
-        
-        # Apply filters
-        if report_type:
-            history = [h for h in history if h["type"] == report_type]
-            
-        if start_date:
-            history = [h for h in history if datetime.fromisoformat(h["generated_at"].replace("Z", "+00:00")) >= start_date]
-            
-        if end_date:
-            history = [h for h in history if datetime.fromisoformat(h["generated_at"].replace("Z", "+00:00")) <= end_date]
-            
-        return {
-            "success": True,
-            "history": history
-        }
-    except Exception as e:
-        logger.error("Error getting report history", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get report history"
-        )
-
-@router.get("/dashboard/overview")
-async def get_compliance_dashboard(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get compliance dashboard overview"""
-    try:
-        # Mock dashboard data
-        dashboard_data = {
-            "compliance_status": {
-                "soc2": {
-                    "status": "compliant",
-                    "score": 95,
-                    "last_assessed": "2024-01-15T10:30:00Z",
-                    "next_assessment": "2024-04-15T10:30:00Z"
-                },
-                "iso27001": {
-                    "status": "compliant",
-                    "score": 92,
-                    "last_assessed": "2024-01-10T14:20:00Z",
-                    "next_assessment": "2024-04-10T14:20:00Z"
-                },
-                "gdpr": {
-                    "status": "partially_compliant",
-                    "score": 78,
-                    "last_assessed": "2024-01-20T16:45:00Z",
-                    "next_assessment": "2024-04-20T16:45:00Z"
-                }
-            },
-            "recent_audit_findings": [
+            "scope": scope,
+            "status": "completed",
+            "start_time": datetime.utcnow().isoformat(),
+            "end_time": (datetime.utcnow() + timedelta(seconds=3)).isoformat(),
+            "controls_checked": 114,
+            "compliant_controls": 99,
+            "non_compliant_controls": 15,
+            "compliance_score": 87,
+            "findings": [
                 {
-                    "id": "F001",
-                    "category": "Access Control",
+                    "control_id": "ISO-27001-A.8.1.1",
+                    "status": "non_compliant",
                     "severity": "medium",
-                    "status": "open",
-                    "created_at": "2024-01-25T11:15:00Z"
-                },
-                {
-                    "id": "F002",
-                    "category": "System Security",
-                    "severity": "high",
-                    "status": "resolved",
-                    "created_at": "2024-01-20T09:30:00Z"
+                    "description": "Access control policy not fully implemented"
                 }
-            ],
-            "upcoming_assessments": [
-                {
-                    "framework": "SOC 2",
-                    "due_date": "2024-04-15T10:30:00Z",
-                    "days_remaining": 75
-                },
-                {
-                    "framework": "ISO 27001",
-                    "due_date": "2024-04-10T14:20:00Z",
-                    "days_remaining": 70
-                }
-            ],
-            "compliance_metrics": {
-                "total_requirements": 156,
-                "compliant_requirements": 142,
-                "non_compliant_requirements": 8,
-                "partially_compliant_requirements": 6,
-                "overall_compliance_score": 91
-            }
+            ]
         }
         
-        return {
-            "success": True,
-            "dashboard": dashboard_data
-        }
+        return check_result
     except Exception as e:
-        logger.error("Error getting compliance dashboard", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get compliance dashboard"
-        )
-
-@router.get("/metrics/compliance")
-async def get_compliance_metrics(
-    framework: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get compliance metrics"""
-    try:
-        # Mock compliance metrics
-        metrics = {
-            "overall_compliance_score": 91,
-            "framework_scores": {
-                "soc2": 95,
-                "iso27001": 92,
-                "gdpr": 78,
-                "hipaa": 88,
-                "pci_dss": 85
-            },
-            "requirement_status": {
-                "compliant": 142,
-                "partially_compliant": 6,
-                "non_compliant": 8,
-                "not_assessed": 0
-            },
-            "trends": {
-                "last_month": 89,
-                "current_month": 91,
-                "trend": "improving"
-            }
-        }
-        
-        if framework:
-            framework_metrics = {
-                "framework": framework,
-                "score": metrics["framework_scores"].get(framework, 0),
-                "status": "compliant" if metrics["framework_scores"].get(framework, 0) >= 90 else "partially_compliant"
-            }
-            return {
-                "success": True,
-                "metrics": framework_metrics
-            }
-            
-        return {
-            "success": True,
-            "metrics": metrics
-        }
-    except Exception as e:
-        logger.error("Error getting compliance metrics", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get compliance metrics"
-        )
-
-@router.get("/health")
-async def get_compliance_health(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get compliance service health status"""
-    try:
-        health_status = {
-            "status": "healthy",
-            "frameworks_loaded": len(compliance_service.compliance_frameworks),
-            "requirements_assessed": len(compliance_service.compliance_requirements),
-            "audit_logs_count": len(compliance_service.audit_logs),
-            "last_activity": datetime.utcnow().isoformat(),
-            "service_uptime": "24 hours"
-        }
-        
-        return {
-            "success": True,
-            "health": health_status
-        }
-    except Exception as e:
-        logger.error("Error getting compliance health", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get compliance health"
+            detail=f"Automated compliance check failed: {str(e)}"
         ) 

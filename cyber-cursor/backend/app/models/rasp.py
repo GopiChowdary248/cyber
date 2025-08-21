@@ -2,288 +2,261 @@
 RASP (Runtime Application Self-Protection) Models
 Database models for RASP functionality including agents, attacks, rules, and vulnerabilities
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, Float, Enum
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from typing import Optional, List
-from enum import Enum
-import uuid
+from sqlalchemy.sql import func
 from app.core.database import Base
+import enum
 
+class RASPEnvironment(str, enum.Enum):
+    PRODUCTION = "production"
+    STAGING = "staging"
+    DEVELOPMENT = "development"
+    TESTING = "testing"
 
-class AgentStatus(str, Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    ERROR = "error"
-    UPDATING = "updating"
+class RASPLanguage(str, enum.Enum):
+    JAVA = "java"
+    NODEJS = "nodejs"
+    PYTHON = "python"
+    DOTNET = "dotnet"
+    GO = "go"
+    PHP = "php"
 
+class RASPIncidentStatus(str, enum.Enum):
+    OPEN = "open"
+    TRIAGE = "triage"
+    RESOLVED = "resolved"
+    FALSE_POSITIVE = "false_positive"
+    IGNORED = "ignored"
 
-class AttackSeverity(str, Enum):
+class RASPIncidentSeverity(str, enum.Enum):
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
     INFO = "info"
 
+class RASPAction(str, enum.Enum):
+    BLOCKED = "blocked"
+    ALLOWED = "allowed"
+    MONITORED = "monitored"
+    THROTTLED = "throttled"
 
-class VulnerabilityStatus(str, Enum):
-    OPEN = "open"
-    IN_PROGRESS = "in_progress"
-    RESOLVED = "resolved"
-    FALSE_POSITIVE = "false_positive"
-    WONT_FIX = "wont_fix"
+class RASPRuleAction(str, enum.Enum):
+    BLOCK = "block"
+    MONITOR = "monitor"
+    THROTTLE = "throttle"
+    ALERT = "alert"
 
-
-class AlertStatus(str, Enum):
-    NEW = "new"
-    ACKNOWLEDGED = "acknowledged"
-    RESOLVED = "resolved"
-    IGNORED = "ignored"
-
-
-class PatchStatus(str, Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    EXPIRED = "expired"
-
+class RASPApp(Base):
+    __tablename__ = "rasp_apps"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    owner = Column(String(255), nullable=False)
+    repo_url = Column(String(500))
+    tags = Column(JSON)
+    risk_score = Column(Float, default=0.0)
+    framework = Column(String(100))
+    language = Column(Enum(RASPLanguage))
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    agents = relationship("RASPAgent", back_populates="app")
+    incidents = relationship("RASPIncident", back_populates="app")
+    vulnerabilities = relationship("RASPVulnerability", back_populates="app")
+    traces = relationship("RASPTrace", back_populates="app")
+    policies = relationship("RASPPolicy", back_populates="app")
 
 class RASPAgent(Base):
-    """RASP Agent model for monitoring applications"""
     __tablename__ = "rasp_agents"
-
-    agent_id = Column(Integer, primary_key=True, index=True)
-    app_name = Column(String(255), nullable=False, index=True)
-    language = Column(String(50), nullable=False, index=True)
-    version = Column(String(50), nullable=False)
-    last_seen = Column(DateTime, default=func.now(), onupdate=func.now())
-    status = Column(String(50), default=AgentStatus.ACTIVE, index=True)
-    config = Column(JSON, default={})
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
+    
+    id = Column(String(50), primary_key=True, index=True)
+    app_id = Column(String(50), ForeignKey("rasp_apps.id"), nullable=False)
+    host = Column(String(255), nullable=False)
+    pid = Column(Integer)
+    container_id = Column(String(100))
+    language = Column(Enum(RASPLanguage), nullable=False)
+    agent_version = Column(String(50), nullable=False)
+    env = Column(Enum(RASPEnvironment), nullable=False)
+    status = Column(String(50), default="active")
+    last_heartbeat = Column(DateTime(timezone=True))
+    pairing_token = Column(String(255))
+    config = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
     # Relationships
-    attacks = relationship("RASPAttack", back_populates="agent", cascade="all, delete-orphan")
-    vulnerabilities = relationship("RASPVulnerability", back_populates="agent", cascade="all, delete-orphan")
-    virtual_patches = relationship("RASPVirtualPatch", back_populates="agent", cascade="all, delete-orphan")
-    telemetry = relationship("RASPTelemetry", back_populates="agent", cascade="all, delete-orphan")
-    alerts = relationship("RASPAlert", back_populates="agent", cascade="all, delete-orphan")
+    app = relationship("RASPApp", back_populates="agents")
+    events = relationship("RASPEvent", back_populates="agent")
 
-    def __repr__(self):
-        return f"<RASPAgent(agent_id={self.agent_id}, app_name='{self.app_name}', language='{self.language}')>"
-
-    @classmethod
-    async def get_by_id(cls, db: AsyncSession, agent_id: int) -> Optional["RASPAgent"]:
-        result = await db.execute(select(cls).where(cls.agent_id == agent_id))
-        return result.scalar_one_or_none()
-
-    @classmethod
-    async def get_active_agents(cls, db: AsyncSession) -> List["RASPAgent"]:
-        result = await db.execute(select(cls).where(cls.status == AgentStatus.ACTIVE))
-        return result.scalars().all()
-
-
-class RASPAttack(Base):
-    """RASP Attack model for logging detected attacks"""
-    __tablename__ = "rasp_attacks"
-
-    attack_id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("rasp_agents.agent_id"), nullable=False, index=True)
-    timestamp = Column(DateTime, default=func.now(), index=True)
-    source_ip = Column(String(50), index=True)
-    url = Column(Text)
-    payload = Column(Text)
-    vuln_type = Column(String(50), nullable=False, index=True)
-    severity = Column(String(50), nullable=False, index=True)
-    stack_trace = Column(Text)
-    blocked = Column(Boolean, default=False, index=True)
-    context = Column(JSON, default={})
-    request_data = Column(JSON, default={})
-    response_data = Column(JSON, default={})
-    created_at = Column(DateTime, default=func.now())
-
+class RASPIncident(Base):
+    __tablename__ = "rasp_incidents"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    app_id = Column(String(50), ForeignKey("rasp_apps.id"), nullable=False)
+    signature = Column(String(255), nullable=False)
+    severity = Column(Enum(RASPIncidentSeverity), nullable=False)
+    status = Column(Enum(RASPIncidentStatus), default=RASPIncidentStatus.OPEN)
+    first_seen = Column(DateTime(timezone=True), nullable=False)
+    last_seen = Column(DateTime(timezone=True), nullable=False)
+    action_taken = Column(Enum(RASPAction), nullable=False)
+    evidence = Column(JSON)
+    stack_trace = Column(JSON)
+    request_data = Column(JSON)
+    session_id = Column(String(255))
+    user_id = Column(String(255))
+    ip_address = Column(String(45))
+    path = Column(String(500))
+    method = Column(String(10))
+    analyst_id = Column(String(50))
+    tags = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
     # Relationships
-    agent = relationship("RASPAgent", back_populates="attacks")
-    alerts = relationship("RASPAlert", back_populates="attack", cascade="all, delete-orphan")
+    app = relationship("RASPApp", back_populates="incidents")
+    comments = relationship("RASPIncidentComment", back_populates="incident")
+    actions = relationship("RASPIncidentAction", back_populates="incident")
 
-    def __repr__(self):
-        return f"<RASPAttack(attack_id={self.attack_id}, vuln_type='{self.vuln_type}', severity='{self.severity}', blocked={self.blocked})>"
+class RASPIncidentComment(Base):
+    __tablename__ = "rasp_incident_comments"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    incident_id = Column(String(50), ForeignKey("rasp_incidents.id"), nullable=False)
+    analyst_id = Column(String(50), nullable=False)
+    comment = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    incident = relationship("RASPIncident", back_populates="comments")
 
-    @classmethod
-    async def get_by_id(cls, db: AsyncSession, attack_id: int) -> Optional["RASPAttack"]:
-        result = await db.execute(select(cls).where(cls.attack_id == attack_id))
-        return result.scalar_one_or_none()
+class RASPIncidentAction(Base):
+    __tablename__ = "rasp_incident_actions"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    incident_id = Column(String(50), ForeignKey("rasp_incidents.id"), nullable=False)
+    action_type = Column(String(50), nullable=False)  # block_signature, ignore, mark_fp, create_ticket
+    details = Column(JSON)
+    analyst_id = Column(String(50), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    incident = relationship("RASPIncident", back_populates="actions")
 
-    @classmethod
-    async def get_recent_attacks(cls, db: AsyncSession, hours: int = 24) -> List["RASPAttack"]:
-        from datetime import timedelta
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
-        result = await db.execute(select(cls).where(cls.timestamp >= cutoff_time))
-        return result.scalars().all()
-
+class RASPPolicy(Base):
+    __tablename__ = "rasp_policies"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    app_id = Column(String(50), ForeignKey("rasp_apps.id"), nullable=True)  # null for global policies
+    is_global = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    app = relationship("RASPApp", back_populates="policies")
+    rules = relationship("RASPRule", back_populates="policy")
 
 class RASPRule(Base):
-    """RASP Rule model for detection rules"""
     __tablename__ = "rasp_rules"
-
-    rule_id = Column(Integer, primary_key=True, index=True)
-    vuln_type = Column(String(50), nullable=False, index=True)
-    language = Column(String(50), nullable=False, index=True)
-    pattern = Column(Text, nullable=False)
-    severity = Column(String(50), nullable=False)
-    auto_block = Column(Boolean, default=False)
+    
+    id = Column(String(50), primary_key=True, index=True)
+    policy_id = Column(String(50), ForeignKey("rasp_policies.id"), nullable=False)
+    name = Column(String(255), nullable=False)
     description = Column(Text)
-    enabled = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    condition = Column(JSON, nullable=False)  # rule condition logic
+    action = Column(Enum(RASPRuleAction), nullable=False)
+    priority = Column(Integer, default=100)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    policy = relationship("RASPPolicy", back_populates="rules")
 
-    def __repr__(self):
-        return f"<RASPRule(rule_id={self.rule_id}, vuln_type='{self.vuln_type}', language='{self.language}')>"
+class RASPEvent(Base):
+    __tablename__ = "rasp_events"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    agent_id = Column(String(50), ForeignKey("rasp_agents.id"), nullable=False)
+    event_type = Column(String(50), nullable=False)  # attack, trace, heartbeat
+    signature = Column(String(255))
+    timestamp = Column(DateTime(timezone=True), nullable=False)
+    request_data = Column(JSON)
+    stack_trace = Column(JSON)
+    evidence = Column(Text)
+    action_taken = Column(Enum(RASPAction))
+    severity = Column(Enum(RASPIncidentSeverity))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    agent = relationship("RASPAgent", back_populates="events")
 
-    @classmethod
-    async def get_enabled_rules(cls, db: AsyncSession, language: Optional[str] = None) -> List["RASPRule"]:
-        query = select(cls).where(cls.enabled == True)
-        if language:
-            query = query.where(cls.language == language)
-        result = await db.execute(query)
-        return result.scalars().all()
-
+class RASPTrace(Base):
+    __tablename__ = "rasp_traces"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    app_id = Column(String(50), ForeignKey("rasp_apps.id"), nullable=False)
+    trace_id = Column(String(255), nullable=False)
+    session_id = Column(String(255))
+    user_id = Column(String(255))
+    path = Column(String(500))
+    method = Column(String(10))
+    duration_ms = Column(Integer)
+    events = Column(JSON)  # trace events with timestamps
+    annotations = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    app = relationship("RASPApp", back_populates="traces")
 
 class RASPVulnerability(Base):
-    """RASP Vulnerability model for discovered vulnerabilities"""
     __tablename__ = "rasp_vulnerabilities"
-
-    vuln_id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("rasp_agents.agent_id"), nullable=False, index=True)
-    vuln_type = Column(String(50), nullable=False, index=True)
-    severity = Column(String(50), nullable=False, index=True)
-    status = Column(String(50), default=VulnerabilityStatus.OPEN, index=True)
-    description = Column(Text)
-    affected_file = Column(String(255))
-    affected_line = Column(Integer)
-    affected_method = Column(String(255))
-    cwe_id = Column(String(20))
-    owasp_category = Column(String(50))
-    evidence = Column(JSON, default={})
-    remediation = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
+    
+    id = Column(String(50), primary_key=True, index=True)
+    app_id = Column(String(50), ForeignKey("rasp_apps.id"), nullable=False)
+    type = Column(String(100), nullable=False)
+    cwe = Column(String(20))
+    severity = Column(Enum(RASPIncidentSeverity), nullable=False)
+    status = Column(String(50), default="open")
+    evidence = Column(JSON)
+    remediation_guidance = Column(Text)
+    exploitability_score = Column(Float)
+    occurrence_count = Column(Integer, default=1)
+    first_seen = Column(DateTime(timezone=True), nullable=False)
+    last_seen = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
     # Relationships
-    agent = relationship("RASPAgent", back_populates="vulnerabilities")
-    virtual_patches = relationship("RASPVirtualPatch", back_populates="vulnerability", cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f"<RASPVulnerability(vuln_id={self.vuln_id}, vuln_type='{self.vuln_type}', severity='{self.severity}')>"
-
-    @classmethod
-    async def get_by_id(cls, db: AsyncSession, vuln_id: int) -> Optional["RASPVulnerability"]:
-        result = await db.execute(select(cls).where(cls.vuln_id == vuln_id))
-        return result.scalar_one_or_none()
-
-    @classmethod
-    async def get_open_vulnerabilities(cls, db: AsyncSession, agent_id: Optional[int] = None) -> List["RASPVulnerability"]:
-        query = select(cls).where(cls.status == VulnerabilityStatus.OPEN)
-        if agent_id:
-            query = query.where(cls.agent_id == agent_id)
-        result = await db.execute(query)
-        return result.scalars().all()
-
-
-class RASPVirtualPatch(Base):
-    """RASP Virtual Patch model for temporary vulnerability fixes"""
-    __tablename__ = "rasp_virtual_patches"
-
-    patch_id = Column(Integer, primary_key=True, index=True)
-    vuln_id = Column(Integer, ForeignKey("rasp_vulnerabilities.vuln_id"), nullable=False, index=True)
-    agent_id = Column(Integer, ForeignKey("rasp_agents.agent_id"), nullable=False, index=True)
-    patch_type = Column(String(50), nullable=False)
-    patch_config = Column(JSON, nullable=False)
-    status = Column(String(50), default=PatchStatus.ACTIVE, index=True)
-    created_at = Column(DateTime, default=func.now())
-    expires_at = Column(DateTime)
-    created_by = Column(Integer)
-
-    # Relationships
-    vulnerability = relationship("RASPVulnerability", back_populates="virtual_patches")
-    agent = relationship("RASPAgent", back_populates="virtual_patches")
-
-    def __repr__(self):
-        return f"<RASPVirtualPatch(patch_id={self.patch_id}, patch_type='{self.patch_type}', status='{self.status}')>"
-
-
-class RASPTelemetry(Base):
-    """RASP Telemetry model for performance and behavior metrics"""
-    __tablename__ = "rasp_telemetry"
-
-    telemetry_id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("rasp_agents.agent_id"), nullable=False, index=True)
-    timestamp = Column(DateTime, default=func.now(), index=True)
-    metric_name = Column(String(100), nullable=False, index=True)
-    metric_value = Column(Float)
-    metric_data = Column(JSON, default={})
-    created_at = Column(DateTime, default=func.now())
-
-    # Relationships
-    agent = relationship("RASPAgent", back_populates="telemetry")
-
-    def __repr__(self):
-        return f"<RASPTelemetry(telemetry_id={self.telemetry_id}, metric_name='{self.metric_name}', value={self.metric_value})>"
-
-
-class RASPAlert(Base):
-    """RASP Alert model for security alerts and notifications"""
-    __tablename__ = "rasp_alerts"
-
-    alert_id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("rasp_agents.agent_id"), nullable=False, index=True)
-    attack_id = Column(Integer, ForeignKey("rasp_attacks.attack_id"), nullable=True, index=True)
-    alert_type = Column(String(50), nullable=False)
-    severity = Column(String(50), nullable=False, index=True)
-    message = Column(Text, nullable=False)
-    status = Column(String(50), default=AlertStatus.NEW, index=True)
-    acknowledged_by = Column(Integer)
-    acknowledged_at = Column(DateTime)
-    created_at = Column(DateTime, default=func.now())
-
-    # Relationships
-    agent = relationship("RASPAgent", back_populates="alerts")
-    attack = relationship("RASPAttack", back_populates="alerts")
-
-    def __repr__(self):
-        return f"<RASPAlert(alert_id={self.alert_id}, alert_type='{self.alert_type}', severity='{self.severity}')>"
-
-    @classmethod
-    async def get_new_alerts(cls, db: AsyncSession, agent_id: Optional[int] = None) -> List["RASPAlert"]:
-        query = select(cls).where(cls.status == AlertStatus.NEW)
-        if agent_id:
-            query = query.where(cls.agent_id == agent_id)
-        result = await db.execute(query)
-        return result.scalars().all()
-
+    app = relationship("RASPApp", back_populates="vulnerabilities")
 
 class RASPIntegration(Base):
-    """RASP Integration model for SIEM/SOAR integrations"""
     __tablename__ = "rasp_integrations"
-
-    integration_id = Column(Integer, primary_key=True, index=True)
-    integration_type = Column(String(50), nullable=False, index=True)
+    
+    id = Column(String(50), primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    type = Column(String(50), nullable=False)  # siem, ticketing, chatops, webhook
     config = Column(JSON, nullable=False)
-    enabled = Column(Boolean, default=True, index=True)
-    last_sync = Column(DateTime)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    def __repr__(self):
-        return f"<RASPIntegration(integration_id={self.integration_id}, type='{self.integration_type}', name='{self.name}')>"
-
-    @classmethod
-    async def get_enabled_integrations(cls, db: AsyncSession, integration_type: Optional[str] = None) -> List["RASPIntegration"]:
-        query = select(cls).where(cls.enabled == True)
-        if integration_type:
-            query = query.where(cls.integration_type == integration_type)
-        result = await db.execute(query)
-        return result.scalars().all() 
+class RASPMetric(Base):
+    __tablename__ = "rasp_metrics"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    app_id = Column(String(50), ForeignKey("rasp_apps.id"), nullable=True)
+    metric_name = Column(String(100), nullable=False)
+    metric_value = Column(Float, nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False)
+    labels = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    app = relationship("RASPApp") 
